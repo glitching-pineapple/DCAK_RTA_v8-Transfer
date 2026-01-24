@@ -1,0 +1,969 @@
+idx,question,ground_truth,model_answer,is_correct,logit_confidence_mean,logit_confidence_min,logit_confidence_geom,verbalized_confidence,full_response
+677,Carol and Jennifer are sisters from Los Angeles who love collecting signatures from celebrities. Dur...,36,36,True,0.9354001813674275,0.37626099586486816,0.9226546327249183,95.0,"To determine how many more signatures Carol and Jennifer need to collect to reach their goal of 100 signatures, we can follow these steps:
+
+1. Calculate the total number of signatures they currently have.
+   - Carol has 20 signatures.
+   - Jennifer has 44 signatures.
+   - Total current signatures = 20 + 44 = 64 signatures.
+
+2. Determine the number of signatures needed to reach their goal of 100 signatures.
+   - Goal = 100 signatures.
+   - Signatures needed = Goal - Current total signatures = 100 - 64 = 36 signatures.
+
+Therefore, the sisters need to collect 36 more signatures to reach their goal.
+
+The answer is: 36"
+1046,A team of 4 painters worked on a mansion for 3/8ths of a day every day for 3 weeks. How many hours o...,189,189,True,0.9018238922025984,0.3124839961528778,0.8804026128057362,100.0,"To solve this problem, let's break it down step by step:
+
+1. **Determine the total number of days worked:**
+   - There are 7 days in a week.
+   - The team worked for 3 weeks.
+   - Total days = 3 weeks * 7 days/week = 21 days.
+
+2. **Calculate the total fraction of a day worked per day:**
+   - Each painter works \(\frac{3}{8}\) of a day every day.
+
+3. **Convert the fraction of a day to hours:**
+   - Since there are 24 hours in a day, \(\frac{3}{8}\) of a day is:
+     \[
+     \frac{3}{8} \times 24 = \frac{3 \times 24}{8} = \frac{72}{8} = 9 \text{ hours}
+     \]
+   - So, each painter works 9 hours each day.
+
+4. **Calculate the total hours worked by one painter over 3 weeks:**
+   - Each painter works 9 hours per day.
+   - They worked for 21 days.
+   - Total hours for one painter = 9 hours/day * 21 days = 189 hours.
+
+5. **Since we need the hours for each painter and not the team, the answer is already calculated for one painter.**
+
+The answer is: 189"
+610,It costs $194 per meter to repave a street. Monica's street is 150 meters long. How much more does i...,65960,65960,True,0.9627176995547313,0.369326114654541,0.9553136465340831,100.0,"To solve this problem, we need to calculate the cost of repaving both streets and then find the difference in cost between Lewis' street and Monica's street.
+
+Step 1: Calculate the cost to repave Monica's street.
+- The cost per meter is $194.
+- Monica's street is 150 meters long.
+- Cost for Monica's street = $194/meter * 150 meters
+
+Step 2: Calculate the cost to repave Lewis' street.
+- The cost per meter is $194.
+- Lewis' street is 490 meters long.
+- Cost for Lewis' street = $194/meter * 490 meters
+
+Step 3: Find the difference in cost between Lewis' street and Monica's street.
+- Difference in cost = Cost for Lewis' street - Cost for Monica's street
+
+Now let's do the calculations:
+
+Step 1: Cost for Monica's street
+\[ \text{Cost for Monica's street} = 194 \times 150 = 29100 \]
+
+Step 2: Cost for Lewis' street
+\[ \text{Cost for Lewis' street} = 194 \times 490 = 95060 \]
+
+Step 3: Difference in cost
+\[ \text{Difference in cost} = 95060 - 29100 = 65960 \]
+
+The answer is: 65960"
+49,"Richard lives in an apartment building with 15 floors. Each floor contains 8 units, and 3/4 of the b...",30,30,True,0.9563331372492303,0.417711466550827,0.9474389643274798,100.0,"To solve this problem, we need to follow these steps:
+
+1. Calculate the total number of units in the building.
+2. Determine the number of occupied units.
+3. Subtract the number of occupied units from the total number of units to find the number of unoccupied units.
+
+Step 1: Calculate the total number of units in the building.
+- The building has 15 floors.
+- Each floor contains 8 units.
+- Therefore, the total number of units = 15 floors * 8 units/floor = 120 units.
+
+Step 2: Determine the number of occupied units.
+- 3/4 of the building is occupied.
+- Number of occupied units = (3/4) * 120 units = 90 units.
+
+Step 3: Subtract the number of occupied units from the total number of units to find the number of unoccupied units.
+- Total number of unoccupied units = Total number of units - Number of occupied units
+- Total number of unoccupied units = 120 units - 90 units = 30 units.
+
+The answer is: 30"
+1284,An ice cream truck is traveling through a neighborhood. Children from various homes have started cha...,25,25,True,0.9239340488485962,0.30743151903152466,0.9037802250024284,100.0,"Let's break down the problem step by step:
+
+1. **First Street**: There are initially 5 children following the ice cream truck.
+   - Number of children = 5
+
+2. **Second Street**: Each of the 5 children is joined by another child.
+   - Number of new children joining = 5 (one for each of the original 5 children)
+   - Total number of children now = 5 (original) + 5 (new) = 10
+
+3. **Third Street**: Each of the 10 children is joined by another 2 children.
+   - Number of new children joining = 10 * 2 = 20 (since each of the 10 children is joined by 2 more)
+   - Total number of children now = 10 (from the previous step) + 20 (new) = 30
+
+4. **After Third Street**: The original 5 children give up and leave the group.
+   - Number of children leaving = 5
+   - Final number of children = 30 (current total) - 5 (leaving) = 25
+
+The answer is: 25"
+486,James runs 12 miles a day for 5 days a week.  If he runs 10 miles an hour how many hours does he run...,6,6,True,0.9187021498707519,0.35366812348365784,0.9016903766159399,100.0,"To solve this problem, we need to follow these steps:
+
+1. Calculate the total miles James runs in a week.
+2. Determine how many hours he spends running based on his speed.
+
+Step 1: Calculate the total miles James runs in a week.
+James runs 12 miles each day and he runs 5 days a week.
+Total miles per week = 12 miles/day * 5 days/week = 60 miles/week
+
+Step 2: Determine how many hours he spends running.
+James runs at a speed of 10 miles per hour.
+To find out how many hours he runs, we divide the total miles by his speed.
+Hours per week = Total miles per week / Speed
+Hours per week = 60 miles / 10 miles/hour = 6 hours
+
+The answer is: 6"
+548,"Mark was unwell for 3 months, during which he lost 10 pounds per month. If his final weight was 70 p...",100,100,True,0.9478494081333393,0.2730962932109833,0.9352139721362293,100.0,"To find Mark's initial weight, we need to consider the total weight he lost and add that to his final weight.
+
+Step 1: Calculate the total weight lost.
+Mark lost 10 pounds per month for 3 months.
+Total weight lost = 10 pounds/month * 3 months = 30 pounds
+
+Step 2: Add the total weight lost to the final weight to find the initial weight.
+Final weight = 70 pounds
+Initial weight = Final weight + Total weight lost
+Initial weight = 70 pounds + 30 pounds = 100 pounds
+
+The answer is: 100"
+939,Craig and his brother take turns spelling out the longest letter words they know and counting the nu...,650,650,True,0.9432179296468671,0.32091137766838074,0.9305699974970023,100.0,"Let's break down the problem step by step:
+
+1. **Calculate the total number of letters Craig spelled:**
+   - Craig spelled out 20 words.
+   - Each word had 15 letters.
+   - Therefore, the total number of letters Craig spelled is \(20 \times 15 = 300\).
+
+2. **Determine the total number of letters Craig's brother spelled:**
+   - Craig's brother spelled words with a total count of letters that is 50 more than Craig.
+   - So, the total number of letters Craig's brother spelled is \(300 + 50 = 350\).
+
+3. **Calculate the total number of letters both spelled together:**
+   - Craig spelled 300 letters.
+   - Craig's brother spelled 350 letters.
+   - Therefore, the total number of letters they both spelled is \(300 + 350 = 650\).
+
+The answer is: 650"
+78,Vincent can buy flowers in packages of 3 for $2.50 or in packages of 2 for $1. How much money does h...,6,6,True,0.9375606716871262,0.368124783039093,0.9241620253720946,100.0,"To solve this problem, we need to compare the cost of buying 18 flowers in the two different package options and then determine the savings from choosing the cheaper option.
+
+### Step 1: Calculate the cost of buying 18 flowers in packages of 3 for $2.50 each.
+- Number of packages needed = \( \frac{18}{3} = 6 \)
+- Total cost = \( 6 \times 2.50 = 15.00 \)
+
+### Step 2: Calculate the cost of buying 18 flowers in packages of 2 for $1.00 each.
+- Number of packages needed = \( \frac{18}{2} = 9 \)
+- Total cost = \( 9 \times 1.00 = 9.00 \)
+
+### Step 3: Determine the savings by choosing the cheaper option.
+- Cost with packages of 3 = $15.00
+- Cost with packages of 2 = $9.00
+- Savings = \( 15.00 - 9.00 = 6.00 \)
+
+The answer is: 6.00"
+506,Mario needs to buy snowshoes for his 6 sled dogs.  Assuming his dogs each has four legs and each pai...,144,144,True,0.9490548846780831,0.3740978240966797,0.9362892425655611,100.0,"To solve this problem, let's break it down step by step:
+
+1. **Determine the total number of dog legs**: Since Mario has 6 sled dogs and each dog has 4 legs, we can calculate the total number of legs by multiplying the number of dogs by the number of legs per dog.
+   \[
+   6 \text{ dogs} \times 4 \text{ legs/dog} = 24 \text{ legs}
+   \]
+
+2. **Determine the number of pairs of snowshoes needed**: Each pair of snowshoes covers 2 legs. Therefore, we need to divide the total number of legs by 2 to find out how many pairs of snowshoes are required.
+   \[
+   \frac{24 \text{ legs}}{2 \text{ legs/pair}} = 12 \text{ pairs of snowshoes}
+   \]
+
+3. **Calculate the total cost**: Each pair of snowshoes costs $12.00. To find the total cost, we multiply the number of pairs of snowshoes by the cost per pair.
+   \[
+   12 \text{ pairs} \times \$12.00/\text{pair} = \$144.00
+   \]
+
+The answer is: $144.00"
+210,Sara wants to buy herself a new jacket and 2 pairs of shoes. The jacket she wants costs $30 and each...,10,10,True,0.9265296923027908,0.21283140778541565,0.9094021855304129,95.0,"Let's break down the problem step by step:
+
+1. **Calculate the total cost of the items Sara wants to buy:**
+   - Jacket: $30
+   - Shoes (2 pairs): $20 × 2 = $40
+   - Total cost: $30 + $40 = $70
+
+2. **Calculate how much money Sara earns from babysitting:**
+   - She babysits 4 times.
+   - Earnings per babysitting session: $5
+   - Total earnings from babysitting: 4 × $5 = $20
+
+3. **Calculate how much money Sara earns from mowing the lawn:**
+   - Let \( x \) be the number of times she mows the lawn.
+   - Earnings per mowing session: $4
+   - Total earnings from mowing the lawn: \( 4x \)
+
+4. **Calculate the total amount of money Sara has before she starts mowing the lawn:**
+   - Money saved initially: $10
+   - Total money from babysitting: $20
+   - Total initial money: $10 + $20 = $30
+
+5. **Set up the equation for the total money Sara needs to have to afford the items:**
+   - Total money needed: $70
+   - Total money Sara currently has: $30 + $4x
+   - Equation: $30 + $4x = $70
+
+6. **Solve for \( x \):**
+   - Subtract $30 from both sides: $4x = $70 - $30
+   - Simplify: $4x = $40
+   - Divide both sides by $4: \( x = \frac{40}{4} \)
+   - Simplify: \( x = 10 \)
+
+Therefore, Sara must mow the lawn 10 times before she can afford the jacket and shoes.
+
+The answer is: 10"
+184,Jerry is rolling a six-sided die. How much more likely is it (expressed as a percentage) that he rol...,25,25,True,0.939149615342307,0.32625812292099,0.9236248657406156,100.0,"Let's break down the problem into two parts and then compare the probabilities.
+
+### Part 1: Probability of Rolling a Number Greater Than 3
+
+A six-sided die has the numbers 1 through 6. The numbers greater than 3 are 4, 5, and 6. So there are 3 favorable outcomes out of 6 possible outcomes.
+
+The probability \( P_1 \) of rolling a number greater than 3 is:
+\[ P_1 = \frac{3}{6} = \frac{1}{2} = 0.5 \]
+
+Expressing this as a percentage:
+\[ P_1 = 0.5 \times 100\% = 50\% \]
+
+### Part 2: Probability of Rolling Two Even Numbers in a Row
+
+The even numbers on a six-sided die are 2, 4, and 6. So there are 3 favorable outcomes for each roll.
+
+The probability \( P_2 \) of rolling an even number on one roll is:
+\[ P_2 = \frac{3}{6} = \frac{1}{2} = 0.5 \]
+
+Since we want to find the probability of rolling two even numbers in a row, we multiply the probabilities of each individual event:
+\[ P(\text{two even numbers in a row}) = P_2 \times P_2 = 0.5 \times 0.5 = 0.25 \]
+
+Expressing this as a percentage:
+\[ P(\text{two even numbers in a row}) = 0.25 \times 100\% = 25\% \]
+
+### Comparing the Probabilities
+
+Now, we need to find how much more likely it is to roll a number greater than 3 compared to rolling two even numbers in a row.
+
+The difference in probability is:
+\[ 50\% - 25\% = 25\% \]
+
+So, it is 25% more likely to roll a number greater than 3 than to roll two even numbers in a row.
+
+The answer is: 25"
+485,"Jillian's handbag cost $20 less than 3 times as much as her shoes cost. If her shoes cost $80, how m...",220,220,True,0.9545516099248613,0.46607479453086853,0.9454931076214428,95.0,"Step 1: Identify the cost of Jillian's shoes.
+Jillian's shoes cost $80.
+
+Step 2: Calculate 3 times the cost of her shoes.
+3 times the cost of her shoes = 3 × $80 = $240.
+
+Step 3: Subtract $20 from the result to find the cost of her handbag.
+Cost of her handbag = $240 - $20 = $220.
+
+The answer is: 220"
+451,"On a certain day, the total cost of filling up 20 helium balloons was $900. Two days later, the cost...",11050,11050,True,0.9554428230367304,0.3216536045074463,0.9454394087831197,95.0,"Let's break down the problem step by step:
+
+1. **Determine the initial cost per balloon:**
+   - The total cost for 20 balloons was $900.
+   - Therefore, the cost per balloon initially is \( \frac{900}{20} = 45 \) dollars.
+
+2. **Calculate the new cost per balloon after the price increase:**
+   - The cost per balloon increased by $20.
+   - So, the new cost per balloon is \( 45 + 20 = 65 \) dollars.
+
+3. **Calculate the total cost for 170 balloons at the new price:**
+   - If each balloon now costs $65, then for 170 balloons, the total cost is \( 170 \times 65 \).
+
+4. **Perform the multiplication:**
+   - \( 170 \times 65 = 170 \times (60 + 5) = (170 \times 60) + (170 \times 5) \)
+   - \( 170 \times 60 = 10200 \)
+   - \( 170 \times 5 = 850 \)
+   - Adding these together gives \( 10200 + 850 = 11050 \)
+
+Therefore, the amount Bentley paid to fill 170 balloons after the price increase is:
+
+The answer is: 11050"
+1158,The Hortex company produces bottled carrot juices. Every day it can produce 4200 bottles of these ju...,7300,7300,True,0.9331595607125274,0.265924334526062,0.917400398806388,95.0,"To solve this problem, we need to follow these steps:
+
+1. Determine how many bottles of juice are needed to cover 100% of the daily energy needs for one person.
+2. Calculate the total number of bottles needed to cover 100% of the daily energy needs for 2300 people.
+3. Determine how many more bottles Hortex needs to produce to meet the total requirement.
+
+Step 1: Determine how many bottles of juice are needed to cover 100% of the daily energy needs for one person.
+- Each bottle covers 20% of a person's daily energy demand.
+- Therefore, to cover 100%, we need \( \frac{100\%}{20\%} = 5 \) bottles per person.
+
+Step 2: Calculate the total number of bottles needed to cover 100% of the daily energy needs for 2300 people.
+- For 2300 people, the total number of bottles required is \( 2300 \times 5 = 11500 \) bottles.
+
+Step 3: Determine how many more bottles Hortex needs to produce to meet the total requirement.
+- Currently, Hortex produces 4200 bottles per day.
+- To find out how many more bottles are needed, subtract the current production from the total required: \( 11500 - 4200 = 7300 \).
+
+The answer is: 7300"
+886,A singer has 50 microphones that he wants to arrange in pairs on a stage. While making the arrangeme...,20,20,True,0.9301361933009316,0.4197990298271179,0.9166120996353194,95.0,"Step 1: Calculate the number of microphones that won't find any space.
+20% of 50 microphones = 0.20 * 50 = 10 microphones
+
+Step 2: Subtract the number of microphones that won't find any space from the total number of microphones to find out how many can be paired.
+50 - 10 = 40 microphones
+
+Step 3: Divide the number of microphones that can be paired by 2 to find the number of pairs.
+40 / 2 = 20 pairs
+
+The answer is: 20"
+889,Joelle has 5 orchids and 4 African daisies on her balcony.  If the orchids have 5 petals and daisies...,15,15,True,0.9765419283428708,0.558129608631134,0.972616542827882,95.0,"Step 1: Calculate the total number of petals on the orchids.
+- Joelle has 5 orchids.
+- Each orchid has 5 petals.
+- Total petals on orchids = 5 orchids * 5 petals/orchid = 25 petals.
+
+Step 2: Calculate the total number of petals on the African daisies.
+- Joelle has 4 African daisies.
+- Each daisy has 10 petals.
+- Total petals on daisies = 4 daisies * 10 petals/daisy = 40 petals.
+
+Step 3: Find the difference in the number of petals between the daisies and the orchids.
+- Difference = Total petals on daisies - Total petals on orchids
+- Difference = 40 petals - 25 petals = 15 petals.
+
+The answer is: 15"
+1149,Jen got 3 fish.  They each need $1 worth of food a day.  How much does she spend on food in the mont...,93,93,True,0.9210583597053716,0.41018298268318176,0.9051652907267183,100.0,"To solve this problem, let's break it down step by step:
+
+1. **Determine daily food cost for all fish:**
+   - Each fish needs $1 worth of food a day.
+   - Jen has 3 fish.
+   - Therefore, the total daily food cost is \(3 \text{ fish} \times \$1/\text{fish} = \$3\).
+
+2. **Calculate the number of days in May:**
+   - May has 31 days.
+
+3. **Calculate the monthly food cost:**
+   - The total monthly food cost is the daily cost multiplied by the number of days in May.
+   - So, the total monthly food cost is \( \$3 \times 31 = \$93 \).
+
+The answer is: 93"
+1274,A family of parents and a child go to the cinema. The cost of an adult ticket is $12 and a child tic...,38,38,True,0.948895024061203,0.44739070534706116,0.9383791935245146,100.0,"Let's break down the costs step by step:
+
+1. **Cost of Adult Tickets**: There are 2 adults, and each adult ticket costs $12.
+   - Total cost for adult tickets = 2 * $12 = $24
+
+2. **Cost of Child Ticket**: There is 1 child, and each child ticket costs $8.
+   - Total cost for the child ticket = 1 * $8 = $8
+
+3. **Cost of Popcorns**: They buy 2 popcorns, and each popcorn costs $3.
+   - Total cost for popcorns = 2 * $3 = $6
+
+4. **Total Cost**: Now, we add up all these costs to find the total amount paid.
+   - Total cost = Cost of adult tickets + Cost of child ticket + Cost of popcorns
+   - Total cost = $24 + $8 + $6 = $38
+
+The answer is: 38"
+286,"Kelly has 5 quarters and 2 dimes. If she buys a can of pop for 55 cents, how many cents will she hav...",90,90,True,0.9698725906722748,0.4520333409309387,0.9637611150673177,100.0,"Step 1: Calculate the total value of the quarters.
+- Kelly has 5 quarters.
+- Each quarter is worth 25 cents.
+- Total value of quarters = 5 * 25 cents = 125 cents.
+
+Step 2: Calculate the total value of the dimes.
+- Kelly has 2 dimes.
+- Each dime is worth 10 cents.
+- Total value of dimes = 2 * 10 cents = 20 cents.
+
+Step 3: Calculate the total amount of money Kelly has.
+- Total amount = Value of quarters + Value of dimes
+- Total amount = 125 cents + 20 cents = 145 cents.
+
+Step 4: Subtract the cost of the can of pop from the total amount of money Kelly has.
+- Cost of the can of pop = 55 cents.
+- Remaining amount = Total amount - Cost of the can of pop
+- Remaining amount = 145 cents - 55 cents = 90 cents.
+
+The answer is: 90"
+764,Leila buys 3 cucumbers from the market. Cucumbers are $2 each. Jack buys 5 tomatoes from the grocery...,14,14,True,0.9675029630382215,0.37964779138565063,0.9611783952998261,100.0,"Let's break down the costs step by step:
+
+1. **Leila's Purchase:**
+   - Leila buys 3 cucumbers.
+   - Each cucumber costs $2.
+   - Total cost for Leila = \(3 \text{ cucumbers} \times \$2/\text{cucumber} = \$6\).
+
+2. **Jack's Purchase:**
+   - Jack buys 5 tomatoes.
+   - Each tomato costs $1.
+   - Total cost for Jack = \(5 \text{ tomatoes} \times \$1/\text{tomato} = \$5\).
+
+3. **Chase's Purchase:**
+   - Chase buys 1 head of lettuce.
+   - Each head of lettuce costs $3.
+   - Total cost for Chase = \(1 \text{ head of lettuce} \times \$3/\text{head} = \$3\).
+
+4. **Total Cost:**
+   - Add up all the individual costs to find the total amount spent.
+   - Total cost = Cost for Leila + Cost for Jack + Cost for Chase
+   - Total cost = \$6 + \$5 + \$3 = \$14.
+
+The answer is: 14"
+704,"Gerald and Julia divided $100 in the ratio 3:2. If Gerald spent $10 on a book, how much money did he...",50,50,True,0.9405914294796113,0.3642902076244354,0.9292255794018104,95.0,"Step 1: Determine the total parts of the ratio.
+The ratio given is 3:2, which means there are 3 + 2 = 5 parts in total.
+
+Step 2: Calculate the value of each part.
+Since the total amount is $100, each part is worth $100 / 5 = $20.
+
+Step 3: Calculate how much money Gerald received.
+Gerald's share is 3 parts, so he received 3 * $20 = $60.
+
+Step 4: Subtract the amount Gerald spent from his initial amount.
+Gerald spent $10 on a book, so he has $60 - $10 = $50 left.
+
+The answer is: 50"
+1004,"Peter has 4 boxes with the same number of chocolate bars in each, while Martha has 7 boxes with the ...",8,8,True,0.9431495349407196,0.37661606073379517,0.928794841155665,100.0,"Let's denote the number of chocolate bars in each of Peter's boxes as \(P\) and the number of chocolate bars in each of Martha's boxes as \(M\).
+
+From the information given:
+- Peter has 4 boxes with a total of 64 chocolate bars. Therefore, we can write the equation for Peter as:
+\[4P = 64\]
+
+- Martha has 7 boxes with a total of 56 chocolate bars. Therefore, we can write the equation for Martha as:
+\[7M = 56\]
+
+First, let's solve for \(P\) and \(M\):
+
+1. Solve for \(P\):
+\[4P = 64\]
+\[P = \frac{64}{4}\]
+\[P = 16\]
+
+2. Solve for \(M\):
+\[7M = 56\]
+\[M = \frac{56}{7}\]
+\[M = 8\]
+
+Now, to find out how many more chocolate bars Peter has in each box than Martha, we subtract \(M\) from \(P\):
+\[P - M = 16 - 8 = 8\]
+
+The answer is: 8"
+1096,Billy is volunteering his time to help people do their taxes. He can help 2 people per hour for 3 ho...,240,240,True,0.9353281945893259,0.2648400068283081,0.9215165122643499,95.0,"To solve this problem, let's break it down into steps:
+
+1. **Calculate the total number of days from March 1st to April 19th:**
+   - March has 31 days.
+   - From March 1st to March 31st is 31 days.
+   - From April 1st to April 19th is 19 days.
+   - Total = 31 + 19 = 50 days.
+
+2. **Determine how many days Billy takes off:**
+   - Billy takes 20% of the days off.
+   - 20% of 50 days = \(0.20 \times 50 = 10\) days.
+
+3. **Calculate the number of days Billy works:**
+   - Total days - Days off = 50 - 10 = 40 days.
+
+4. **Calculate the number of people Billy helps per day:**
+   - Billy helps 2 people per hour and works for 3 hours a day.
+   - Therefore, he helps \(2 \times 3 = 6\) people per day.
+
+5. **Calculate the total number of people Billy helps over the 40 days:**
+   - Number of people per day \(\times\) Number of working days = \(6 \times 40 = 240\).
+
+The answer is: 240"
+1221,Aiden is making his famous steakhouse-seasoned meatballs for a neighborhood cookout. He adds two tab...,10,10,True,0.9312049554635401,0.34626758098602295,0.9163091689332501,100.0,"To solve this problem, we can break it down into a few steps:
+
+1. **Determine how many pounds of ground beef Aiden needs to make 80 meatballs.**
+2. **Calculate how much of his secret steakhouse seasoning Aiden needs based on the amount of ground beef.**
+
+### Step 1: Determine the amount of ground beef needed
+
+- We know that Aiden gets 16 meatballs from each pound of ground beef.
+- To find out how many pounds of ground beef he needs to make 80 meatballs, we divide the total number of meatballs by the number of meatballs per pound of ground beef:
+  \[
+  \text{Pounds of ground beef} = \frac{80 \text{ meatballs}}{16 \text{ meatballs/pound}} = 5 \text{ pounds}
+  \]
+
+### Step 2: Calculate the amount of secret seasoning needed
+
+- Aiden adds 2 tablespoons of his secret steakhouse seasoning for every pound of ground beef.
+- Since he needs 5 pounds of ground beef, we multiply the number of pounds by the amount of seasoning per pound:
+  \[
+  \text{Secret seasoning} = 5 \text{ pounds} \times 2 \text{ tablespoons/pound} = 10 \text{ tablespoons}
+  \]
+
+### Final Answer
+
+The answer is: 10"
+1089,Nathan has a bouncy ball that bounces to 2/3rds of its starting height with each bounce. If he drops...,32,32,True,0.95221690205658,0.35331249237060547,0.9408955158449669,100.0,"To solve this problem, we need to follow these steps:
+
+1. Determine the initial height from which the ball is dropped.
+2. Calculate the height to which the ball bounces on its first bounce.
+3. Calculate the height to which the ball bounces on its second bounce.
+
+**Step 1: Determine the initial height.**
+
+Nathan drops the ball from the third-floor balcony. Since each story is 24 feet high, the height from which the ball is dropped is:
+\[ 3 \text{ stories} \times 24 \text{ feet/story} = 72 \text{ feet} \]
+
+**Step 2: Calculate the height to which the ball bounces on its first bounce.**
+
+The ball bounces to \(\frac{2}{3}\) of its starting height with each bounce. Therefore, the height after the first bounce is:
+\[ 72 \text{ feet} \times \frac{2}{3} = 48 \text{ feet} \]
+
+**Step 3: Calculate the height to which the ball bounces on its second bounce.**
+
+Again, the ball bounces to \(\frac{2}{3}\) of its previous height. So, the height after the second bounce is:
+\[ 48 \text{ feet} \times \frac{2}{3} = 32 \text{ feet} \]
+
+Therefore, the height to which the ball bounces on its second bounce is 32 feet.
+
+The answer is: 32"
+852,A basket of green food costs $25 and a basket of red food costs $18. If you buy 3 baskets of green f...,123,123,True,0.962280173943593,0.4560881555080414,0.9546000402204688,100.0,"Step 1: Calculate the cost of 3 baskets of green food.
+- Cost of one basket of green food = $25
+- Therefore, the cost of 3 baskets of green food = 3 * $25 = $75
+
+Step 2: Calculate the cost of 3 baskets of red food with the discount.
+- Original cost of one basket of red food = $18
+- Discount per basket of red food = $2
+- Discounted cost of one basket of red food = $18 - $2 = $16
+- Therefore, the cost of 3 baskets of red food with the discount = 3 * $16 = $48
+
+Step 3: Calculate the total cost.
+- Total cost = Cost of green food + Cost of red food with discount
+- Total cost = $75 + $48 = $123
+
+The answer is: 123"
+1237,"Last Friday, 13 of the 82 teachers at Rydell Elementary School were sick. There were 9 substitute te...",78,69,False,0.8775669477232124,0.2770425081253052,0.8473417385415449,100.0,"Step 1: Determine the total number of teachers who were not sick.
+- Total number of teachers = 82
+- Number of teachers who were sick = 13
+
+Step 2: Subtract the number of sick teachers from the total number of teachers to find out how many were at school.
+- Teachers at school = Total number of teachers - Number of teachers who were sick
+- Teachers at school = 82 - 13
+- Teachers at school = 69
+
+Step 3: Add the number of substitute teachers to the number of teachers at school (though this doesn't change the number of teachers actually present, it's part of the information given).
+- Substitute teachers = 9
+- Since the substitute teachers are not part of the count of teachers at school, we do not add them to the 69 teachers already calculated.
+
+The answer is: 69"
+221,A water tank is filled with 120 liters of water. Celine used 90 liters of water from the tank to wat...,90,90,True,0.9268589195167048,0.37949052453041077,0.9119668651448216,100.0,"Let's break down the problem step by step:
+
+1. **Initial amount of water in the tank**: The tank starts with 120 liters of water.
+2. **Water used by Celine**: Celine uses 90 liters of water from the tank.
+   - Water remaining after use = Initial amount - Amount used
+   - Water remaining = 120 liters - 90 liters = 30 liters
+
+3. **Rainwater collected**: Celine collects rainwater which is twice the amount of water left in the tank.
+   - Rainwater collected = 2 × Water remaining
+   - Rainwater collected = 2 × 30 liters = 60 liters
+
+4. **Total water in the tank now**: Add the rainwater collected to the water remaining after Celine's use.
+   - Total water = Water remaining + Rainwater collected
+   - Total water = 30 liters + 60 liters = 90 liters
+
+The answer is: 90"
+420,"To fund his store, Mr. Josue solicited money from two banks. The first bank gave him $4000, and the ...",17000,17000,True,0.9418359271932447,0.2885827124118805,0.9261260210434774,100.0,"Let's break down the problem step by step:
+
+1. **Determine the amount given by the second bank:**
+   - The first bank gave Mr. Josue $4000.
+   - The second bank gave him twice as much as the first bank.
+   - Therefore, the amount given by the second bank is \(2 \times 4000 = 8000\) dollars.
+
+2. **Calculate the total amount received from both banks:**
+   - The total amount from both banks is \(4000 + 8000 = 12000\) dollars.
+
+3. **Add the initial capital to the total amount received from the banks:**
+   - Mr. Josue initially had $5000 in capital.
+   - Adding the total amount received from the banks to his initial capital gives \(5000 + 12000 = 17000\) dollars.
+
+The answer is: 17000"
+1128,"Liam is 16 years old now. Two years ago, Liam’s age was twice the age of Vince. How old is Vince now...",9,9,True,0.9468059082742498,0.4710749685764313,0.9366476727596911,100.0,"Let's break down the problem step by step:
+
+1. **Determine Liam's age two years ago:**
+   - Liam is currently 16 years old.
+   - Two years ago, Liam was \(16 - 2 = 14\) years old.
+
+2. **Set up the relationship between Liam's and Vince's ages two years ago:**
+   - According to the problem, two years ago, Liam’s age was twice the age of Vince.
+   - Let \(V\) be Vince's age two years ago.
+   - Therefore, we can write the equation: \(14 = 2V\).
+
+3. **Solve for Vince's age two years ago:**
+   - To find \(V\), divide both sides of the equation by 2:
+     \[
+     V = \frac{14}{2} = 7
+     \]
+   - So, Vince was 7 years old two years ago.
+
+4. **Calculate Vince's current age:**
+   - Since two years have passed since then, Vince is now \(7 + 2 = 9\) years old.
+
+The answer is: 9"
+584,90 single use contacts come in 1 box and will last Pete 45 days.  Each box is $100.00 and currently ...,2,1,False,0.9051768511300299,0.23584148287773132,0.8792407126962205,95.0,"Let's break down the problem step by step:
+
+1. **Determine the daily usage of contacts:**
+   - Pete uses 90 contacts over 45 days.
+   - Daily usage = \( \frac{90 \text{ contacts}}{45 \text{ days}} = 2 \text{ contacts/day} \).
+
+2. **Calculate the total number of contacts needed for Pete:**
+   - Since we don't have a specific duration mentioned for the new purchase, we assume Pete needs enough contacts to last him another 45 days (same as before).
+   - Total contacts needed = \( 2 \text{ contacts/day} \times 45 \text{ days} = 90 \text{ contacts} \).
+
+3. **Determine the cost per box with the discount:**
+   - Original price of one box = $100.00.
+   - Discount = 10% of $100.00 = \( 0.10 \times 100 = 10 \) dollars.
+   - Price after discount = \( 100 - 10 = 90 \) dollars.
+
+4. **Calculate the cost for 2 boxes:**
+   - Cost for 2 boxes = \( 2 \times 90 = 180 \) dollars.
+
+5. **Determine the cost per pair of contacts:**
+   - Each box contains 90 contacts.
+   - Total contacts in 2 boxes = \( 2 \times 90 = 180 \) contacts.
+   - Cost per contact = \( \frac{180 \text{ dollars}}{180 \text{ contacts}} = 1 \) dollar per contact.
+
+6. **Final Answer:**
+   The answer is: 1"
+888,Lani baked 55 cookies. She ate 5 five cookies and placed the rest equally into five jars. How many c...,10,10,True,0.939137927198832,0.40447336435317993,0.9257388099494505,100.0,"Step 1: Determine how many cookies Lani has left after eating some.
+Lani started with 55 cookies and ate 5 of them.
+\[ 55 - 5 = 50 \]
+So, Lani has 50 cookies left.
+
+Step 2: Divide the remaining cookies equally among the five jars.
+To find out how many cookies go into each jar, we divide the 50 cookies by 5.
+\[ 50 \div 5 = 10 \]
+
+The answer is: 10"
+453,Jenna starts out with 8 sapphires. She trades 3 sapphires for two rubies. If sapphires are worth $80...,6400,6400,True,0.9503230931412461,0.24767401814460754,0.9371388102847057,100.0,"Let's break down the problem step by step:
+
+1. **Initial Number of Sapphires**: Jenna starts with 8 sapphires.
+2. **Trade**: Jenna trades 3 sapphires for 2 rubies.
+   - After the trade, she has \(8 - 3 = 5\) sapphires left.
+   - She gains 2 rubies.
+3. **Value of Remaining Sapphires**: Each sapphire is worth $800.
+   - The value of 5 sapphires is \(5 \times 800 = 4000\) dollars.
+4. **Value of Rubies**: Each ruby is worth $1200.
+   - The value of 2 rubies is \(2 \times 1200 = 2400\) dollars.
+5. **Total Value**: Add the value of the remaining sapphires and the rubies.
+   - Total value = \(4000 + 2400 = 6400\) dollars.
+
+The answer is: 6400"
+76,"Cecilia just bought a new puppy. According to her veterinarian, she has to feed the puppy 1 cup of d...",5,5,True,0.9431129249709623,0.3537524342536926,0.9313941640472436,95.0,"To solve this problem, let's break it down into steps:
+
+1. **Determine the amount of dog food needed for the first 180 days:**
+   - Cecilia needs to feed the puppy 1 cup of dog food per day.
+   - For 180 days, the total amount of dog food needed is \(1 \text{ cup/day} \times 180 \text{ days} = 180 \text{ cups}\).
+
+2. **Determine the amount of dog food needed for the remaining days of the first year:**
+   - There are 365 days in a year.
+   - After the first 180 days, there are \(365 - 180 = 185\) days left in the first year.
+   - For these 185 days, the puppy will need 2 cups of dog food per day.
+   - The total amount of dog food needed for these 185 days is \(2 \text{ cups/day} \times 185 \text{ days} = 370 \text{ cups}\).
+
+3. **Calculate the total amount of dog food needed for the first year:**
+   - Add the amounts from the first 180 days and the remaining 185 days.
+   - Total dog food needed = \(180 \text{ cups} + 370 \text{ cups} = 550 \text{ cups}\).
+
+4. **Determine how many bags of dog food are needed:**
+   - Each bag contains 110 cups of dog food.
+   - To find out how many bags are needed, divide the total amount of dog food by the amount per bag.
+   - Number of bags needed = \(\frac{550 \text{ cups}}{110 \text{ cups/bag}} = 5 \text{ bags}\).
+
+Therefore, the number of bags of dog food Cecilia will use in the first year is:
+
+The answer is: 5"
+261,"There are 9,300 pennies in a cup. What is the total dollar amount in a stack that contains two third...",62,62,True,0.9521238865221248,0.5017101168632507,0.9443972204316468,100.0,"To solve this problem, we need to follow these steps:
+
+1. Determine how many pennies are in two-thirds of the cup.
+2. Convert the number of pennies into dollars.
+
+Step 1: Calculate two-thirds of the pennies in the cup.
+- The total number of pennies in the cup is 9,300.
+- Two-thirds of 9,300 can be calculated as follows:
+  \[
+  \frac{2}{3} \times 9300 = \frac{2 \times 9300}{3}
+  \]
+  Simplify the multiplication and division:
+  \[
+  \frac{18600}{3} = 6200
+  \]
+
+So, there are 6,200 pennies in two-thirds of the cup.
+
+Step 2: Convert the number of pennies into dollars.
+- Since 100 pennies equal 1 dollar, we divide the number of pennies by 100:
+  \[
+  \frac{6200}{100} = 62
+  \]
+
+Therefore, the total dollar amount in a stack that contains two-thirds of the pennies in the cup is 62 dollars.
+
+The answer is: 62"
+101,"Solo has to read 4 pages from his Science textbook, 20 pages from his Social Studies textbook, 7 pag...",6,6,True,0.9486892508788848,0.4470776915550232,0.9398236264762682,100.0,"Let's break down the problem step by step:
+
+1. **Calculate the total number of pages Solo needs to read:**
+   - Science: 4 pages
+   - Social Studies: 20 pages
+   - History: 7 pages
+   - Geography: 8 pages
+
+   Total pages = 4 + 20 + 7 + 8 = 39 pages
+
+2. **Determine how many pages Solo still needs to read:**
+   - Pages read on Monday: 15 pages
+   - Pages remaining = Total pages - Pages read on Monday
+   - Pages remaining = 39 - 15 = 24 pages
+
+3. **Calculate the average number of pages Solo needs to read per day for the next 4 days:**
+   - Number of days left: 4 days
+   - Average pages per day = Pages remaining / Number of days left
+   - Average pages per day = 24 / 4 = 6 pages
+
+The answer is: 6"
+1115,"Anna is trying to buy books for her local library. She had a budget of $16, and she has already spen...",5,5,True,0.9164879608919276,0.3567875325679779,0.8984427609602759,100.0,"Let's break down the problem step by step:
+
+1. **Determine the total amount spent so far:**
+   - Anna started with a budget of $16.
+   - She has $2 left after her purchases.
+   - Therefore, the total amount spent is \(16 - 2 = 14\) dollars.
+
+2. **Calculate the amount spent on the two books:**
+   - Anna had already spent $4 before buying the two books.
+   - So, the amount spent on the two books is \(14 - 4 = 10\) dollars.
+
+3. **Find the cost of each book:**
+   - Since she bought 2 books and they cost the same amount, we divide the total amount spent on the books by 2.
+   - The cost of each book is \(10 \div 2 = 5\) dollars.
+
+The answer is: 5"
+493,Heather's razors come 4 to a pack and cost $4.00 a pack.  They are currently on sale for buy one get...,25,50,False,0.9236553969608011,0.35069701075553894,0.9078835192140934,100.0,"Let's break down the problem step by step:
+
+1. **Determine the cost per pack before any discounts:**
+   - Each pack costs $4.00.
+
+2. **Apply the ""buy one get one free"" sale:**
+   - If Heather buys 2 packs, she gets the second pack free.
+   - Therefore, she only pays for 1 pack out of the 2 packs she is buying.
+
+3. **Calculate the total cost for 2 packs with the sale:**
+   - Since she only pays for 1 pack, the cost is $4.00 (for the first pack) + $0.00 (for the second pack) = $4.00.
+
+4. **Apply the $2.00 coupon:**
+   - Subtract the $2.00 coupon from the total cost of $4.00.
+   - $4.00 - $2.00 = $2.00.
+
+5. **Determine the cost per razor:**
+   - Each pack contains 4 razors.
+   - The total cost after all discounts is $2.00.
+   - Therefore, the cost per razor is $2.00 ÷ 4 = $0.50.
+
+6. **Convert the cost per razor to cents:**
+   - $0.50 is equivalent to 50 cents.
+
+The answer is: 50"
+554,When the water is cold Ray swims a mile in 16 minutes. When the water is warm Ray swims a mile in 2 ...,54,54,True,0.9472202849776848,0.4078196883201599,0.935334172587707,100.0,"Let's break down the problem step by step:
+
+1. **Determine the time it takes Ray to swim a mile in warm water:**
+   - In cold water, Ray swims a mile in 16 minutes.
+   - In warm water, Ray swims a mile in 2 minutes more than twice the time it takes in cold water.
+   - Twice the time in cold water: \(2 \times 16 = 32\) minutes.
+   - Adding 2 minutes: \(32 + 2 = 34\) minutes per mile in warm water.
+
+2. **Calculate the total time for 3 miles in cold water:**
+   - Time for 1 mile in cold water: 16 minutes.
+   - For 3 miles: \(3 \times 16 = 48\) minutes.
+
+3. **Calculate the total time for 3 miles in warm water:**
+   - Time for 1 mile in warm water: 34 minutes.
+   - For 3 miles: \(3 \times 34 = 102\) minutes.
+
+4. **Find the difference in time between swimming 3 miles on a hot day and a cold day:**
+   - Time difference: \(102 - 48 = 54\) minutes.
+
+The answer is: 54"
+1052,"Romeo boards a train with 120 people. At the first stop, 20 more people board the train. At the seco...",110,110,True,0.9659981334829606,0.43064936995506287,0.9590818061276194,100.0,"Let's break down the problem step by step:
+
+1. **Initial number of people on the train**: 120
+
+2. **First stop**:
+   - People boarding: 20
+   - Total after first stop: \(120 + 20 = 140\)
+
+3. **Second stop**:
+   - People descending: 50
+   - People boarding: \(2 \times 50 = 100\)
+   - Total after second stop: \(140 - 50 + 100 = 190\)
+
+4. **Third stop**:
+   - People descending: 80
+   - Total after third stop: \(190 - 80 = 110\)
+
+The answer is: 110"
+1171,Tom has 4 bedrooms in his house.  They measure 20 by 12 feet each.  The living room is 5 times bigge...,3160,3160,True,0.9615232065728266,0.453181654214859,0.9544648914689822,100.0,"Let's break down the problem step by step:
+
+1. **Calculate the area of one bedroom:**
+   - Each bedroom measures 20 feet by 12 feet.
+   - Area of one bedroom = \(20 \text{ ft} \times 12 \text{ ft} = 240 \text{ square feet}\).
+
+2. **Calculate the total area of all four bedrooms:**
+   - There are 4 bedrooms.
+   - Total area of bedrooms = \(4 \times 240 \text{ square feet} = 960 \text{ square feet}\).
+
+3. **Calculate the area of the living room:**
+   - The living room is 5 times bigger than one bedroom.
+   - Area of the living room = \(5 \times 240 \text{ square feet} = 1200 \text{ square feet}\).
+
+4. **Add the areas together to find the total area of the house:**
+   - Total area of the house = Area of bedrooms + Area of living room + Rest of the house.
+   - Total area of the house = \(960 \text{ square feet} + 1200 \text{ square feet} + 1000 \text{ square feet} = 3160 \text{ square feet}\).
+
+The answer is: 3160"
+666,"Rayna has 60 more dollars than Kassidy, and Kassidy has 3/4 times as much money as Aurelia. If Areli...",120,120,True,0.9579886233882059,0.3540385067462921,0.950196406842983,100.0,"Let's break down the problem step by step:
+
+1. **Determine how much money Kassidy has:**
+   - We know that Kassidy has \(\frac{3}{4}\) times as much money as Aurelia.
+   - Aurelia has $120.
+   - Therefore, Kassidy has \(\frac{3}{4} \times 120 = 90\) dollars.
+
+2. **Determine how much money Rayna has:**
+   - Rayna has 60 more dollars than Kassidy.
+   - Kassidy has $90.
+   - Therefore, Rayna has \(90 + 60 = 150\) dollars.
+
+3. **Calculate the total amount of money they have together:**
+   - Rayna has $150.
+   - Kassidy has $90.
+   - Aurelia has $120.
+   - The total amount of money is \(150 + 90 + 120 = 360\) dollars.
+
+4. **Determine how much each person would have if they shared the money equally:**
+   - There are 3 people (Rayna, Kassidy, and Aurelia).
+   - To find out how much each person would get, we divide the total amount by 3.
+   - So, each person would get \(\frac{360}{3} = 120\) dollars.
+
+The answer is: 120"
+247,Isabelle bought party supplies for her little sister’s birthday party. She spent $12 on ingredients ...,32,32,True,0.9432427571996194,0.284359872341156,0.9299193164417993,100.0,"To solve this problem, we need to follow these steps:
+
+1. Calculate the total amount Isabelle spent on all the items.
+2. Divide the total amount by 3 to find out how much each person paid.
+
+Step 1: Calculate the total amount spent.
+- Cake ingredients: $12
+- Birthday presents: $43
+- Decorations: $15
+- Invitations: $4
+- Goodie bags: $22
+
+Total amount = $12 + $43 + $15 + $4 + $22
+
+Let's add these amounts together:
+$12 + $43 = $55
+$55 + $15 = $70
+$70 + $4 = $74
+$74 + $22 = $96
+
+So, the total amount spent is $96.
+
+Step 2: Divide the total amount by 3.
+Total amount / 3 = $96 / 3 = $32
+
+Therefore, each person paid $32.
+
+The answer is: 32"
+44,"Charlie wants to sell beeswax candles.  For every pound of beeswax, he can make 10 tapered candles. ...",20,20,True,0.9558071851209023,0.32621386647224426,0.9460658195116449,100.0,"Let's break down the problem step by step:
+
+1. **Determine how much beeswax is needed to make 20 candles:**
+   - Since 1 pound of beeswax makes 10 candles, we need:
+     \[
+     \frac{20 \text{ candles}}{10 \text{ candles per pound}} = 2 \text{ pounds of beeswax}
+     \]
+
+2. **Calculate the cost of the beeswax and wicks:**
+   - The cost for 1 pound of beeswax and the wicks is $10.00.
+   - Therefore, for 2 pounds, the cost is:
+     \[
+     2 \text{ pounds} \times \$10.00 \text{ per pound} = \$20.00
+     \]
+
+3. **Calculate the total revenue from selling 20 candles:**
+   - Each candle is sold for $2.00.
+   - Therefore, the total revenue is:
+     \[
+     20 \text{ candles} \times \$2.00 \text{ per candle} = \$40.00
+     \]
+
+4. **Calculate the net profit:**
+   - Net profit is calculated by subtracting the total cost from the total revenue.
+   - Total cost is $20.00 and total revenue is $40.00.
+   - Therefore, the net profit is:
+     \[
+     \$40.00 - \$20.00 = \$20.00
+     \]
+
+The answer is: 20"
+497,"Paul is driving a car twice a day: in the morning, and in the afternoon. He did that for 14 days. Ea...",112,112,True,0.9259818331982063,0.40270867943763733,0.9115806055585144,100.0,"To solve this problem, we need to calculate the total cost of Paul's morning and afternoon rides over 14 days.
+
+Step 1: Calculate the daily cost.
+- Morning ride cost: $6
+- Afternoon ride cost: $2
+- Total daily cost = $6 (morning) + $2 (afternoon) = $8
+
+Step 2: Calculate the total cost over 14 days.
+- Total cost = Daily cost × Number of days
+- Total cost = $8 × 14 = $112
+
+The answer is: 112"
+63,Aleena subscribed to a streaming service that charges her $140 per month. If the streaming company c...,1596,1596,True,0.941587672971102,0.35475286841392517,0.9287674389173057,100.0,"Let's break down the problem step by step:
+
+1. **Determine the monthly charge for the first half of the year:**
+   - The monthly charge is $140.
+   - There are 6 months in the first half of the year.
+   - Total charge for the first half of the year = $140 * 6 = $840.
+
+2. **Calculate the reduced monthly charge for the second half of the year:**
+   - The charge is reduced by 10% for the second half of the year.
+   - 10% of $140 = 0.10 * $140 = $14.
+   - Reduced monthly charge = $140 - $14 = $126.
+   - There are 6 months in the second half of the year.
+   - Total charge for the second half of the year = $126 * 6 = $756.
+
+3. **Calculate the total amount paid for the entire year:**
+   - Total amount for the first half + Total amount for the second half = $840 + $756 = $1596.
+
+The answer is: 1596"
+1036,There are forty apples in one box. Uncle Franky ordered two boxes of apples. He is planning to pack ...,10,10,True,0.9529347449148956,0.36821606755256653,0.9431050536659368,100.0,"Step 1: Calculate the total number of apples Uncle Franky has.
+- Uncle Franky ordered two boxes of apples.
+- Each box contains forty apples.
+- Therefore, the total number of apples = 2 boxes * 40 apples/box = 80 apples.
+
+Step 2: Determine how many packs of apples can be made.
+- Uncle Franky plans to pack the apples with eight apples in one pack.
+- To find out how many packs he can make, divide the total number of apples by the number of apples per pack.
+- Number of packs = Total number of apples / Number of apples per pack = 80 apples / 8 apples/pack = 10 packs.
+
+The answer is: 10"
+51,Tom's ship can travel at 10 miles per hour.  He is sailing from 1 to 4 PM.  He then travels back at ...,5,5,True,0.9170148743901934,0.41322579979896545,0.902406118129861,95.0,"To solve this problem, we need to determine the distance Tom travels and then use that distance to find out how long it takes him to travel back at 6 mph.
+
+Step 1: Calculate the distance traveled from 1 to 4 PM.
+- Tom's ship travels at 10 miles per hour.
+- He sails for 3 hours (from 1 to 4 PM).
+- Distance = Speed × Time
+- Distance = 10 mph × 3 hours = 30 miles
+
+Step 2: Calculate the time it takes to travel back at 6 mph.
+- The distance back is the same, 30 miles.
+- Speed on the return trip = 6 mph.
+- Time = Distance / Speed
+- Time = 30 miles / 6 mph = 5 hours
+
+The answer is: 5 hours"
+422,Bill is signing up for a new streaming service. He got a special introductory deal where the first 6...,284,396,False,0.9233395122857981,0.377615749835968,0.9084970605671416,100.0,"Let's break down the costs step by step:
+
+1. **First 6 months at $8 per month:**
+   - Cost = 6 months * $8/month = $48
+
+2. **Next 8 months at $12 per month:**
+   - Cost = 8 months * $12/month = $96
+
+3. **Remaining time (2 years total - 6 months - 8 months = 18 months) at $14 per month:**
+   - Cost = 18 months * $14/month = $252
+
+Now, let's add all these costs together to find the total cost for 2 years:
+
+- Total cost = $48 + $96 + $252 = $396
+
+The answer is: 396"
