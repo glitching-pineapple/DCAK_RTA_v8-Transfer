@@ -1,13 +1,14 @@
 # config.py - Model and experiment configuration
 
+# ============== Model Configuration ==============
 # Choose model family: "qwen", "llama", or "gemma"
 MODEL_FAMILY = "llama"
 
 # Choose variant: "instruct" or "base"
 MODEL_VARIANT = "instruct"
 
-# Dataset: "gsm8k", "mmlupro", or "strategyqa"
-DATASET = "mmlupro"
+# Dataset: "gsm8k", "mmlupro", "strategyqa", "medqa", "triviaqa"
+DATASET = "gsm8k"
 
 # Model name mappings
 MODEL_NAMES = {
@@ -25,10 +26,35 @@ MODEL_NAMES = {
     }
 }
 
-N_SAMPLES = 50
-RANDOM_SEED = 42
-MAX_NEW_TOKENS = 512
+# ============== Experiment Parameters ==============
+N_SAMPLES = 150         # Number of evaluation samples
+RANDOM_SEED = 42        # Random seed for reproducibility
+MAX_NEW_TOKENS = 512    # Max tokens for main generation
 
+# ============== Semantic Entropy Parameters ==============
+# Based on Kuhn et al. (2023) "Semantic Uncertainty" paper
+
+# Number of samples to draw for semantic entropy calculation
+# Paper recommends 5-10 samples; more samples = better estimate but slower
+SE_NUM_SAMPLES = 10
+
+# Temperature for sampling answers (for semantic entropy)
+# Paper found 0.5 to be optimal, balancing diversity and accuracy
+SE_TEMPERATURE = 0.5
+
+# Whether to use length normalization for log-probs
+# Paper suggests this helps for datasets with variable-length answers
+SE_LENGTH_NORMALIZE = True
+
+# NLI model for bidirectional entailment clustering
+# Default is DeBERTa-large fine-tuned on MNLI (as used in paper)
+NLI_MODEL = "microsoft/deberta-large-mnli"
+
+# Whether to compute semantic entropy (slower but more informative)
+COMPUTE_SEMANTIC_ENTROPY = True
+
+
+# ============== Helper Functions ==============
 
 def get_model_name():
     """Get the full model name based on family and variant."""
@@ -43,3 +69,20 @@ def get_model_label():
         "gemma": "Gemma2-9B"
     }
     return f"{labels[MODEL_FAMILY]}-{MODEL_VARIANT}"
+
+
+def print_config():
+    """Print current configuration."""
+    print("=" * 50)
+    print("CONFIGURATION")
+    print("=" * 50)
+    print(f"Model: {get_model_name()}")
+    print(f"Dataset: {DATASET}")
+    print(f"Samples: {N_SAMPLES}")
+    print(f"Random Seed: {RANDOM_SEED}")
+    print(f"\nSemantic Entropy Settings:")
+    print(f"  - Num samples: {SE_NUM_SAMPLES}")
+    print(f"  - Temperature: {SE_TEMPERATURE}")
+    print(f"  - NLI Model: {NLI_MODEL}")
+    print(f"  - Enabled: {COMPUTE_SEMANTIC_ENTROPY}")
+    print("=" * 50)
