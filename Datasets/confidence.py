@@ -79,17 +79,34 @@ def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float
     """
     Extract verbalized confidence from the model's response.
     
-    Returns confidence as decimal 0-1.
-    Handles optional markdown bold (**Confidence:**).
+    Returns confidence as integer 1-10.
+    Handles:
+    - Standard integer: "Confidence: 7"
+    - With /10: "Confidence: 8/10"
+    - Markdown bold: "**Confidence:** 9"
+    - Approximate language: "Confidence: about 6"
+    - Space around colon: "Confidence : 8"
+    - Legacy decimal format: "Confidence: 0.85" → auto-converted to 1-10
+    - Legacy percentage: "Confidence: 85%" → auto-converted to 1-10
     """
-    # Handle optional markdown bold ** around "Confidence" and after ":"
-    # Matches: Confidence: 0.85, **Confidence:** 0.72, Confidence:** 0.91
-    pattern = r'\*{0,2}[Cc]onfidence\*{0,2}:\*{0,2}\s*(1\.?\d*|0?\.\d+|0)'
+    # Strip markdown bold for easier matching
+    cleaned = response.replace('*', '')
     
-    match = re.search(pattern, response)
+    # Primary pattern: "Confidence" followed by optional filler then a number
+    # Handles: "Confidence: 8", "Confidence: 7/10", "Confidence: about 9"
+    pattern = r'[Cc]onfidence\s*:\s*(?:approximately|about|around|~|roughly)?\s*(\d+(?:\.\d+)?)\s*(?:/10|%)?'
+    
+    match = re.search(pattern, cleaned)
     if match:
         conf = float(match.group(1))
-        return min(1.0, max(0.0, conf))
+        # Normalize legacy formats to 1-10 scale
+        if conf > 10:
+            # Percentage (e.g., 85%) → scale to 1-10
+            conf = conf / 10.0
+        elif conf <= 1.0 and '.' in match.group(1):
+            # Decimal 0-1 (e.g., 0.85) → scale to 1-10
+            conf = conf * 10.0
+        return min(10.0, max(1.0, round(conf)))
     
     return None
 
@@ -121,31 +138,68 @@ def create_prompt(tokenizer, question: str, choices: list = None) -> str:
     The prompt structure asks the model to:
     1. Think through the problem step by step
     2. Provide a final answer (JUST the value, no sentence)
-    3. Rate confidence as precise decimal 0-1
+    3. Rate confidence as a decimal from 1-10 (Ex. 7.2)
     4. State if answer is more likely correct than not
     """
     from config import MODEL_VARIANT, DATASET
+
+#for confidence #commented out to test rubric based verbalized conf. evaluation
+
     
+#     if DATASET == "gsm8k":
+#         base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
+
+# Question: {question}
+
+# Instructions:
+# 1. Show your reasoning step by step
+# 2. State ONLY the final numerical answer after "Answer:" (just the number, no words)
+# 3. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
+# 4. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
+
+# Example format:
+# Answer: 42
+# Confidence: 8
+# Correct: Yes
+
+# Solution:
+# Let me work through this step by step.
+# """
+
     if DATASET == "gsm8k":
         base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
 
-Question: {question}
+Question: {question} First, explicitly reason through the question step by step to arrive at an answer. Then, thoroughly assess your confidence in that answer by evaluating your thinking process so far. Finally, classify your confidence into one of the following classes based on how likely your answer is to be correct: 
 
-Instructions:
-1. Show your reasoning step by step
-2. State ONLY the final numerical answer after "Answer:" (just the number, no words)
-3. Rate your confidence as a precise decimal from 0 to 1 (e.g., 0.72, 0.38, 0.91) after "Confidence:"
-4. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
+- "Almost no chance" (0.0–0.1) 
+- "Highly unlikely" (0.1–0.2) 
+- "Chances are slight" (0.2–0.3) 
+- "Unlikely" (0.3–0.4) 
+- "Less than even" (0.4–0.5) 
+- "Better than even" (0.5–0.6) 
+- "Likely" (0.6–0.7) 
+- "Very good chance" (0.7–0.8) 
+- "Highly likely" (0.8–0.9) 
+- "Almost certain" (0.9–1.0)
+
+Each category reflects the probability that your answer is correct. 
 
 Example format:
 Answer: 42
-Confidence: 0.83
+Confidence: 8
 Correct: Yes
 
 Solution:
 Let me work through this step by step.
+
 """
 
+
+
+
+
+
+    
     elif DATASET == "mmlupro":
         choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
         base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer and confidence.
@@ -158,12 +212,12 @@ Instructions:
 1. Analyze each option carefully
 2. Explain your reasoning step by step
 3. State ONLY the answer letter after "Answer:" (just the letter, e.g., A)
-4. Rate your confidence as a precise decimal from 0 to 1 (e.g., 0.72, 0.38, 0.91) after "Confidence:"
+4. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
 5. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
 
 Example format:
 Answer: B
-Confidence: 0.76
+Confidence: 7
 Correct: Yes
 
 Solution:
@@ -179,12 +233,12 @@ Instructions:
 1. Consider relevant facts and reasoning
 2. Explain your thinking step by step
 3. State ONLY your answer after "Answer:" (just Yes or No)
-4. Rate your confidence as a precise decimal from 0 to 1 (e.g., 0.72, 0.38, 0.91) after "Confidence:"
+4. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
 5. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
 
 Example format:
 Answer: Yes
-Confidence: 0.64
+Confidence: 6
 Correct: Yes
 
 Solution:
@@ -204,12 +258,12 @@ Instructions:
 2. Consider the pathophysiology involved
 3. Evaluate each answer choice against the clinical presentation
 4. State ONLY the answer letter after "Answer:" (just the letter, e.g., A)
-5. Rate your confidence as a precise decimal from 0 to 1 (e.g., 0.72, 0.38, 0.91) after "Confidence:"
+5. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
 6. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
 
 Example format:
 Answer: C
-Confidence: 0.67
+Confidence: 7
 Correct: Yes
 
 Solution:
@@ -225,12 +279,12 @@ Instructions:
 1. Consider what you know about this topic
 2. Think through related facts that might help
 3. State ONLY your answer after "Answer:" (just the answer, no extra words)
-4. Rate your confidence as a precise decimal from 0 to 1 (e.g., 0.72, 0.38, 0.91) after "Confidence:"
+4. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
 5. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
 
 Example format:
 Answer: Paris
-Confidence: 0.84
+Confidence: 8
 Correct: Yes
 
 Solution:
@@ -244,7 +298,7 @@ Question: {question}
 
 Provide your reasoning, then:
 Answer: [your answer, just the value]
-Confidence: [decimal 0-1, e.g., 0.72]
+Confidence: [integer 1-10, where 1 = very uncertain, 10 = very certain]
 Correct: [Yes/No]
 
 Solution:
@@ -265,13 +319,15 @@ def create_simple_prompt(tokenizer, question: str, choices: list = None) -> str:
     Asks for JUST the answer to make extraction reliable.
     """
     from config import MODEL_VARIANT, DATASET
-    
+
+#just for the answer
     if DATASET == "gsm8k":
         base_prompt = f"""Solve step by step, then give your final numerical answer.
 
 Question: {question}
 
-Think step by step, then write your final answer as JUST a number after "Answer:".
+Think step by step. You MUST end your response with your final answer on its own line in exactly this format:
+Answer: [number]
 Solution:"""
 
     elif DATASET == "mmlupro":
@@ -329,7 +385,7 @@ def get_verbalized_confidence_separate(
     Ask the model separately how confident it is in its answer.
     This is a fallback if confidence isn't in the main response.
     
-    Returns confidence as decimal 0-1.
+    Returns confidence as integer 1-10.
     """
     confidence_prompt = f"""You solved the following problem:
 
@@ -338,7 +394,7 @@ Question: {question}
 Your answer: {answer}
 
 How confident are you that your answer is correct?
-Respond with ONLY a precise decimal number between 0 and 1 (e.g., 0.72, 0.38, 0.91), nothing else."""
+Respond with ONLY a single integer from 1 to 10 (where 1 = very uncertain, 10 = very certain), nothing else."""
     
     if MODEL_VARIANT == "instruct":
         messages = [{"role": "user", "content": confidence_prompt}]
@@ -363,8 +419,13 @@ Respond with ONLY a precise decimal number between 0 and 1 (e.g., 0.72, 0.38, 0.
         skip_special_tokens=True
     ).strip()
     
-    match = re.search(r'(1\.?\d*|0?\.\d+|0)', response)
+    match = re.search(r'(\d+(?:\.\d+)?)', response)
     if match:
         conf = float(match.group(1))
-        return min(1.0, max(0.0, conf))
+        # Normalize legacy formats
+        if conf <= 1.0 and '.' in match.group(1):
+            conf = conf * 10.0
+        elif conf > 10:
+            conf = conf / 10.0
+        return min(10.0, max(1.0, round(conf)))
     return None
