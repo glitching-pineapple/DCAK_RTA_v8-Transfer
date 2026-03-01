@@ -1,0 +1,781 @@
+idx,question,ground_truth,model_answer,is_correct,logit_confidence_mean,logit_confidence_min,logit_confidence_geom,verbalized_confidence,full_response,steps,step_rewards,min_step_reward,mean_step_reward
+677,Carol and Jennifer are sisters from Los Angeles who love collecting signatures from celebrities. Dur...,36,36,True,0.9308428020887476,0.3864043354988098,0.9139741618814052,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Find the total signatures collected so far:** Carol has 20 signatures + Jennifer has 44 signatures = 64 signatures total.
+
+2. **Determine the remaining signatures needed:** They want 100 signatures total - 64 signatures collected = 36 signatures needed.
+
+3. **The answer is: 36** 
+","[""Here's how to solve the problem step-by-step:"", '1. **Find the total signatures collected so far:** Carol has 20 signatures + Jennifer has 44 signatures = 64 signatures total.', '2. **Determine the remaining signatures needed:** They want 100 signatures total - 64 signatures collected = 36 signatures needed.', '3. **The answer is: 36**']","[0.84375, 0.173828125, 0.98046875, 0.98046875]",0.173828125,0.74462890625
+1046,A team of 4 painters worked on a mansion for 3/8ths of a day every day for 3 weeks. How many hours o...,189,47,False,0.955702168481976,0.3797580897808075,0.94458749500838,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the total number of days:**
+
+* There are 7 days in a week, so 3 weeks is 3 * 7 = 21 days.
+
+**2. Calculate the total work time in hours:**
+
+* A day is 24 hours long, so 3/8 of a day is (3/8) * 24 = 9 hours.
+* Over 21 days, the team worked a total of 9 * 21 = 189 hours.
+
+**3. Calculate the hours worked per painter:**
+
+* Since there are 4 painters, each painter worked 189 / 4 = 47.25 hours.
+
+
+The answer is: 47.25 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the total number of days:**', '* There are 7 days in a week, so 3 weeks is 3 * 7 = 21 days.', '**2. Calculate the total work time in hours:**', '* A day is 24 hours long, so 3/8 of a day is (3/8) * 24 = 9 hours.\n* Over 21 days, the team worked a total of 9 * 21 = 189 hours.', '**3. Calculate the hours worked per painter:**', '* Since there are 4 painters, each painter worked 189 / 4 = 47.25 hours.', 'The answer is: 47.25']","[0.94921875, 0.9921875, 1.0, 0.98828125, 0.921875, 0.88671875, 0.83203125, 0.41796875]",0.41796875,0.87353515625
+610,It costs $194 per meter to repave a street. Monica's street is 150 meters long. How much more does i...,65960,65960,True,0.990179579247508,0.5233325958251953,0.988810352812308,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the cost to repave Monica's street:**
+
+* Cost per meter: $194
+* Length of Monica's street: 150 meters
+* Total cost for Monica's street: $194 * 150 = $29,100
+
+**2. Calculate the cost to repave Lewis' street:**
+
+* Cost per meter: $194
+* Length of Lewis' street: 490 meters
+* Total cost for Lewis' street: $194 * 490 = $95,060
+
+**3. Find the difference in cost:**
+
+* Cost for Lewis' street: $95,060
+* Cost for Monica's street: $29,100
+* Difference in cost: $95,060 - $29,100 = $65,960
+
+
+The answer is: 65960 
+","[""Here's how to solve the problem step-by-step:"", ""**1. Calculate the cost to repave Monica's street:**"", ""* Cost per meter: $194\n* Length of Monica's street: 150 meters\n* Total cost for Monica's street: $194 * 150 = $29,100"", ""**2. Calculate the cost to repave Lewis' street:**"", ""* Cost per meter: $194\n* Length of Lewis' street: 490 meters\n* Total cost for Lewis' street: $194 * 490 = $95,060"", '**3. Find the difference in cost:**', ""* Cost for Lewis' street: $95,060\n* Cost for Monica's street: $29,100\n* Difference in cost: $95,060 - $29,100 = $65,960"", 'The answer is: 65960']","[0.890625, 0.98828125, 0.97265625, 0.5234375, 0.1630859375, 0.9375, 0.984375, 1.0]",0.1630859375,0.8074951171875
+49,"Richard lives in an apartment building with 15 floors. Each floor contains 8 units, and 3/4 of the b...",30,30,True,0.9926900768055106,0.8149697780609131,0.9922998302295122,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total number of units:** 15 floors * 8 units/floor = 120 units
+
+2. **Calculate the number of occupied units:** 120 units * (3/4) = 90 units
+
+3. **Calculate the number of unoccupied units:** 120 units - 90 units = 30 units
+
+
+The answer is: 30 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total number of units:** 15 floors * 8 units/floor = 120 units', '2. **Calculate the number of occupied units:** 120 units * (3/4) = 90 units', '3. **Calculate the number of unoccupied units:** 120 units - 90 units = 30 units', 'The answer is: 30']","[0.90234375, 0.99609375, 0.99609375, 0.98828125, 0.9921875]",0.90234375,0.975
+1284,An ice cream truck is traveling through a neighborhood. Children from various homes have started cha...,25,25,True,0.9662448084529708,0.5706155896186829,0.9612312282793984,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Second Street:** Each of the 5 children is joined by one more, so there are 5 + 5 = 10 children.
+
+2. **Third Street:** Each of the 10 children is joined by two more, so there are 10 + (10 * 2) = 10 + 20 = 30 children.
+
+3. **Children Leaving:** The original 5 children leave, so there are 30 - 5 = 25 children.
+
+
+The answer is: 25 
+","[""Here's how to solve the problem step-by-step:"", '1. **Second Street:** Each of the 5 children is joined by one more, so there are 5 + 5 = 10 children.', '2. **Third Street:** Each of the 10 children is joined by two more, so there are 10 + (10 * 2) = 10 + 20 = 30 children.', '3. **Children Leaving:** The original 5 children leave, so there are 30 - 5 = 25 children.', 'The answer is: 25']","[0.8671875, 0.89453125, 0.96484375, 0.95703125, 0.9921875]",0.8671875,0.93515625
+486,James runs 12 miles a day for 5 days a week.  If he runs 10 miles an hour how many hours does he run...,6,6,True,0.9653108480903836,0.4435552358627319,0.9567932667446624,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate total miles run per week:** James runs 12 miles/day * 5 days/week = 60 miles/week
+
+2. **Calculate total hours run per week:**  James runs 60 miles/week / 10 miles/hour = 6 hours/week
+
+
+The answer is: 6 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate total miles run per week:** James runs 12 miles/day * 5 days/week = 60 miles/week', '2. **Calculate total hours run per week:**  James runs 60 miles/week / 10 miles/hour = 6 hours/week', 'The answer is: 6']","[0.96875, 0.9921875, 0.9921875, 1.0]",0.96875,0.98828125
+548,"Mark was unwell for 3 months, during which he lost 10 pounds per month. If his final weight was 70 p...",100,100,True,0.9858029823411596,0.6113767027854919,0.9840933289613404,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total weight loss:** Mark lost 10 pounds/month * 3 months = 30 pounds.
+
+2. **Add the weight loss to his final weight:** His initial weight was 70 pounds + 30 pounds = 100 pounds.
+
+
+The answer is: 100 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total weight loss:** Mark lost 10 pounds/month * 3 months = 30 pounds.', '2. **Add the weight loss to his final weight:** His initial weight was 70 pounds + 30 pounds = 100 pounds.', 'The answer is: 100']","[0.79296875, 0.99609375, 0.9609375, 0.99609375]",0.79296875,0.9365234375
+939,Craig and his brother take turns spelling out the longest letter words they know and counting the nu...,650,650,True,0.97920832157135,0.4077638387680053,0.9743853460413782,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total letters Craig spelled:** Craig spelled 20 words * 15 letters/word = 300 letters.
+
+2. **Calculate the total letters Craig's brother spelled:** Craig's brother spelled 300 letters + 50 letters = 350 letters.
+
+3. **Calculate the total letters spelled:** Together they spelled 300 letters + 350 letters = 650 letters.
+
+
+The answer is: 650 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total letters Craig spelled:** Craig spelled 20 words * 15 letters/word = 300 letters.', ""2. **Calculate the total letters Craig's brother spelled:** Craig's brother spelled 300 letters + 50 letters = 350 letters."", '3. **Calculate the total letters spelled:** Together they spelled 300 letters + 350 letters = 650 letters.', 'The answer is: 650']","[0.9375, 0.1474609375, 0.1962890625, 0.921875, 0.96875]",0.1474609375,0.634375
+78,Vincent can buy flowers in packages of 3 for $2.50 or in packages of 2 for $1. How much money does h...,6,3,False,0.934975798501343,0.2352393716573715,0.916441682512078,70.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the cost per flower for each package:**
+
+* **Package of 3:** $2.50 / 3 flowers = $0.83 per flower (rounded to the nearest cent)
+* **Package of 2:** $1.00 / 2 flowers = $0.50 per flower
+
+**2. Determine the better price:**
+
+* The package of 2 flowers is cheaper at $0.50 per flower.
+
+**3. Calculate the number of packages needed to buy 18 flowers:**
+
+*  18 flowers / 2 flowers per package = 9 packages
+
+**4. Calculate the total cost of buying 18 flowers in packages of 2:**
+
+* 9 packages * $1.00 per package = $9.00
+
+**5. Calculate the savings:**
+
+*  Since we didn't calculate the cost of buying 18 flowers in packages of 3, we can't directly compare.  
+
+
+**The answer is: **  We need more information to calculate the savings. 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the cost per flower for each package:**', '* **Package of 3:** $2.50 / 3 flowers = $0.83 per flower (rounded to the nearest cent)\n* **Package of 2:** $1.00 / 2 flowers = $0.50 per flower', '**2. Determine the better price:**', '* The package of 2 flowers is cheaper at $0.50 per flower.', '**3. Calculate the number of packages needed to buy 18 flowers:**', '*  18 flowers / 2 flowers per package = 9 packages', '**4. Calculate the total cost of buying 18 flowers in packages of 2:**', '* 9 packages * $1.00 per package = $9.00', '**5. Calculate the savings:**', ""*  Since we didn't calculate the cost of buying 18 flowers in packages of 3, we can't directly compare."", '**The answer is: **  We need more information to calculate the savings.']","[0.8203125, 0.984375, 0.984375, 1.0, 0.98046875, 0.5078125, 0.953125, 0.98828125, 0.984375, 0.859375, 0.62109375, 0.59765625]",0.5078125,0.8567708333333334
+506,Mario needs to buy snowshoes for his 6 sled dogs.  Assuming his dogs each has four legs and each pai...,144,144,True,0.9733142302941906,0.4717313349246979,0.9668209939494686,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total number of legs:** Mario has 6 dogs * 4 legs/dog = 24 legs.
+
+2. **Calculate the number of snowshoe pairs needed:**  Mario needs 24 legs / 2 legs/pair = 12 pairs of snowshoes.
+
+3. **Calculate the total cost:** The total cost will be 12 pairs * $12.00/pair = $144.00.
+
+
+The answer is: 144.00 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total number of legs:** Mario has 6 dogs * 4 legs/dog = 24 legs.', '2. **Calculate the number of snowshoe pairs needed:**  Mario needs 24 legs / 2 legs/pair = 12 pairs of snowshoes.', '3. **Calculate the total cost:** The total cost will be 12 pairs * $12.00/pair = $144.00.', 'The answer is: 144.00']","[0.8828125, 0.98046875, 0.9609375, 0.19140625, 0.94921875]",0.19140625,0.79296875
+210,Sara wants to buy herself a new jacket and 2 pairs of shoes. The jacket she wants costs $30 and each...,10,10,True,0.9747406591971716,0.4589362740516662,0.9693417350737042,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the cost of the shoes:**
+
+* 2 pairs of shoes * $20/pair = $40
+
+**2. Calculate the total cost of the jacket and shoes:**
+
+* $30 (jacket) + $40 (shoes) = $70
+
+**3. Calculate Sara's earnings from babysitting:**
+
+* 4 babysitting jobs * $5/job = $20
+
+**4. Calculate Sara's total savings:**
+
+* $10 (initial savings) + $20 (babysitting) = $30
+
+**5. Calculate how much more money Sara needs:**
+
+* $70 (total cost) - $30 (savings) = $40
+
+**6. Calculate how many times Sara needs to mow the lawn:**
+
+* $40 (needed) / $4/mowing = 10 mowings
+
+
+The answer is: 10 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the cost of the shoes:**', '* 2 pairs of shoes * $20/pair = $40', '**2. Calculate the total cost of the jacket and shoes:**', '* $30 (jacket) + $40 (shoes) = $70', ""**3. Calculate Sara's earnings from babysitting:**"", '* 4 babysitting jobs * $5/job = $20', ""**4. Calculate Sara's total savings:**"", '* $10 (initial savings) + $20 (babysitting) = $30', '**5. Calculate how much more money Sara needs:**', '* $70 (total cost) - $30 (savings) = $40', '**6. Calculate how many times Sara needs to mow the lawn:**', '* $40 (needed) / $4/mowing = 10 mowings', 'The answer is: 10']","[0.94921875, 0.94921875, 0.7578125, 0.984375, 1.0, 0.95703125, 0.59375, 0.88671875, 0.96875, 0.99609375, 0.99609375, 0.98828125, 0.96875, 0.9921875]",0.59375,0.927734375
+184,Jerry is rolling a six-sided die. How much more likely is it (expressed as a percentage) that he rol...,25,25,True,0.9409889096394182,0.3302722871303558,0.92704546153568,100.0,"Here's how to solve this problem step-by-step:
+
+**1. Probability of rolling a number greater than 3:**
+
+* There are three numbers greater than 3 on a standard die: 4, 5, and 6.
+* There are six total possible outcomes.
+* The probability of rolling a number greater than 3 is 3/6 = 1/2.
+
+**2. Probability of rolling two even numbers in a row:**
+
+*  Here's how to think about this:
+    *  The first roll can be any even number (2, 4, or 6) - that's 3/6 or 1/2 probability.
+    *  Given that the first roll was even, the second roll also has to be even (again, 3/6 or 1/2 probability).
+*  To get the probability of both events happening, we multiply the individual probabilities: (1/2) * (1/2) = 1/4
+
+**3.  Finding the difference in probability:**
+
+*  Subtract the probability of rolling two even numbers from the probability of rolling a number greater than 3: (1/2) - (1/4) = 1/4
+
+**4. Expressing the difference as a percentage:**
+
+*  Multiply the difference in probability by 100%: (1/4) * 100% = 25%
+
+
+The answer is: 25 
+","[""Here's how to solve this problem step-by-step:"", '**1. Probability of rolling a number greater than 3:**', '* There are three numbers greater than 3 on a standard die: 4, 5, and 6.\n* There are six total possible outcomes.\n* The probability of rolling a number greater than 3 is 3/6 = 1/2.', '**2. Probability of rolling two even numbers in a row:**', ""*  Here's how to think about this:\n    *  The first roll can be any even number (2, 4, or 6) - that's 3/6 or 1/2 probability.\n    *  Given that the first roll was even, the second roll also has to be even (again, 3/6 or 1/2 probability).\n*  To get the probability of both events happening, we multiply the individual probabilities: (1/2) * (1/2) = 1/4"", '**3.  Finding the difference in probability:**', '*  Subtract the probability of rolling two even numbers from the probability of rolling a number greater than 3: (1/2) - (1/4) = 1/4', '**4. Expressing the difference as a percentage:**', '*  Multiply the difference in probability by 100%: (1/4) * 100% = 25%', 'The answer is: 25']","[0.8125, 0.984375, 0.984375, 0.8515625, 0.96484375, 0.84765625, 0.94140625, 0.98828125, 0.99609375, 0.99609375]",0.8125,0.93671875
+485,"Jillian's handbag cost $20 less than 3 times as much as her shoes cost. If her shoes cost $80, how m...",220,220,True,0.979162547495458,0.5664153695106506,0.9756092258004694,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate 3 times the cost of the shoes:** 3 * $80 = $240
+
+2. **Subtract $20 from that amount:** $240 - $20 = $220
+
+
+The answer is: 220 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate 3 times the cost of the shoes:** 3 * $80 = $240', '2. **Subtract $20 from that amount:** $240 - $20 = $220', 'The answer is: 220']","[0.953125, 0.98828125, 1.0, 0.99609375]",0.953125,0.984375
+451,"On a certain day, the total cost of filling up 20 helium balloons was $900. Two days later, the cost...",11050,11050,True,0.9801942528905097,0.64063560962677,0.9781003732195948,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Find the original price per balloon:**
+
+* Divide the total cost by the number of balloons: $900 / 20 balloons = $45 per balloon
+
+**2. Calculate the new price per balloon:**
+
+* Add the price increase to the original price: $45 + $20 = $65 per balloon
+
+**3. Calculate the total cost for 170 balloons:**
+
+* Multiply the new price per balloon by the number of balloons: $65 * 170 balloons = $11,050
+
+
+The answer is: 11050 
+","[""Here's how to solve the problem step-by-step:"", '**1. Find the original price per balloon:**', '* Divide the total cost by the number of balloons: $900 / 20 balloons = $45 per balloon', '**2. Calculate the new price per balloon:**', '* Add the price increase to the original price: $45 + $20 = $65 per balloon', '**3. Calculate the total cost for 170 balloons:**', '* Multiply the new price per balloon by the number of balloons: $65 * 170 balloons = $11,050', 'The answer is: 11050']","[0.9453125, 0.9765625, 0.99609375, 0.9140625, 0.18359375, 0.23828125, 0.7265625, 0.9609375]",0.18359375,0.74267578125
+1158,The Hortex company produces bottled carrot juices. Every day it can produce 4200 bottles of these ju...,7300,7300,True,0.9512486441763576,0.2771762311458587,0.9395678415639708,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the daily energy demand of one person:** 
+   If one bottle covers 20% of a person's daily energy demand, then 100% would be covered by 1 / 0.20 = 5 bottles.
+
+2. **Calculate the total daily energy demand of 2300 people:**
+   2300 people * 5 bottles/person = 11500 bottles
+
+3. **Calculate the difference between the current production and the required production:**
+   11500 bottles (needed) - 4200 bottles (produced) = 7300 bottles
+
+
+The answer is: 7300 
+","[""Here's how to solve the problem step-by-step:"", ""1. **Calculate the daily energy demand of one person:** \n   If one bottle covers 20% of a person's daily energy demand, then 100% would be covered by 1 / 0.20 = 5 bottles."", '2. **Calculate the total daily energy demand of 2300 people:**\n   2300 people * 5 bottles/person = 11500 bottles', '3. **Calculate the difference between the current production and the required production:**\n   11500 bottles (needed) - 4200 bottles (produced) = 7300 bottles', 'The answer is: 7300']","[0.91796875, 0.859375, 0.984375, 0.9921875, 0.99609375]",0.859375,0.95
+886,A singer has 50 microphones that he wants to arrange in pairs on a stage. While making the arrangeme...,20,20,True,0.970001035178734,0.4306914210319519,0.9642952049945822,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the number of microphones that couldn't be paired:** 
+   * 20% of 50 microphones = (20/100) * 50 = 10 microphones
+
+2. **Calculate the number of microphones that could be paired:**
+   * Total microphones - microphones that couldn't be paired = 50 - 10 = 40 microphones
+
+3. **Calculate the number of pairs:**
+   * Number of microphones that could be paired / 2 microphones per pair = 40 / 2 = 20 pairs
+
+
+The answer is: 20 
+","[""Here's how to solve the problem step-by-step:"", ""1. **Calculate the number of microphones that couldn't be paired:** \n   * 20% of 50 microphones = (20/100) * 50 = 10 microphones"", ""2. **Calculate the number of microphones that could be paired:**\n   * Total microphones - microphones that couldn't be paired = 50 - 10 = 40 microphones"", '3. **Calculate the number of pairs:**\n   * Number of microphones that could be paired / 2 microphones per pair = 40 / 2 = 20 pairs', 'The answer is: 20']","[0.96484375, 0.443359375, 0.99609375, 0.98828125, 0.9921875]",0.443359375,0.876953125
+889,Joelle has 5 orchids and 4 African daisies on her balcony.  If the orchids have 5 petals and daisies...,15,15,True,0.9888765672305684,0.6932060718536377,0.9879075741638726,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total petals on the orchids:** 5 orchids * 5 petals/orchid = 25 petals
+
+2. **Calculate the total petals on the daisies:** 4 daisies * 10 petals/daisy = 40 petals
+
+3. **Find the difference in petals:** 40 petals (daisies) - 25 petals (orchids) = 15 petals
+
+
+The answer is: 15 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total petals on the orchids:** 5 orchids * 5 petals/orchid = 25 petals', '2. **Calculate the total petals on the daisies:** 4 daisies * 10 petals/daisy = 40 petals', '3. **Find the difference in petals:** 40 petals (daisies) - 25 petals (orchids) = 15 petals', 'The answer is: 15']","[0.90234375, 0.9296875, 0.033935546875, 0.55859375, 0.9609375]",0.033935546875,0.677099609375
+1149,Jen got 3 fish.  They each need $1 worth of food a day.  How much does she spend on food in the mont...,93,93,True,0.9684873245380544,0.5015662908554077,0.9631992148363632,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Daily cost:** 3 fish * $1/fish = $3 per day
+
+2. **Days in May:** May has 31 days.
+
+3. **Total cost:** $3/day * 31 days = $93
+
+
+The answer is: 93 
+","[""Here's how to solve the problem step-by-step:"", '1. **Daily cost:** 3 fish * $1/fish = $3 per day', '2. **Days in May:** May has 31 days.', '3. **Total cost:** $3/day * 31 days = $93', 'The answer is: 93']","[0.92578125, 0.984375, 0.9765625, 0.984375, 0.984375]",0.92578125,0.97109375
+1274,A family of parents and a child go to the cinema. The cost of an adult ticket is $12 and a child tic...,38,38,True,0.958628159869148,0.4709577858448028,0.9505654445357282,90.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the cost of the popcorn:** 2 popcorns * $3/popcorn = $6
+
+2. **We need to know how many adults and children are in the family to calculate the ticket cost.**  Let's assume there are 2 adults and 1 child.
+
+3. **Calculate the cost of the adult tickets:** 2 adults * $12/adult = $24
+
+4. **Calculate the cost of the child ticket:** 1 child * $8/child = $8
+
+5. **Calculate the total cost:** $24 (adults) + $8 (child) + $6 (popcorn) = $38
+
+
+The answer is: 38 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the cost of the popcorn:** 2 popcorns * $3/popcorn = $6', ""2. **We need to know how many adults and children are in the family to calculate the ticket cost.**  Let's assume there are 2 adults and 1 child."", '3. **Calculate the cost of the adult tickets:** 2 adults * $12/adult = $24', '4. **Calculate the cost of the child ticket:** 1 child * $8/child = $8', '5. **Calculate the total cost:** $24 (adults) + $8 (child) + $6 (popcorn) = $38', 'The answer is: 38']","[0.9453125, 0.64453125, 0.8515625, 0.99609375, 0.7734375, 0.96875, 0.984375]",0.64453125,0.8805803571428571
+286,"Kelly has 5 quarters and 2 dimes. If she buys a can of pop for 55 cents, how many cents will she hav...",90,90,True,0.9933352310266068,0.7337539196014404,0.9928131272572952,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the value of the quarters:** 5 quarters * 25 cents/quarter = 125 cents
+
+2. **Calculate the value of the dimes:** 2 dimes * 10 cents/dime = 20 cents
+
+3. **Calculate Kelly's total money:** 125 cents + 20 cents = 145 cents
+
+4. **Subtract the cost of the pop:** 145 cents - 55 cents = 90 cents
+
+
+The answer is: 90 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the value of the quarters:** 5 quarters * 25 cents/quarter = 125 cents', '2. **Calculate the value of the dimes:** 2 dimes * 10 cents/dime = 20 cents', ""3. **Calculate Kelly's total money:** 125 cents + 20 cents = 145 cents"", '4. **Subtract the cost of the pop:** 145 cents - 55 cents = 90 cents', 'The answer is: 90']","[0.953125, 0.99609375, 1.0, 1.0, 1.0, 1.0]",0.953125,0.9915364583333334
+764,Leila buys 3 cucumbers from the market. Cucumbers are $2 each. Jack buys 5 tomatoes from the grocery...,14,14,True,0.9801047052207746,0.5378419756889343,0.9764385533416784,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate Leila's spending:**
+
+* Leila buys 3 cucumbers at $2 each: 3 * $2 = $6
+
+**2. Calculate Jack's spending:**
+
+* Jack buys 5 tomatoes at $1 each: 5 * $1 = $5
+
+**3. Calculate Chase's spending:**
+
+* Chase buys 1 head of lettuce at $3: 1 * $3 = $3
+
+**4. Calculate the total spending:**
+
+* Add up the spending of Leila, Jack, and Chase: $6 + $5 + $3 = $14
+
+
+The answer is: 14 
+","[""Here's how to solve the problem step-by-step:"", ""**1. Calculate Leila's spending:**"", '* Leila buys 3 cucumbers at $2 each: 3 * $2 = $6', ""**2. Calculate Jack's spending:**"", '* Jack buys 5 tomatoes at $1 each: 5 * $1 = $5', ""**3. Calculate Chase's spending:**"", '* Chase buys 1 head of lettuce at $3: 1 * $3 = $3', '**4. Calculate the total spending:**', '* Add up the spending of Leila, Jack, and Chase: $6 + $5 + $3 = $14', 'The answer is: 14']","[0.89453125, 0.984375, 0.99609375, 0.984375, 0.2158203125, 0.419921875, 0.447265625, 0.81640625, 0.94140625, 0.984375]",0.2158203125,0.76845703125
+704,"Gerald and Julia divided $100 in the ratio 3:2. If Gerald spent $10 on a book, how much money did he...",50,50,True,0.9454905656492634,0.3943753838539123,0.9310559085469292,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Find the share of each person:**
+   * The ratio 3:2 means Gerald received 3 parts of the money and Julia received 2 parts.
+   * Total parts = 3 + 2 = 5
+   * Value of one part = $100 / 5 = $20
+
+2. **Calculate Gerald's initial amount:**
+   * Gerald's share = 3 parts * $20/part = $60
+
+3. **Subtract Gerald's spending:**
+   * Gerald's remaining money = $60 - $10 = $50
+
+
+The answer is: 50 
+","[""Here's how to solve the problem step-by-step:"", '1. **Find the share of each person:**\n   * The ratio 3:2 means Gerald received 3 parts of the money and Julia received 2 parts.\n   * Total parts = 3 + 2 = 5\n   * Value of one part = $100 / 5 = $20', ""2. **Calculate Gerald's initial amount:**\n   * Gerald's share = 3 parts * $20/part = $60"", ""3. **Subtract Gerald's spending:**\n   * Gerald's remaining money = $60 - $10 = $50"", 'The answer is: 50']","[0.984375, 0.99609375, 1.0, 0.9765625, 1.0]",0.9765625,0.99140625
+1004,"Peter has 4 boxes with the same number of chocolate bars in each, while Martha has 7 boxes with the ...",8,8,True,0.9774143341548588,0.473430335521698,0.9717134356652076,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Find the number of chocolate bars in each of Peter's boxes:**
+
+* Peter has 64 chocolate bars and 4 boxes.
+* Divide the total chocolate bars by the number of boxes: 64 chocolate bars / 4 boxes = 16 chocolate bars per box.
+
+**2. Find the number of chocolate bars in each of Martha's boxes:**
+
+* Martha has 56 chocolate bars and 7 boxes.
+* Divide the total chocolate bars by the number of boxes: 56 chocolate bars / 7 boxes = 8 chocolate bars per box.
+
+**3. Calculate the difference:**
+
+* Subtract the number of chocolate bars in Martha's boxes from the number in Peter's boxes: 16 chocolate bars - 8 chocolate bars = 8 chocolate bars.
+
+
+The answer is: 8 
+","[""Here's how to solve the problem step-by-step:"", ""**1. Find the number of chocolate bars in each of Peter's boxes:**"", '* Peter has 64 chocolate bars and 4 boxes.\n* Divide the total chocolate bars by the number of boxes: 64 chocolate bars / 4 boxes = 16 chocolate bars per box.', ""**2. Find the number of chocolate bars in each of Martha's boxes:**"", '* Martha has 56 chocolate bars and 7 boxes.\n* Divide the total chocolate bars by the number of boxes: 56 chocolate bars / 7 boxes = 8 chocolate bars per box.', '**3. Calculate the difference:**', ""* Subtract the number of chocolate bars in Martha's boxes from the number in Peter's boxes: 16 chocolate bars - 8 chocolate bars = 8 chocolate bars."", 'The answer is: 8']","[0.87109375, 0.77734375, 0.2001953125, 0.92578125, 0.9609375, 0.94921875, 0.97265625, 0.99609375]",0.2001953125,0.8316650390625
+1096,Billy is volunteering his time to help people do their taxes. He can help 2 people per hour for 3 ho...,240,240,True,0.9665402761686628,0.2941024899482727,0.9584818184233646,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total number of days:** March has 31 days, and April has 19 days, for a total of 31 + 19 = 50 days.
+
+2. **Calculate the number of days off:** Billy takes 20% of the days off, so he takes 0.20 * 50 = 10 days off.
+
+3. **Calculate the number of days working:** He works on 50 - 10 = 40 days.
+
+4. **Calculate the total number of hours worked:** He works 3 hours per day, so he works a total of 40 * 3 = 120 hours.
+
+5. **Calculate the total number of people helped:** He helps 2 people per hour, so he helps 120 * 2 = 240 people.
+
+
+The answer is: 240 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total number of days:** March has 31 days, and April has 19 days, for a total of 31 + 19 = 50 days.', '2. **Calculate the number of days off:** Billy takes 20% of the days off, so he takes 0.20 * 50 = 10 days off.', '3. **Calculate the number of days working:** He works on 50 - 10 = 40 days.', '4. **Calculate the total number of hours worked:** He works 3 hours per day, so he works a total of 40 * 3 = 120 hours.', '5. **Calculate the total number of people helped:** He helps 2 people per hour, so he helps 120 * 2 = 240 people.', 'The answer is: 240']","[0.8359375, 0.06103515625, 0.9765625, 0.99609375, 0.9375, 0.9921875, 1.0]",0.06103515625,0.8284737723214286
+1221,Aiden is making his famous steakhouse-seasoned meatballs for a neighborhood cookout. He adds two tab...,10,10,True,0.9578560749559026,0.4732736945152282,0.9491308613940946,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Figure out how many pounds of ground beef Aiden needs:**
+   * He wants to make 80 meatballs, and gets 16 meatballs per pound of meat.
+   * Divide the total meatballs by the meatballs per pound: 80 meatballs / 16 meatballs/pound = 5 pounds of ground beef.
+
+2. **Calculate the total tablespoons of seasoning needed:**
+   * He uses 2 tablespoons of seasoning per pound of meat.
+   * Multiply the pounds of meat by the tablespoons per pound: 5 pounds * 2 tablespoons/pound = 10 tablespoons.
+
+
+The answer is: 10 
+","[""Here's how to solve the problem step-by-step:"", '1. **Figure out how many pounds of ground beef Aiden needs:**\n   * He wants to make 80 meatballs, and gets 16 meatballs per pound of meat.\n   * Divide the total meatballs by the meatballs per pound: 80 meatballs / 16 meatballs/pound = 5 pounds of ground beef.', '2. **Calculate the total tablespoons of seasoning needed:**\n   * He uses 2 tablespoons of seasoning per pound of meat.\n   * Multiply the pounds of meat by the tablespoons per pound: 5 pounds * 2 tablespoons/pound = 10 tablespoons.', 'The answer is: 10']","[0.8203125, 0.8125, 0.96875, 0.984375]",0.8125,0.896484375
+1089,Nathan has a bouncy ball that bounces to 2/3rds of its starting height with each bounce. If he drops...,32,32,True,0.965421865266912,0.2918434143066406,0.9581389320078636,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the height of the third-floor balcony:**
+   Since each story is 24 feet high, the third floor is 24 feet * 3 = 72 feet high.
+
+2. **Calculate the height of the first bounce:**
+   The ball bounces to 2/3rds of its starting height, so the first bounce height is (2/3) * 72 feet = 48 feet.
+
+3. **Calculate the height of the second bounce:**
+   The ball bounces to 2/3rds of its previous height, so the second bounce height is (2/3) * 48 feet = 32 feet.
+
+
+The answer is: 32 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the height of the third-floor balcony:**\n   Since each story is 24 feet high, the third floor is 24 feet * 3 = 72 feet high.', '2. **Calculate the height of the first bounce:**\n   The ball bounces to 2/3rds of its starting height, so the first bounce height is (2/3) * 72 feet = 48 feet.', '3. **Calculate the height of the second bounce:**\n   The ball bounces to 2/3rds of its previous height, so the second bounce height is (2/3) * 48 feet = 32 feet.', 'The answer is: 32']","[0.95703125, 0.3671875, 0.99609375, 1.0, 0.9140625]",0.3671875,0.846875
+852,A basket of green food costs $25 and a basket of red food costs $18. If you buy 3 baskets of green f...,123,123,True,0.970037935101069,0.4979449808597564,0.964649706387142,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the cost of 3 baskets of green food:** 3 baskets * $25/basket = $75
+
+2. **Calculate the discount on the red food:** 3 baskets * $2/basket = $6
+
+3. **Calculate the cost of the red food after the discount:** 3 baskets * $18/basket - $6 = $48
+
+4. **Calculate the total cost:** $75 + $48 = $123
+
+
+The answer is: 123 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the cost of 3 baskets of green food:** 3 baskets * $25/basket = $75', '2. **Calculate the discount on the red food:** 3 baskets * $2/basket = $6', '3. **Calculate the cost of the red food after the discount:** 3 baskets * $18/basket - $6 = $48', '4. **Calculate the total cost:** $75 + $48 = $123', 'The answer is: 123']","[0.95703125, 0.98828125, 0.181640625, 0.6875, 0.94140625, 0.98828125]",0.181640625,0.7906901041666666
+1237,"Last Friday, 13 of the 82 teachers at Rydell Elementary School were sick. There were 9 substitute te...",78,78,True,0.951839110503594,0.4474567770957947,0.9412879144879772,100.0,"1. **Find the number of teachers who were not sick:** 82 teachers - 13 sick teachers = 69 teachers
+
+2. **Add the substitute teachers to the number of teachers who were not sick:** 69 teachers + 9 substitute teachers = 78 teachers
+
+
+The answer is: 78 
+","['1. **Find the number of teachers who were not sick:** 82 teachers - 13 sick teachers = 69 teachers', '2. **Add the substitute teachers to the number of teachers who were not sick:** 69 teachers + 9 substitute teachers = 78 teachers', 'The answer is: 78']","[0.984375, 0.9921875, 0.99609375]",0.984375,0.9908854166666666
+221,A water tank is filled with 120 liters of water. Celine used 90 liters of water from the tank to wat...,90,90,True,0.9735108464956284,0.6038713455200195,0.969967169661824,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the water remaining after Celine used some:** 120 liters - 90 liters = 30 liters
+
+2. **Calculate the amount of rainwater collected:** 30 liters * 2 = 60 liters
+
+3. **Calculate the total water in the tank now:** 30 liters + 60 liters = 90 liters
+
+
+The answer is: 90 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the water remaining after Celine used some:** 120 liters - 90 liters = 30 liters', '2. **Calculate the amount of rainwater collected:** 30 liters * 2 = 60 liters', '3. **Calculate the total water in the tank now:** 30 liters + 60 liters = 90 liters', 'The answer is: 90']","[0.92578125, 0.9921875, 0.55078125, 0.9765625, 0.99609375]",0.55078125,0.88828125
+420,"To fund his store, Mr. Josue solicited money from two banks. The first bank gave him $4000, and the ...",17000,17000,True,0.9760257853484302,0.4689286351203918,0.9720922437692324,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the amount from the second bank:** The second bank gave Mr. Josue twice the amount of the first bank, so they gave him 2 * $4000 = $8000.
+
+2. **Calculate the total amount received from the banks:**  Mr. Josue received a total of $4000 + $8000 = $12000 from the banks.
+
+3. **Calculate the total capital:**  Add the money from the banks to his initial capital: $12000 + $5000 = $17000.
+
+
+The answer is: 17000 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the amount from the second bank:** The second bank gave Mr. Josue twice the amount of the first bank, so they gave him 2 * $4000 = $8000.', '2. **Calculate the total amount received from the banks:**  Mr. Josue received a total of $4000 + $8000 = $12000 from the banks.', '3. **Calculate the total capital:**  Add the money from the banks to his initial capital: $12000 + $5000 = $17000.', 'The answer is: 17000']","[0.92578125, 0.8515625, 0.98046875, 0.1240234375, 0.859375]",0.1240234375,0.7482421875
+1128,"Liam is 16 years old now. Two years ago, Liam’s age was twice the age of Vince. How old is Vince now...",9,9,True,0.960441076673121,0.4043824374675751,0.9509784540977892,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Find Liam's age two years ago:** Liam is 16 now, so two years ago he was 16 - 2 = 14 years old.
+
+2. **Set up an equation:**  Let Vince's current age be represented by the variable ""v"". Two years ago, Vince was ""v - 2"" years old. We know that Liam's age two years ago (14) was twice Vince's age two years ago (v - 2).  This can be written as the equation: 14 = 2(v - 2)
+
+3. **Solve for v:**
+   * Distribute the 2 on the right side of the equation: 14 = 2v - 4
+   * Add 4 to both sides: 18 = 2v
+   * Divide both sides by 2: v = 9
+
+
+The answer is: 9 
+","[""Here's how to solve the problem step-by-step:"", ""1. **Find Liam's age two years ago:** Liam is 16 now, so two years ago he was 16 - 2 = 14 years old."", '2. **Set up an equation:**  Let Vince\'s current age be represented by the variable ""v"". Two years ago, Vince was ""v - 2"" years old. We know that Liam\'s age two years ago (14) was twice Vince\'s age two years ago (v - 2).  This can be written as the equation: 14 = 2(v - 2)', '3. **Solve for v:**\n   * Distribute the 2 on the right side of the equation: 14 = 2v - 4\n   * Add 4 to both sides: 18 = 2v\n   * Divide both sides by 2: v = 9', 'The answer is: 9']","[0.9921875, 1.0, 0.99609375, 0.9921875, 1.0]",0.9921875,0.99609375
+584,90 single use contacts come in 1 box and will last Pete 45 days.  Each box is $100.00 and currently ...,2,1,False,0.9778285343199968,0.5522974729537964,0.9743095903119388,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the discount:**
+
+* Discount amount = 10% of $100.00 = (10/100) * $100.00 = $10.00
+
+**2. Calculate the price per box after the discount:**
+
+* Price per box after discount = $100.00 - $10.00 = $90.00
+
+**3. Calculate the total cost of two boxes:**
+
+* Total cost = $90.00 * 2 = $180.00
+
+**4. Calculate the total number of contacts:**
+
+* Total contacts = 90 contacts/box * 2 boxes = 180 contacts
+
+**5. Calculate the cost per pair of contacts:**
+
+* Cost per pair = $180.00 / 180 pairs = $1.00/pair
+
+
+The answer is: 1.00 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the discount:**', '* Discount amount = 10% of $100.00 = (10/100) * $100.00 = $10.00', '**2. Calculate the price per box after the discount:**', '* Price per box after discount = $100.00 - $10.00 = $90.00', '**3. Calculate the total cost of two boxes:**', '* Total cost = $90.00 * 2 = $180.00', '**4. Calculate the total number of contacts:**', '* Total contacts = 90 contacts/box * 2 boxes = 180 contacts', '**5. Calculate the cost per pair of contacts:**', '* Cost per pair = $180.00 / 180 pairs = $1.00/pair', 'The answer is: 1.00']","[0.93359375, 0.486328125, 0.8828125, 0.99609375, 1.0, 0.83984375, 0.7109375, 0.984375, 1.0, 0.95703125, 0.3828125, 0.7734375]",0.3828125,0.8289388020833334
+888,Lani baked 55 cookies. She ate 5 five cookies and placed the rest equally into five jars. How many c...,10,10,True,0.9491779604186752,0.4956049919128418,0.937770100993583,100.0,"1. **Find the number of cookies Lani had left after eating some:** 
+   55 cookies - 5 cookies = 50 cookies
+
+2. **Divide the remaining cookies by the number of jars:**
+   50 cookies / 5 jars = 10 cookies/jar
+
+The answer is: 10 
+","['1. **Find the number of cookies Lani had left after eating some:** \n   55 cookies - 5 cookies = 50 cookies', '2. **Divide the remaining cookies by the number of jars:**\n   50 cookies / 5 jars = 10 cookies/jar', 'The answer is: 10']","[0.828125, 0.99609375, 0.99609375]",0.828125,0.9401041666666666
+453,Jenna starts out with 8 sapphires. She trades 3 sapphires for two rubies. If sapphires are worth $80...,6400,8800,False,0.9743001530044956,0.523311197757721,0.9692946774023862,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the value of the sapphires Jenna starts with:** 8 sapphires * $800/sapphire = $6400
+
+2. **Calculate the value of the rubies Jenna receives:** 2 rubies * $1200/ruby = $2400
+
+3. **Calculate the number of sapphires Jenna has left:** 8 sapphires - 3 sapphires = 5 sapphires
+
+4. **Calculate the value of the remaining sapphires:** 5 sapphires * $800/sapphire = $4000
+
+5. **Calculate the total value of all her jewels:** $6400 (sapphires) + $2400 (rubies) = $8800
+
+
+The answer is: 8800 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the value of the sapphires Jenna starts with:** 8 sapphires * $800/sapphire = $6400', '2. **Calculate the value of the rubies Jenna receives:** 2 rubies * $1200/ruby = $2400', '3. **Calculate the number of sapphires Jenna has left:** 8 sapphires - 3 sapphires = 5 sapphires', '4. **Calculate the value of the remaining sapphires:** 5 sapphires * $800/sapphire = $4000', '5. **Calculate the total value of all her jewels:** $6400 (sapphires) + $2400 (rubies) = $8800', 'The answer is: 8800']","[0.97265625, 0.53515625, 0.859375, 0.99609375, 0.99609375, 0.0186767578125, 0.1474609375]",0.0186767578125,0.6465018136160714
+76,"Cecilia just bought a new puppy. According to her veterinarian, she has to feed the puppy 1 cup of d...",5,5,True,0.972929662597772,0.4585457146167755,0.967526954853123,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total food needed for the first 180 days:** 1 cup/day * 180 days = 180 cups
+
+2. **Calculate the number of days left in the year:** 365 days - 180 days = 185 days
+
+3. **Calculate the total food needed for the remaining days:** 2 cups/day * 185 days = 370 cups
+
+4. **Calculate the total food needed in the first year:** 180 cups + 370 cups = 550 cups
+
+5. **Calculate the number of bags needed:** 550 cups / 110 cups/bag = 5 bags
+
+
+The answer is: 5 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total food needed for the first 180 days:** 1 cup/day * 180 days = 180 cups', '2. **Calculate the number of days left in the year:** 365 days - 180 days = 185 days', '3. **Calculate the total food needed for the remaining days:** 2 cups/day * 185 days = 370 cups', '4. **Calculate the total food needed in the first year:** 180 cups + 370 cups = 550 cups', '5. **Calculate the number of bags needed:** 550 cups / 110 cups/bag = 5 bags', 'The answer is: 5']","[0.9140625, 0.609375, 0.984375, 0.75390625, 0.984375, 0.77734375, 0.9765625]",0.609375,0.8571428571428571
+261,"There are 9,300 pennies in a cup. What is the total dollar amount in a stack that contains two third...",62,62,True,0.9622461072344712,0.4619462788105011,0.9554334841099577,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Find two-thirds of the pennies:** 
+   * Multiply the total number of pennies by two-thirds: 9,300 pennies * (2/3) = 6,200 pennies
+
+2. **Calculate the dollar amount:**
+   *  Since each penny is worth $0.01, multiply the number of pennies in the stack by the value of a penny: 6,200 pennies * $0.01/penny = $62.00
+
+The answer is: 62.00 
+","[""Here's how to solve the problem step-by-step:"", '1. **Find two-thirds of the pennies:** \n   * Multiply the total number of pennies by two-thirds: 9,300 pennies * (2/3) = 6,200 pennies', '2. **Calculate the dollar amount:**\n   *  Since each penny is worth $0.01, multiply the number of pennies in the stack by the value of a penny: 6,200 pennies * $0.01/penny = $62.00', 'The answer is: 62.00']","[0.91796875, 0.98828125, 1.0, 0.99609375]",0.91796875,0.9755859375
+101,"Solo has to read 4 pages from his Science textbook, 20 pages from his Social Studies textbook, 7 pag...",6,6,True,0.9556514470322618,0.5036550760269165,0.9468643714036388,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total number of pages:** 4 + 20 + 7 + 8 = 39 pages
+
+2. **Calculate the number of pages left to read:** 39 - 15 = 24 pages
+
+3. **Calculate the average pages per day:** 24 pages / 4 days = 6 pages/day
+
+
+The answer is: 6 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total number of pages:** 4 + 20 + 7 + 8 = 39 pages', '2. **Calculate the number of pages left to read:** 39 - 15 = 24 pages', '3. **Calculate the average pages per day:** 24 pages / 4 days = 6 pages/day', 'The answer is: 6']","[0.86328125, 0.291015625, 0.72265625, 0.875, 0.953125]",0.291015625,0.741015625
+1115,"Anna is trying to buy books for her local library. She had a budget of $16, and she has already spen...",5,5,True,0.9560563133118,0.3205911517143249,0.9462866838221377,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate how much Anna has spent in total:** She started with $16 and has $2 left, so she spent $16 - $2 = $14.
+
+2. **Calculate how much she spent on the books:** She spent $14 in total and $4 already, so she spent $14 - $4 = $10 on the books.
+
+3. **Calculate the cost of each book:** She bought 2 books for $10, so each book cost $10 / 2 = $5.
+
+
+The answer is: 5 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate how much Anna has spent in total:** She started with $16 and has $2 left, so she spent $16 - $2 = $14.', '2. **Calculate how much she spent on the books:** She spent $14 in total and $4 already, so she spent $14 - $4 = $10 on the books.', '3. **Calculate the cost of each book:** She bought 2 books for $10, so each book cost $10 / 2 = $5.', 'The answer is: 5']","[0.92578125, 0.6953125, 0.392578125, 0.86328125, 0.9765625]",0.392578125,0.770703125
+493,Heather's razors come 4 to a pack and cost $4.00 a pack.  They are currently on sale for buy one get...,25,48,False,0.9506099883390932,0.3107014000415802,0.9379615318490158,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total cost before the discount:** 2 packs * $4.00/pack = $8.00
+
+2. **Calculate the discount:** Since it's buy one get one free, she gets 2 packs for the price of 1.  The discount is $4.00.
+
+3. **Calculate the price after the discount:** $8.00 - $4.00 = $4.00
+
+4. **Calculate the price per razor:** $4.00 / 8 razors = $0.50/razor
+
+5. **Convert to cents:** $0.50 * 100 cents/$1.00 = 50 cents/razor
+
+6. **Account for the coupon:** $0.50/razor - $0.02/razor = $0.48/razor
+
+7. **Convert to cents:** $0.48 * 100 cents/$1.00 = 48 cents/razor
+
+
+
+The answer is: 48 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total cost before the discount:** 2 packs * $4.00/pack = $8.00', ""2. **Calculate the discount:** Since it's buy one get one free, she gets 2 packs for the price of 1.  The discount is $4.00."", '3. **Calculate the price after the discount:** $8.00 - $4.00 = $4.00', '4. **Calculate the price per razor:** $4.00 / 8 razors = $0.50/razor', '5. **Convert to cents:** $0.50 * 100 cents/$1.00 = 50 cents/razor', '6. **Account for the coupon:** $0.50/razor - $0.02/razor = $0.48/razor', '7. **Convert to cents:** $0.48 * 100 cents/$1.00 = 48 cents/razor', 'The answer is: 48']","[0.93359375, 0.6796875, 0.96484375, 0.984375, 0.96484375, 0.97265625, 0.10009765625, 0.49609375, 0.77734375]",0.10009765625,0.7637261284722222
+554,When the water is cold Ray swims a mile in 16 minutes. When the water is warm Ray swims a mile in 2 ...,54,54,True,0.9643156656954024,0.4123052656650543,0.9578550652850618,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the warm water swim time:**
+
+* Twice the cold water swim time is 16 minutes * 2 = 32 minutes.
+* Two minutes more than twice the cold water time is 32 minutes + 2 minutes = 34 minutes.
+
+**2. Calculate the cold day swim time for 3 miles:**
+
+* Ray takes 16 minutes per mile, so for 3 miles it takes 16 minutes/mile * 3 miles = 48 minutes.
+
+**3. Calculate the hot day swim time for 3 miles:**
+
+* Ray takes 34 minutes per mile, so for 3 miles it takes 34 minutes/mile * 3 miles = 102 minutes.
+
+**4. Find the difference in swim times:**
+
+* The difference in time between the hot day and cold day is 102 minutes - 48 minutes = 54 minutes.
+
+
+The answer is: 54 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the warm water swim time:**', '* Twice the cold water swim time is 16 minutes * 2 = 32 minutes.\n* Two minutes more than twice the cold water time is 32 minutes + 2 minutes = 34 minutes.', '**2. Calculate the cold day swim time for 3 miles:**', '* Ray takes 16 minutes per mile, so for 3 miles it takes 16 minutes/mile * 3 miles = 48 minutes.', '**3. Calculate the hot day swim time for 3 miles:**', '* Ray takes 34 minutes per mile, so for 3 miles it takes 34 minutes/mile * 3 miles = 102 minutes.', '**4. Find the difference in swim times:**', '* The difference in time between the hot day and cold day is 102 minutes - 48 minutes = 54 minutes.', 'The answer is: 54']","[0.796875, 0.83203125, 0.040771484375, 0.8125, 0.96484375, 0.9296875, 0.984375, 0.98828125, 0.9921875, 0.9921875]",0.040771484375,0.8333740234375
+1052,"Romeo boards a train with 120 people. At the first stop, 20 more people board the train. At the seco...",110,110,True,0.9748086429248422,0.4792962372303009,0.9699365438256852,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Start with the initial number:** Romeo begins with 120 people on the train.
+
+2. **First stop:** 20 more people board, so the total is 120 + 20 = 140 people.
+
+3. **Second stop:** 50 people descend, leaving 140 - 50 = 90 people. Then, twice that number (50 * 2 = 100) board, bringing the total to 90 + 100 = 190 people.
+
+4. **Third stop:** 80 people descend, leaving 190 - 80 = 110 people.
+
+
+The answer is: 110 
+","[""Here's how to solve the problem step-by-step:"", '1. **Start with the initial number:** Romeo begins with 120 people on the train.', '2. **First stop:** 20 more people board, so the total is 120 + 20 = 140 people.', '3. **Second stop:** 50 people descend, leaving 140 - 50 = 90 people. Then, twice that number (50 * 2 = 100) board, bringing the total to 90 + 100 = 190 people.', '4. **Third stop:** 80 people descend, leaving 190 - 80 = 110 people.', 'The answer is: 110']","[0.9296875, 0.9453125, 0.99609375, 0.046630859375, 0.96875, 0.9375]",0.046630859375,0.8039957682291666
+1171,Tom has 4 bedrooms in his house.  They measure 20 by 12 feet each.  The living room is 5 times bigge...,3160,3160,True,0.9845498912739304,0.4483614563941955,0.9817261285510316,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the area of one bedroom:**
+
+* Area of one bedroom = length * width
+* Area of one bedroom = 20 feet * 12 feet
+* Area of one bedroom = 240 square feet
+
+**2. Calculate the area of the living room:**
+
+* Area of living room = 5 * area of one bedroom
+* Area of living room = 5 * 240 square feet
+* Area of living room = 1200 square feet
+
+**3. Calculate the total area of the bedrooms:**
+
+* Total area of bedrooms = 4 bedrooms * area of one bedroom
+* Total area of bedrooms = 4 * 240 square feet
+* Total area of bedrooms = 960 square feet
+
+**4. Calculate the total area of the house:**
+
+* Total area of house = area of bedrooms + area of living room + rest of the house
+* Total area of house = 960 square feet + 1200 square feet + 1000 square feet
+* Total area of house = 3160 square feet
+
+
+The answer is: 3160 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the area of one bedroom:**', '* Area of one bedroom = length * width\n* Area of one bedroom = 20 feet * 12 feet\n* Area of one bedroom = 240 square feet', '**2. Calculate the area of the living room:**', '* Area of living room = 5 * area of one bedroom\n* Area of living room = 5 * 240 square feet\n* Area of living room = 1200 square feet', '**3. Calculate the total area of the bedrooms:**', '* Total area of bedrooms = 4 bedrooms * area of one bedroom\n* Total area of bedrooms = 4 * 240 square feet\n* Total area of bedrooms = 960 square feet', '**4. Calculate the total area of the house:**', '* Total area of house = area of bedrooms + area of living room + rest of the house\n* Total area of house = 960 square feet + 1200 square feet + 1000 square feet\n* Total area of house = 3160 square feet', 'The answer is: 3160']","[0.85546875, 0.9921875, 1.0, 0.96875, 0.83203125, 0.99609375, 0.99609375, 0.99609375, 0.006591796875, 0.265625]",0.006591796875,0.7908935546875
+666,"Rayna has 60 more dollars than Kassidy, and Kassidy has 3/4 times as much money as Aurelia. If Areli...",120,120,True,0.9742389609824575,0.2752813100814819,0.9662503954695352,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Find Kassidy's money:**
+
+* Aurelia has $120, and Kassidy has 3/4 of that amount.
+* Kassidy's money = (3/4) * $120 = $90
+
+**2. Find Rayna's money:**
+
+* Rayna has $60 more than Kassidy.
+* Rayna's money = $90 + $60 = $150
+
+**3. Find the total money:**
+
+* Total money = Aurelia's money + Kassidy's money + Rayna's money
+* Total money = $120 + $90 + $150 = $360
+
+**4. Find the equal share:**
+
+*  Equal share = Total money / Number of people
+*  Equal share = $360 / 3 = $120
+
+
+The answer is: 120 
+","[""Here's how to solve the problem step-by-step:"", ""**1. Find Kassidy's money:**"", ""* Aurelia has $120, and Kassidy has 3/4 of that amount.\n* Kassidy's money = (3/4) * $120 = $90"", ""**2. Find Rayna's money:**"", ""* Rayna has $60 more than Kassidy.\n* Rayna's money = $90 + $60 = $150"", '**3. Find the total money:**', ""* Total money = Aurelia's money + Kassidy's money + Rayna's money\n* Total money = $120 + $90 + $150 = $360"", '**4. Find the equal share:**', '*  Equal share = Total money / Number of people\n*  Equal share = $360 / 3 = $120', 'The answer is: 120']","[0.90625, 0.91796875, 0.90234375, 0.99609375, 1.0, 0.94140625, 0.9921875, 0.828125, 0.87890625, 0.8671875]",0.828125,0.923046875
+247,Isabelle bought party supplies for her little sister’s birthday party. She spent $12 on ingredients ...,32,32,True,0.9785532500854758,0.5424169301986694,0.9743032402196368,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total cost:** 
+   $12 + $43 + $15 + $4 + $22 = $96
+
+2. **Divide the total cost by the number of people:**
+   $96 / 3 = $32
+
+
+The answer is: 32 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total cost:** \n   $12 + $43 + $15 + $4 + $22 = $96', '2. **Divide the total cost by the number of people:**\n   $96 / 3 = $32', 'The answer is: 32']","[0.90234375, 0.023681640625, 0.7421875, 0.890625]",0.023681640625,0.63970947265625
+44,"Charlie wants to sell beeswax candles.  For every pound of beeswax, he can make 10 tapered candles. ...",20,20,True,0.974381436043837,0.4888133406639099,0.969157014706475,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the number of pounds of beeswax needed:**
+
+* Charlie makes 10 candles per pound of beeswax.
+* He wants to make 20 candles.
+* Beeswax needed: 20 candles / 10 candles/pound = 2 pounds
+
+**2. Calculate the total cost of supplies:**
+
+* One pound of beeswax and wicks costs $10.00.
+* He needs 2 pounds of beeswax.
+* Total cost: $10.00/pound * 2 pounds = $20.00
+
+**3. Calculate the total revenue from selling the candles:**
+
+* He sells each candle for $2.00.
+* He's selling 20 candles.
+* Total revenue: $2.00/candle * 20 candles = $40.00
+
+**4. Calculate the net profit:**
+
+* Net profit = Total revenue - Total cost
+* Net profit = $40.00 - $20.00 = $20.00
+
+
+The answer is: 20.00 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the number of pounds of beeswax needed:**', '* Charlie makes 10 candles per pound of beeswax.\n* He wants to make 20 candles.\n* Beeswax needed: 20 candles / 10 candles/pound = 2 pounds', '**2. Calculate the total cost of supplies:**', '* One pound of beeswax and wicks costs $10.00.\n* He needs 2 pounds of beeswax.\n* Total cost: $10.00/pound * 2 pounds = $20.00', '**3. Calculate the total revenue from selling the candles:**', ""* He sells each candle for $2.00.\n* He's selling 20 candles.\n* Total revenue: $2.00/candle * 20 candles = $40.00"", '**4. Calculate the net profit:**', '* Net profit = Total revenue - Total cost\n* Net profit = $40.00 - $20.00 = $20.00', 'The answer is: 20.00']","[0.94921875, 0.78125, 0.7734375, 0.83984375, 0.31640625, 0.96484375, 0.9921875, 0.99609375, 0.99609375, 0.984375]",0.31640625,0.859375
+497,"Paul is driving a car twice a day: in the morning, and in the afternoon. He did that for 14 days. Ea...",112,112,True,0.9716933819196992,0.4470804333686828,0.9657849993800603,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the daily cost:**
+   - Morning ride cost: $6
+   - Afternoon ride cost: $2
+   - Total daily cost: $6 + $2 = $8
+
+2. **Calculate the total cost for 14 days:**
+   - Daily cost: $8
+   - Number of days: 14
+   - Total cost: $8 * 14 = $112
+
+
+The answer is: 112 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the daily cost:**\n   - Morning ride cost: $6\n   - Afternoon ride cost: $2\n   - Total daily cost: $6 + $2 = $8', '2. **Calculate the total cost for 14 days:**\n   - Daily cost: $8\n   - Number of days: 14\n   - Total cost: $8 * 14 = $112', 'The answer is: 112']","[0.90234375, 0.279296875, 0.98046875, 0.98828125]",0.279296875,0.78759765625
+63,Aleena subscribed to a streaming service that charges her $140 per month. If the streaming company c...,1596,1596,True,0.9783588987617676,0.5698513984680176,0.9749650572766794,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the cost for the first half of the year:**
+
+* There are 6 months in half a year.
+* Cost for the first half: $140/month * 6 months = $840
+
+**2. Calculate the discount for the second half of the year:**
+
+* Discount amount: $140 * 10% = $14
+
+**3. Calculate the cost for the second half of the year:**
+
+* Cost for the second half: $140 - $14 = $126/month
+* Cost for the second half of the year: $126/month * 6 months = $756
+
+**4. Calculate the total cost for the year:**
+
+* Total cost: $840 + $756 = $1596
+
+
+The answer is: 1596 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the cost for the first half of the year:**', '* There are 6 months in half a year.\n* Cost for the first half: $140/month * 6 months = $840', '**2. Calculate the discount for the second half of the year:**', '* Discount amount: $140 * 10% = $14', '**3. Calculate the cost for the second half of the year:**', '* Cost for the second half: $140 - $14 = $126/month\n* Cost for the second half of the year: $126/month * 6 months = $756', '**4. Calculate the total cost for the year:**', '* Total cost: $840 + $756 = $1596', 'The answer is: 1596']","[0.91015625, 0.87890625, 0.9921875, 0.9296875, 0.91796875, 0.89453125, 0.95703125, 0.9921875, 0.9921875, 0.9921875]",0.87890625,0.945703125
+1036,There are forty apples in one box. Uncle Franky ordered two boxes of apples. He is planning to pack ...,10,10,True,0.9820650393764178,0.6264275908470154,0.9803963020030932,100.0,"Here's how to solve the problem step-by-step:
+
+1. **Calculate the total number of apples:** Uncle Franky has 40 apples/box * 2 boxes = 80 apples.
+
+2. **Divide the total apples by the number of apples per pack:** Uncle Franky can make 80 apples / 8 apples/pack = 10 packs of apples.
+
+
+The answer is: 10 
+","[""Here's how to solve the problem step-by-step:"", '1. **Calculate the total number of apples:** Uncle Franky has 40 apples/box * 2 boxes = 80 apples.', '2. **Divide the total apples by the number of apples per pack:** Uncle Franky can make 80 apples / 8 apples/pack = 10 packs of apples.', 'The answer is: 10']","[0.9375, 0.9921875, 0.62890625, 0.97265625]",0.62890625,0.8828125
+51,Tom's ship can travel at 10 miles per hour.  He is sailing from 1 to 4 PM.  He then travels back at ...,5,5,True,0.9770313211537284,0.58502197265625,0.9747356393209378,100.0,"Here's how to solve the problem step-by-step:
+
+**1. Calculate the distance traveled:**
+
+* Tom sails for 3 hours (from 1 PM to 4 PM).
+* Distance = Speed x Time
+* Distance = 10 mph x 3 hours = 30 miles
+
+**2. Calculate the time to return:**
+
+* Time = Distance / Speed
+* Time = 30 miles / 6 mph = 5 hours
+
+
+The answer is: 5 
+","[""Here's how to solve the problem step-by-step:"", '**1. Calculate the distance traveled:**', '* Tom sails for 3 hours (from 1 PM to 4 PM).\n* Distance = Speed x Time\n* Distance = 10 mph x 3 hours = 30 miles', '**2. Calculate the time to return:**', '* Time = Distance / Speed\n* Time = 30 miles / 6 mph = 5 hours', 'The answer is: 5']","[0.953125, 0.984375, 0.9921875, 0.99609375, 0.027587890625, 0.5859375]",0.027587890625,0.7565511067708334
+422,Bill is signing up for a new streaming service. He got a special introductory deal where the first 6...,284,284,True,0.9412919633308714,0.2726907432079315,0.9268101224215104,100.0,"Here's how to solve the problem step-by-step:
+
+**Step 1: Calculate the cost of the introductory period**
+
+* 6 months * $8/month = $48
+
+**Step 2: Calculate the cost of the first normal rate period**
+
+* 8 months * $12/month = $96
+
+**Step 3: Calculate the cost of the second normal rate period**
+
+*  We need to figure out how many months are in the second normal rate period.  There are 2 years * 12 months/year = 24 months total.
+*  The first 14 months are covered by the introductory and first normal rate periods (6 months + 8 months).
+*  The second normal rate period is 24 months - 14 months = 10 months.
+*  10 months * $14/month = $140
+
+**Step 4: Calculate the total cost**
+
+* $48 + $96 + $140 = $284
+
+
+The answer is: 284 
+","[""Here's how to solve the problem step-by-step:"", '**Step 1: Calculate the cost of the introductory period**', '* 6 months * $8/month = $48', '**Step 2: Calculate the cost of the first normal rate period**', '* 8 months * $12/month = $96', '**Step 3: Calculate the cost of the second normal rate period**', '*  We need to figure out how many months are in the second normal rate period.  There are 2 years * 12 months/year = 24 months total.\n*  The first 14 months are covered by the introductory and first normal rate periods (6 months + 8 months).\n*  The second normal rate period is 24 months - 14 months = 10 months.\n*  10 months * $14/month = $140', '**Step 4: Calculate the total cost**', '* $48 + $96 + $140 = $284', 'The answer is: 284']","[0.90625, 0.98828125, 0.6796875, 0.8125, 0.25390625, 0.73046875, 0.28125, 0.9609375, 0.92578125, 0.98046875]",0.25390625,0.751953125
