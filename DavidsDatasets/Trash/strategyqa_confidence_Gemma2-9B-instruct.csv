@@ -1,0 +1,501 @@
+idx,question,ground_truth,model_answer,is_correct,logit_confidence_mean,logit_confidence_min,logit_confidence_geom,verbalized_confidence,full_response
+286,Could boolean algebra be described as binary?...,Yes,Yes,True,0.9305426602010374,0.44087204337120056,0.9169163095798739,100.0,"Here's the step-by-step reasoning:
+
+1. **What is boolean algebra?** Boolean algebra is a system of logic that deals with operations on truth values, typically represented as TRUE (1) and FALSE (0).
+
+2. **What is binary?** Binary is a number system that uses only two digits: 0 and 1.
+
+3. **Do the truth values in boolean algebra correspond to the digits in binary?** Yes, TRUE is often represented as 1 and FALSE as 0.
+
+4. **Therefore, can boolean algebra be described as binary?** Yes.
+
+
+The answer is: Yes 
+"
+653,Would lumberjacks get full after eating three dosa?...,No,No,True,0.8863299366831779,0.35651594400405884,0.8656993180566617,80.0,"Here's the step-by-step thinking:
+
+1. **Lumberjacks are known for their large appetites.** They need a lot of energy for their physically demanding work.
+2. **Dosa is a thin, crepe-like Indian dish.** While it can be filling, it's not typically very calorie-dense.
+3. **Three dosa might not provide enough calories to fully satisfy a lumberjack's hunger.**
+
+The answer is: No 
+"
+257,Would a member of the United States Air Force get a discount at Dunkin Donuts?...,Yes,Yes,True,0.8657299634572622,0.3312458097934723,0.8419162122872166,90.0,"Here's how to think about this:
+
+* **Do military members often get discounts?** Yes, many businesses offer discounts to active military personnel.
+* **Is Dunkin Donuts a business that typically offers discounts?**  Yes, Dunkin Donuts has been known to offer discounts to various groups, including military members.
+
+The answer is: Yes 
+"
+336,"In a hypothetical race between a Swallow and an American Woodcock, would the Swallow win?...",Yes,Yes,True,0.874828984340032,0.213568776845932,0.8464362162430563,95.0,"Here's the step-by-step reasoning:
+
+1. **Swallows are known for their speed and agility in flight.** They are built for aerial maneuvers and long-distance travel.
+2. **American Woodcocks are primarily ground-dwelling birds.** While they can fly, they are not known for their speed or aerial prowess.
+
+3. **Therefore, a Swallow would likely be much faster and more agile in a race.**
+
+The answer is: Yes 
+"
+318,Were number of states in Ancient Greece underwhelming compared to US states in 1900?...,No,No,True,0.9007533453069292,0.36739879846572876,0.8826755824271242,100.0,"Here's the step-by-step reasoning:
+
+1. **Ancient Greece:**  Ancient Greece was made up of many independent city-states, not a unified country with states like the US. 
+2. **US in 1900:** The US had 45 states in 1900.
+3. **Comparison:**  It's not accurate to compare the number of city-states in Ancient Greece to US states. They are different political entities.
+
+The answer is: No 
+"
+211,Can petroleum jelly be used as fuel in a car?...,No,No,True,0.8766338829741334,0.3027952313423157,0.847028002006749,100.0,"Here's the step-by-step reasoning:
+
+1. **Petroleum jelly is a thick, viscous substance.** 
+2. **Car engines require a fluid fuel that can be easily vaporized and burned.**
+3. **Petroleum jelly is not easily vaporized.**
+
+The answer is: No 
+"
+622,Did Julia Roberts practice blast beats as a child?...,No,No,True,0.8782245814800262,0.2985265254974365,0.8521434923286183,99.0,"Here's the step-by-step reasoning:
+
+1. **Blast beats** are a very fast and intense drumming technique.
+2. **Julia Roberts** is an actress, primarily known for her roles in films.
+3. **Drumming** is a musical instrument skill.
+
+Considering these facts, it's highly unlikely that Julia Roberts, a famous actress, would have practiced blast beats as a child. 
+
+The answer is: No 
+"
+176,Is myocardial infarction a brain problem?...,No,No,True,0.9327055452073493,0.48194238543510437,0.9207108093489728,100.0,"Here's the step-by-step reasoning:
+
+1. **Myocardial infarction** is the medical term for a heart attack. 
+2. A heart attack occurs when blood flow to the heart is blocked.
+3. The **brain** is a separate organ from the heart.
+
+Therefore, a myocardial infarction is not a brain problem.
+
+The answer is: No 
+"
+574,Would a hedgehog avoid animals without a spinal cord?...,No,No,True,0.855587456454622,0.30813857913017273,0.8302087659291628,95.0,"Here's the step-by-step reasoning:
+
+1. **Hedgehogs are insectivores:** They primarily eat insects and other small invertebrates.
+2. **Insects and invertebrates lack a spinal cord:** They belong to the phylum Arthropoda and have an exoskeleton instead of a backbone.
+
+Therefore, hedgehogs would likely avoid animals without a spinal cord because they are not their typical prey.
+
+The answer is: No 
+"
+256,Can The Hobbit be read in its entirety in four minutes?...,Yes,No,False,0.904971860058896,0.321999192237854,0.883348000030807,100.0,"Here's the step-by-step thinking:
+
+1. **Consider the length of The Hobbit:** It's a novel, not a short story. Novels are typically hundreds of pages long.
+2. **Think about reading speed:**  Even a very fast reader would struggle to read hundreds of pages in four minutes.
+
+The answer is: No 
+"
+659,Could Plato have agreed with the beliefs of Jainism?...,Yes,No,False,0.8615981699241435,0.18104426562786102,0.8286906751175172,95.0,"Here's a step-by-step analysis:
+
+1. **Understand Plato's beliefs:** Plato believed in a world of Forms, perfect and unchanging ideals that exist beyond our physical reality. He emphasized reason and knowledge as the path to understanding these Forms.
+
+2. **Understand Jainism's beliefs:** Jainism is a religion that emphasizes non-violence (ahimsa), self-discipline, and the liberation of the soul from the cycle of reincarnation. It believes in karma and the importance of minimizing actions that cause harm.
+
+3. **Compare the beliefs:**  
+    * **Similarities:** Both Plato and Jainism value knowledge and self-improvement. They both believe in a reality beyond the physical world (Forms for Plato, liberation from the cycle of rebirth for Jainism).
+    * **Differences:** Plato's focus is on reason and understanding the Forms, while Jainism emphasizes ethical conduct and minimizing harm. Plato's theory of Forms is distinct from Jainism's concept of liberation.
+
+4. **Conclusion:** While there are some overlapping themes, the core tenets of Plato's philosophy and Jainism are quite different. Plato's emphasis on reason and the Forms doesn't align with Jainism's focus on non-violence and ethical action.
+
+
+The answer is: No. 
+"
+165,Can Michael Bloomberg fund the debt of Micronesia for a decade?...,Yes,No,False,0.8801388868855106,0.28127720952033997,0.8491018881091914,80.0,"Here's a step-by-step thought process:
+
+1. **Michael Bloomberg's wealth:** Michael Bloomberg is extremely wealthy, with an estimated net worth in the tens of billions of dollars.
+2. **Micronesia's debt:** Micronesia's national debt is relatively small compared to larger countries. 
+
+3. **Funding a decade of debt:**  While Bloomberg is wealthy, funding a country's debt for an entire decade is a significant financial commitment. 
+
+4. **Unknown factors:** We don't know the exact amount of Micronesia's debt or Bloomberg's willingness to make such a large donation.
+
+**The answer is: ** No 
+"
+652,Is Benjamin Franklin a prime candidate to have his statues removed by Black Lives Matter movement?...,Yes,Yes,True,0.8835575773787858,0.2932000458240509,0.8617638972687136,95.0,"Here's a step-by-step thought process:
+
+1. **Who is Benjamin Franklin?** He was a Founding Father of the United States, known for his scientific discoveries, political writings, and role in the American Revolution.
+
+2. **What are the goals of the Black Lives Matter movement?**  The movement aims to bring awareness to and combat systemic racism and police brutality against Black people.
+
+3. **Is Benjamin Franklin associated with slavery?** Yes, Franklin was a slave owner and participated in the slave trade.
+
+4. **Does the Black Lives Matter movement advocate for the removal of statues of figures associated with slavery?** Yes, the movement has called for the removal of statues of figures who represent oppression and racism, including those who were involved in slavery.
+
+5. **Based on the above, would Benjamin Franklin be considered a prime candidate for statue removal by the Black Lives Matter movement?** Yes.
+
+
+The answer is: Yes 
+"
+78,Are sables related to wolverines?...,Yes,Yes,True,0.8977293001442421,0.26058512926101685,0.8729870213438656,100.0,"Here's the step-by-step reasoning:
+
+1. **Sables** are a type of weasel.
+2. **Wolverines** are also a type of weasel. 
+
+Since both sables and wolverines belong to the same family (Mustelidae) and genus (Gulo), they are related. 
+
+The answer is: Yes 
+"
+673,Does Jerry Seinfeld hang out at the Budweiser Party Deck?...,No,No,True,0.8868755161762237,0.3725172281265259,0.8637231714118524,90.0,"Here's the step-by-step thinking:
+
+1. **Jerry Seinfeld is a comedian.** 
+2. **Budweiser Party Decks are typically associated with sporting events.**
+3. **Comedians sometimes attend sporting events.**
+4. **There's no information given to suggest Jerry Seinfeld specifically frequents Budweiser Party Decks.**
+
+The answer is: No 
+"
+528,Do you often hear Marco Polo's name shouted near water?...,Yes,Yes,True,0.8234870150112189,0.21787987649440765,0.7832558639604226,95.0,"Here's the step-by-step thinking:
+
+1. **Marco Polo** is famous for his travels to Asia, particularly China.
+2. **Water** is a common element in travel, especially in ancient times.
+3. **""Marco Polo""** is often used as a call in the game of **Marco Polo**, which is played in water.
+
+Therefore, it's likely that Marco Polo's name is shouted near water.
+
+The answer is: Yes 
+"
+439,Can you hunt Iberian wolves in the Southern United States?...,No,No,True,0.9453961134675037,0.48417046666145325,0.9363926645009032,100.0,"Here's the step-by-step reasoning:
+
+1. **Iberian wolves are native to the Iberian Peninsula**, which is in Europe.
+2. **The Southern United States is in North America.**
+3. **Iberian wolves are not naturally found in North America.**
+
+Therefore, you cannot hunt Iberian wolves in the Southern United States. 
+
+The answer is: No 
+"
+294,Can a New Yorker get their eyes checked by Rand Paul legally?...,No,Yes,False,0.8877920031775045,0.22083090245723724,0.8628539753196727,100.0,"Here's the step-by-step reasoning:
+
+1. **Rand Paul is a medical doctor.** He is a licensed physician.
+2. **Doctors can legally perform eye exams.** Eye exams are a standard medical procedure.
+3. **Licensing requirements vary by state.**  A doctor licensed in one state may not be able to practice in another.
+
+4. **We need to know if Rand Paul is licensed to practice medicine in New York.**
+
+Without information about Rand Paul's medical license status in New York, we cannot definitively say yes or no. 
+
+The answer is:  Cannot be determined. 
+"
+643,Did the Nepalese Civil War take place near India?...,Yes,Yes,True,0.8919824920883475,0.3443149924278259,0.8680949943739011,100.0,"Here's the step-by-step reasoning:
+
+1. **Locate Nepal:** Nepal is a country in South Asia, bordering India to the south.
+2. **Understand ""near"":**  ""Near"" is a relative term, but in this context, it likely means within a reasonable geographical proximity.
+3. **Consider the Nepalese Civil War:** This war took place in Nepal from 1996 to 2006.
+
+4. **Conclusion:** Since Nepal is directly adjacent to India, the Nepalese Civil War took place near India. 
+
+The answer is: Yes 
+"
+396,Will Chuck Norris be a nonagenarian by time next leap year after 2020 happens?...,No,No,True,0.9502469005960005,0.34356752038002014,0.9374228776842551,100.0,"Here's the step-by-step reasoning:
+
+1. **Chuck Norris's birth year:**  We need to know Chuck Norris's birth year to determine his age.  Let's assume he was born in 1940 for this example.
+
+2. **Current year:** The current year is 2023.
+
+3. **Age in 2023:**  2023 - 1940 = 83 years old.
+
+4. **Next leap year after 2020:** The next leap year after 2020 is 2024.
+
+5. **Age in 2024:** 83 + 1 = 84 years old.
+
+6. **Nonagenarian:** A nonagenarian is someone who is 90 years old or older.
+
+7. **Conclusion:** Chuck Norris will not be 90 years old by 2024.
+
+
+The answer is: No 
+"
+355,Would Snowdon mountain be a piece of cake for Tenzing Norgay?...,Yes,Yes,True,0.8993844221467557,0.4160088896751404,0.8835727861241348,95.0,"Here's the step-by-step reasoning:
+
+1. **Tenzing Norgay was a renowned mountaineer.** He is famous for being the first person to summit Mount Everest with Sir Edmund Hillary.
+2. **Mount Everest is significantly taller and more challenging than Snowdon.**
+3. **If Tenzing Norgay could conquer Everest, Snowdon would be a much easier feat.**
+
+The answer is: Yes 
+"
+334,Is the letter D influenced by the shape of ancient doors?...,Yes,No,False,0.7920093559184853,0.21179160475730896,0.7382838305265452,95.0,"Here's the step-by-step thinking:
+
+1. **Consider the origin of the letter D:**  The letter D has ancient roots, likely originating from ancient writing systems.
+2. **Think about the shape of ancient doors:** Ancient doors often had rectangular shapes with a central opening.
+3. **Compare the shapes:** The letter D is a simple, curved shape, unlike the rectangular shape of most ancient doors.
+
+The answer is: No 
+"
+289,Did John Lennon listen to Compact discs?...,No,No,True,0.9149422606434485,0.4085060954093933,0.8989399076493237,100.0,"Here's the step-by-step reasoning:
+
+1. **When did John Lennon die?** John Lennon died in 1980.
+2. **When were CDs invented?** Compact discs were invented in the late 1970s and commercially released in 1982.
+
+3. **Conclusion:** Since John Lennon died before CDs were widely available, he did not listen to them. 
+
+The answer is: No 
+"
+501,Do the Egyptian pyramids look the same from outside as they did when new?...,No,No,True,0.8466179896638079,0.3689172565937042,0.8201425673284739,100.0,"Here's the step-by-step reasoning:
+
+1. **Consider the elements of a pyramid:** Pyramids are made of stone blocks.
+2. **Think about weathering:** Stone is susceptible to weathering over time due to exposure to elements like wind, rain, and sun.
+3. **Erosion:** Weathering causes erosion, which wears away at the surface of stone.
+4. **Impact on appearance:** Erosion would change the appearance of the pyramids over centuries.
+
+The answer is: No 
+"
+281,Does March begin on the same day of the week as February during leap years?...,No,No,True,0.8862412222053694,0.3444907069206238,0.8604095278764381,100.0,"Here's the step-by-step reasoning:
+
+1. **Leap years have an extra day:** February in a leap year has 29 days, while a regular year has 28.
+
+2. **Days of the week cycle:** There are 7 days in a week.
+
+3. **Extra day's impact:** The extra day in February during a leap year shifts the day of the week for the entire month of March.
+
+4. **Conclusion:**  Since the extra day changes the day of the week, March does not begin on the same day of the week as February in leap years.
+
+
+The answer is: No 
+"
+327,Is blonde hair green eyed Sara Paxton considered a Latino?...,Yes,No,False,0.8608054587937365,0.33593377470970154,0.833388124655415,90.0,"Here's the step-by-step reasoning:
+
+1. **Physical characteristics:** Blonde hair and green eyes are not typically associated with Latino ethnicity.
+2. **Ethnicity:** Ethnicity is based on cultural heritage and ancestry, not solely physical appearance.
+3. **Sara Paxton's background:**  While we don't have definitive information about Sara Paxton's specific ancestry, her physical appearance doesn't strongly suggest Latino heritage.
+
+The answer is: No 
+"
+250,Can the history of art be learned by an amoeba?...,No,No,True,0.9064813798871534,0.2573932409286499,0.8889572972231451,100.0,"Here's the step-by-step reasoning:
+
+1. **What is art?** Art is a complex human creation involving creativity, expression, and often symbolism. 
+2. **What is an amoeba?** An amoeba is a single-celled organism with very basic sensory and cognitive abilities.
+3. **Can an amoeba understand complex concepts?** No, amoebas lack the brain structure and cognitive capacity to understand abstract concepts like art.
+4. **Can an amoeba learn in the way humans do?** No, amoebas learn through simple stimulus-response mechanisms, not through complex learning processes like reading or observation.
+
+The answer is: No 
+"
+54,Does it seem like the Gorillaz is composed of more members than they have?...,Yes,Yes,True,0.8413122787831291,0.18925021588802338,0.8041506981776542,95.0,"Here's the step-by-step thinking:
+
+1. **Gorillaz is a virtual band.** This means their members are not real people.
+2. **Virtual bands can have as many or as few members as their creators want.** 
+3. **Gorillaz is known for its diverse and ever-changing lineup of collaborators.**  Many artists contribute to their music and visuals.
+
+Therefore, it's possible for Gorillaz to *seem* like they have more members than they actually do due to the nature of their virtual existence and collaborations.
+
+The answer is: Yes 
+"
+660,Did Ice make people rich?...,Yes,Yes,True,0.8570510791461976,0.3160255551338196,0.8295659222022638,95.0,"Here's a step-by-step thought process:
+
+1. **What is Ice?** Ice is frozen water.
+2. **How was ice historically used?** Ice was used for cooling, preserving food, and even for recreation.
+3. **Was ice a rare commodity?**  Before refrigeration, ice was a seasonal resource, difficult to store and transport. This made it valuable.
+4. **Could people profit from selling ice?** Yes, people who could harvest, store, and transport ice could make a profit.
+
+The answer is: Yes 
+"
+335,Did Polar Bears roam around in Ancient Greece?...,No,No,True,0.904879645506541,0.3452363610267639,0.8868426472297306,100.0,"Here's the step-by-step reasoning:
+
+1. **Polar bears are native to Arctic regions.**
+2. **Ancient Greece is located in the Mediterranean region.**
+3. **The Arctic and Mediterranean regions are geographically very distant.**
+
+The answer is: No 
+"
+133,Is Alistair Darling in favor of Scottish independence?...,No,No,True,0.9278323577732599,0.38385209441185,0.9139901084016321,100.0,"Here's how we can figure this out:
+
+1. **Who is Alistair Darling?** Alistair Darling is a Scottish politician who served as Chancellor of the Exchequer in the UK government. 
+
+2. **What is his stance on Scottish independence?** Alistair Darling is a prominent figure in the ""Better Together"" campaign, which campaigned against Scottish independence in the 2014 referendum.
+
+3. **Does campaigning against independence imply being against it?** Yes, campaigning against something generally means you are not in favor of it.
+
+
+The answer is: No 
+"
+499,Is ID required to get all medications from all pharmacies?...,No,No,True,0.8425197881889773,0.22078751027584076,0.8040192108342609,90.0,"Here's the step-by-step reasoning:
+
+1. **Some medications require ID:**  Prescription medications definitely require ID to ensure the correct person is receiving them.
+2. **Over-the-counter medications generally don't:**  Most over-the-counter medications don't require ID.
+3. **Pharmacies have different policies:**  While general rules exist, individual pharmacies might have their own policies. Some might require ID for all purchases, even OTC.
+
+**The answer is: No** 
+"
+136,Do many fans of J.K Rowling know who Alan Rickman is?...,Yes,Yes,True,0.9470812793482434,0.5958947539329529,0.9404874958480995,99.0,"Here's the step-by-step reasoning:
+
+1. **J.K. Rowling wrote the Harry Potter books.**
+2. **Alan Rickman played Severus Snape in the Harry Potter movies.**
+3. **Many people are fans of the Harry Potter books and movies.**
+4. **Therefore, many fans of J.K. Rowling would know Alan Rickman.**
+
+The answer is: Yes 
+"
+109,Does the Constitution of the Philippines copy text from the British constitution?...,No,No,True,0.8444417395176144,0.2419695258140564,0.8048832693240419,95.0,"Here's a step-by-step thought process:
+
+1. **The Philippine Constitution was heavily influenced by other constitutions.**  It's common for countries to draw inspiration from successful models.
+2. **The British Constitution is a well-known and influential document.** It has served as a model for many other constitutions around the world.
+3. **While the Philippine Constitution borrows concepts and principles from various sources, including the British Constitution, it does not directly copy text.**
+
+The answer is: No 
+"
+468,Is sunscreen unhelpful for the condition that killed Bob Marley?...,Yes,Yes,True,0.9156427794853143,0.4250953495502472,0.9011241902203493,95.0,"Here's the step-by-step reasoning:
+
+1. **Identify Bob Marley's cause of death:** Bob Marley died from acral lentiginous melanoma, a type of skin cancer.
+2. **Understand the role of sunscreen:** Sunscreen helps protect skin from harmful UV radiation, which is a major risk factor for skin cancer.
+
+3. **Connect the dots:**  Since sunscreen protects against UV radiation and UV radiation contributes to skin cancer, sunscreen could be helpful in preventing this type of cancer.
+
+
+The answer is: Yes 
+"
+235,Did mongoose come from later period than rhinos?...,Yes,No,False,0.847274212346923,0.2856311798095703,0.8175086752362917,95.0,"Here's how to think about this:
+
+1. **Mongoose:**  Mongooses are small, carnivorous mammals.
+2. **Rhinos:** Rhinos are large, herbivorous mammals with horns.
+3. **Evolutionary History:**  We need to consider when these animals first appeared on Earth.
+
+*  Rhinos have been around for a very long time, with fossil evidence dating back millions of years.
+*  Mongooses are also relatively old, but their evolutionary history is a bit more recent than rhinos.
+
+**The answer is: No** 
+"
+212,"Is 2018 Ashland, Oregon population inadequate to be a hypothetical military division?...",No,No,True,0.9059804881648194,0.34963274002075195,0.8855028838636093,100.0,"Here's a step-by-step thought process:
+
+1. **What is a military division?**  A military division is a large military unit, typically consisting of multiple brigades and tens of thousands of personnel.
+
+2. **What is the population of Ashland, Oregon?**  According to the 2018 US Census, Ashland, Oregon had a population of around 21,000.
+
+3. **Is 21,000 people enough to form a military division?**  No, 21,000 people is far too small to form a military division.
+
+The answer is: No 
+"
+409,Is it wise to feed a Snickers bar to a poodle?...,No,No,True,0.9153943359851837,0.2557697594165802,0.8911751567266545,100.0,"Here's a step-by-step thought process:
+
+1. **Snickers bars are high in sugar.**  
+2. **Dogs shouldn't consume large amounts of sugar.**
+3. **Snickers bars also contain chocolate.**
+4. **Chocolate is toxic to dogs.**
+
+The answer is: No 
+"
+244,Is it best to avoid kola nuts with colitis?...,Yes,Yes,True,0.9058170514275329,0.4267783761024475,0.8879434555755981,90.0,"Here's a step-by-step thought process:
+
+1. **What is colitis?** Colitis is inflammation of the colon, which can cause digestive issues like diarrhea, cramping, and abdominal pain.
+2. **What are kola nuts?** Kola nuts contain caffeine and other stimulants.
+3. **How can stimulants affect the digestive system?** Stimulants can worsen digestive issues like diarrhea and cramping.
+
+**The answer is: Yes** 
+"
+132,Does Woody Allen await the Second Coming?...,No,No,True,0.886213820114314,0.2956213355064392,0.862084885923829,90.0,"Here's a step-by-step thought process:
+
+1. **Who is Woody Allen?** Woody Allen is a famous filmmaker and comedian.
+2. **What is the Second Coming?** The Second Coming is a Christian belief in the return of Jesus Christ.
+3. **Is Woody Allen known for being religious?** Woody Allen has expressed agnostic and atheistic views in the past.
+
+Therefore, it's unlikely Woody Allen believes in the Second Coming.
+
+The answer is: No 
+"
+249,Would Temujin hypothetically be jealous of Charlemagne's conquests?...,No,Yes,False,0.8739697180364443,0.2185669243335724,0.8517296494092674,90.0,"Here's a step-by-step thought process:
+
+1. **Who is Temujin?** Temujin was the founder of the Mongol Empire, known for his vast conquests across Asia.
+2. **Who is Charlemagne?** Charlemagne was the King of the Franks and Holy Roman Emperor, known for his conquests in Europe.
+3. **Were their empires geographically separate?** Yes, Temujin's Mongol Empire primarily encompassed Asia, while Charlemagne's Frankish Empire was in Europe.
+4. **Would Temujin have knowledge of Charlemagne's conquests?**  It's unlikely Temujin would have direct knowledge of Charlemagne's conquests given the geographical distance and lack of communication between their empires.
+5. **Could Temujin be jealous of another ruler's success?**  It's possible, as ambition and a desire for power are common human traits.
+
+**The answer is: ** No 
+
+
+While Temujin was a powerful and ambitious ruler, it's unlikely he would have been jealous of Charlemagne's conquests due to the lack of awareness and geographical separation. 
+
+"
+72,"If Goofy were a pet, would he need heartworm prevention?...",Yes,Yes,True,0.8928538169487413,0.34732571244239807,0.8700454191103175,100.0,"Here's the step-by-step thinking:
+
+1. **Goofy is a dog:**  He's depicted as a canine character.
+2. **Heartworm is a parasite that affects dogs:** It's a serious illness for canines.
+3. **Pet dogs need heartworm prevention:**  To protect them from this disease.
+
+The answer is: Yes 
+"
+353,Is number of different US President's in 1800s a lucky number in Hong Kong?...,No,No,True,0.8823401079823573,0.24600721895694733,0.853661683591464,99.0,"Here's how to break down the question:
+
+1. **Identify the facts:**
+    * There were 8 US Presidents in the 1800s.
+    *  ""Lucky numbers"" are culturally specific.
+
+2. **Consider the context:**
+    * The question asks about luck in Hong Kong.
+
+3. **Determine if there's a connection:**
+    * There's no known cultural connection between the number of US Presidents in the 1800s and luck in Hong Kong.
+
+The answer is: No 
+"
+567,Does Biochemistry study gluons?...,No,No,True,0.9330362984910607,0.4191305637359619,0.9210976191335339,100.0,"Here's the step-by-step reasoning:
+
+1. **Biochemistry** focuses on the chemical processes within and relating to living organisms. 
+2. **Gluons** are fundamental particles that mediate the strong nuclear force, binding quarks together to form protons and neutrons.
+3. While gluons are essential for the structure of atoms, their primary role is not directly related to the chemical processes studied in biochemistry.
+
+The answer is: No 
+"
+638,Can fish get Tonsillitis?...,No,No,True,0.930513471364975,0.5002790093421936,0.9179766811172753,100.0,"Here's the step-by-step reasoning:
+
+1. **Tonsillitis is an inflammation of the tonsils.**
+2. **Tonsils are part of the lymphatic system, which helps the body fight infection.**
+3. **Fish do not have tonsils.**
+
+Therefore, fish cannot get tonsillitis. 
+
+The answer is: No 
+"
+585,Would a blooming onion be possible with a shallot?...,No,Yes,False,0.8756595668969331,0.3501657247543335,0.8489521808000348,100.0,"Here's the step-by-step reasoning:
+
+1. **What is a blooming onion?** A blooming onion is a dish where a large onion is sliced into layers, leaving the core intact, then deep-fried. 
+2. **What is a shallot?** A shallot is a type of onion, smaller and milder than a regular onion.
+3. **Can shallots be sliced into layers?** Yes, shallots can be sliced into layers, just like regular onions.
+4. **Can shallots be deep-fried?** Yes, shallots can be deep-fried.
+
+**The answer is: Yes** 
+"
+654,Would a packed Wembley stadium be likely to have a descendant of the Mongols inside?...,Yes,Yes,True,0.8752177743684678,0.32466474175453186,0.8510848895879475,95.0,"Here's the step-by-step reasoning:
+
+1. **Wembley Stadium is in London, England.**
+2. **The Mongols were a nomadic group originating in Central Asia.**
+3. **Over centuries, people have migrated all over the world.**
+4. **It's highly probable that descendants of people from various origins, including Central Asia, live in London.**
+5. **A packed stadium would likely contain a diverse crowd of people.**
+
+The answer is: Yes 
+"
+404,Is dyslexia the most common intellectual disability in US?...,No,No,True,0.911480262875557,0.3860871493816376,0.8911064350038179,100.0,"Here's the step-by-step reasoning:
+
+1. **Dyslexia is a learning disorder**, not an intellectual disability. 
+2. **Intellectual disabilities** are characterized by significant limitations in both intellectual functioning and adaptive behavior.
+
+Therefore, dyslexia cannot be an intellectual disability. 
+
+The answer is: No 
+"
+76,Are Brian Cranston and Saoirse Ronan's combined Emmy Awards a prime number?...,No,No,True,0.9536922256151835,0.5220062732696533,0.9462812846146811,100.0,"Here's how to solve this:
+
+1. **Find the number of Emmy Awards each person has won:**
+   * Brian Cranston has won 4 Emmy Awards.
+   * Saoirse Ronan has won 0 Emmy Awards.
+
+2. **Calculate their combined Emmy Awards:** 4 + 0 = 4
+
+3. **Determine if 4 is a prime number:** A prime number is a whole number greater than 1 that has only two divisors: 1 and itself.  The divisors of 4 are 1, 2, and 4.
+
+4. **Conclusion:** Since 4 has more than two divisors, it is not a prime number.
+
+
+The answer is: No 
+"
+477,Is most store bought rice pudding made with brown rice?...,No,No,True,0.8912853477092889,0.3552418351173401,0.8694365897829536,95.0,"Here's the step-by-step thinking:
+
+1. **What is rice pudding?** It's a dessert made with rice, milk, and sweetener.
+2. **What are the common types of rice?** White rice and brown rice are the most common.
+3. **Which type of rice is typically used in desserts?** White rice is generally preferred in desserts due to its softer texture and milder flavor.
+4. **Is brown rice commonly used in desserts?** Brown rice is less common in desserts because of its chewier texture and nuttier flavor.
+
+The answer is: No 
+"

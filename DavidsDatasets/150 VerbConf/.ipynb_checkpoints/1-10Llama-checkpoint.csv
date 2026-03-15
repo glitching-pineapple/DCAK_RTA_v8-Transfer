@@ -1,0 +1,1417 @@
+idx,question,ground_truth,model_answer,is_correct,seq_confidence_mean,logit_confidence_min,logit_confidence_geom,full_response
+4412,Body temperature on the average is 98.6°F. What is thison (a)theCelsius scale and (b) the Kelvin sca...,A,A,True,-0.9888744133991636,0.4415578842163086,0.9400665100606628,"Answer: A
+Confidence: 10
+More than not: Yes"
+10474,"This question is based on the following declarations: String strA = ""CARROT"", strB = ""Carrot"", strC ...",C,C,True,-2.4982933662496065,0.2602505385875702,0.8554365672486114,"Answer: C
+Confidence: 10
+More than not: Yes"
+5032,What are the tallest trees on Earth?...,B,F,False,-1.5091659509490065,0.5615846514701843,0.9099889049262432,"Answer: F
+Confidence: 8
+More than not: Yes"
+2611,"According to the Gestalt organizing principles of perception, when you look at, ""i n car n a t e,"" y...",E,E,True,-1.013178501612662,0.45887914299964905,0.9386396278443108,"Answer: E
+Confidence: 8
+More than not: Yes"
+1562,A state has a statute generally prohibiting the installation and use of radar detection devices in a...,F,B,False,-1.5943097422624273,0.5192370414733887,0.9051592726473842,"Answer: B
+Confidence: 8
+More than not: Yes"
+9128,The highest ocean tides occur when Earth and the Moon are...,H,H,True,-0.6777568374692072,0.6032480597496033,0.958524839039036,"Answer: H
+Confidence: 9
+More than not: Yes"
+518,How much interest will George pay on a 6-month loan of $300 at 8% interest?...,C,A,False,-1.2617441776721545,0.42777979373931885,0.9241702129978271,"Answer: A
+Confidence: 8
+More than not: Yes"
+5220,Which of the following is an example of devolution?...,A,C,False,-30.0853234865756,0.18734736740589142,0.7261079143588867,"Answer: C
+Confidence: 9
+More than not: Yes
+
+Explanation: Devolution refers to the process of transferring power or authority from a central government to a lower level of government, such as a state or local government. In this case, option C is an example of devolution because it involves the federal government limiting a state's ability to implement a more stringent fuel efficiency standard, effectively giving the state less authority to make decisions on this issue."
+7773,(i + 1)(5 – 5i)(5 + 5i) =...,C,A,False,-1.4423925999787566,0.4900672137737274,0.9137945285057343,"Answer: A
+Confidence: 9
+More than not: Yes"
+9157,"In an experiment with a stellar interferometer, the fringes from the star Betelgeuse had zero visibi...",A,G,False,-67.95391015796145,0.14863274991512299,0.8221498558826583,"To solve this problem, we need to use the formula for the visibility of fringes in a stellar interferometer:
+
+V = (2 * λ * D) / (θ * c)
+
+where:
+- V is the visibility of the fringes
+- λ is the wavelength of the light
+- D is the separation of the mirrors
+- θ is the angle subtended by the star
+- c is the speed of light
+
+Given that the visibility V = 0, we can rearrange the formula to solve for θ:
+
+θ = (2 * λ * D) / c
+
+We are given:
+- D = 3m
+- λ = 550 nm (in the middle of the visible spectrum, approximately)
+- c = 3 * 10^8 m/s
+
+First, convert λ to meters:
+λ = 550 * 10^-9 m
+
+Now, plug in the values:
+θ = (2 * 550 * 10^-9 m * 3 m) / (3 * 10^8 m/s)
+θ ≈ 6 * 10^-11 rad
+
+To convert radians to arc seconds, we multiply by (180 / π) * 3600:
+θ ≈ 6 * 10^-11 * (180 / π) * 3600
+θ ≈ 6.83 * 10^-5 arc seconds
+
+θ ≈ 0.0683 arc seconds
+
+Rounding to two decimal places, we get:
+θ ≈ 0.07 arc seconds
+
+However, none of the options exactly match this value. The closest option is 0.072 second of arc.
+
+Answer: G
+Confidence: 8
+More than not: Yes"
+2127,The primary research method used by developmental psychologists is...,I,C,False,-1.5023944372638796,0.48564791679382324,0.9103741115791861,"Answer: C
+Confidence: 8
+More than not: Yes"
+218,"On October 17, Thomas Long purchased two $1,000 bonds, bearing 6% interest payable January 1 and Jul...",D,A,False,-1.67621460408617,0.44369685649871826,0.9005375530834786,"Answer: A
+Confidence: 8
+More than not: Yes"
+1430,"A defendant, a nurse at a nursing home, is charged with murdering a resident at the home by adding a...",I,G,False,-1.1299584525651913,0.5282598733901978,0.9318136754898462,"Answer: G
+Confidence: 9
+More than not: Yes"
+5118,Ace Co. issued 1000 shares of its $10 par value common stock for $15 per share in cash. How should t...,C,C,True,-0.4806698139042442,0.7760509848594666,0.9704049082793893,"Answer: C
+Confidence: 10
+More than not: Yes"
+10303,Let x = 1. What is x << 3 in Python 3?...,C,H,False,-1.663439845952176,0.2668609619140625,0.9012568495359125,"Answer: H
+Confidence: 10
+More than not: Yes"
+4604,The fact that early excavators of Teotihuacán mistook ordinary housing compounds for palaces suggest...,D,J,False,-0.7748428832055548,0.5718191266059875,0.9527262377850834,"Answer: J
+Confidence: 8
+More than not: Yes"
+3463,"At standard conditions, it is found that 28.0 g of carbon monoxide occupies 22.4 l. What is the dens...",H,C,False,-79.47428198263901,0.3152172565460205,0.8562240409556683,"To find the density of carbon monoxide at 20°C and 600 torr, we need to use the ideal gas law: PV = nRT, where P is pressure, V is volume, n is the number of moles, R is the gas constant, and T is temperature in Kelvin.
+
+First, we need to find the number of moles of carbon monoxide. We know that 28.0 g of carbon monoxide occupies 22.4 l at standard conditions (0°C and 1 atm). We can use this information to find the molar mass of carbon monoxide.
+
+The molar mass of carbon monoxide is 28.0 g/mol, which is given in the problem.
+
+Now, we need to find the number of moles of carbon monoxide at 20°C and 600 torr. We can use the ideal gas law to find the volume of 1 mole of carbon monoxide at 20°C and 1 atm, and then use this to find the volume of 28.0 g of carbon monoxide at 20°C and 600 torr.
+
+First, we need to convert the temperature from Celsius to Kelvin: T = 20°C + 273.15 = 293.15 K.
+
+Next, we need to convert the pressure from torr to atm: 1 atm = 760 torr, so 600 torr = 600/760 = 0.7895 atm.
+
+Now, we can use the ideal gas law to find the volume of 1 mole of carbon monoxide at 20°C and 1 atm: PV = nRT, so V = nRT/P. We know that n = 1 mole, R = 0.0821 L atm/mol K, T = 293.15 K, and P = 1 atm. Plugging in these values, we get V = (1 mol)(0.0821 L atm/mol K)(293.15 K)/(1 atm) = 24.05 L.
+
+Now, we can use this to find the volume of 28.0 g of carbon monoxide at 20°C and 600 torr. We know that 28.0 g of carbon monoxide occupies 22.4 l at standard conditions, so we can set up a proportion: (22.4 l) / (28.0 g) = x / (28.0 g). Solving for x, we get x = (22.4 l)(28"
+3955,The molar heat of vaporization of water is +43.9 kJ. What is the entropy change for the vaporization...,H,A,False,-1.148244428001487,0.5401821732521057,0.9307493386830169,"Answer: A
+Confidence: 8
+More than not: Yes"
+1217,A developer wished to build an apartment house in a local city. He raised $1 million from various so...,C,B,False,-2.2868903781476932,0.3687741160392761,0.8668141815583764,"Answer: B
+Confidence: 8
+More than not: Yes"
+4639,"This question refers to the following information.
+Seizing me, he led me down to the House of Darkne...",E,E,True,-0.7424383988463045,0.6715391874313354,0.9546577306865428,"Answer: E
+Confidence: 9
+More than not: Yes"
+8157,"In the casino game of roulette, there are 38 slots for a ball to drop into when it is rolled around ...",D,B,False,-1.7739348099575132,0.46666887402534485,0.8950542700463365,"Answer: B
+Confidence: 8
+More than not: Yes"
+2054,"In a skewed smooth distribution with a tail exended to the left, the statistic with the highest valu...",I,H,False,-1.247490623699735,0.4234001040458679,0.9249938741971266,"Answer: H
+Confidence: 9
+More than not: Yes"
+10163,"Statement 1| RELUs are not monotonic, but sigmoids are monotonic. Statement 2| Neural networks train...",J,F,False,-1.3530866001912336,0.522494912147522,0.9189092478224532,"Answer: F
+Confidence: 9
+More than not: Yes"
+7173,All else equal when the United States exports more goods and services...,F,C,False,-1.1669004326873793,0.5525507926940918,0.9296647171389283,"Answer: C
+Confidence: 9
+More than not: Yes"
+9375,"A car travels at the constant speed of 30 mph for 20 miles, at a speed of 40 mph for the next 20 mil...",I,B,False,-0.7084786931768314,0.6816559433937073,0.9566861260127699,"Answer: B
+Confidence: 9
+More than not: Yes"
+8209,"John has 12 marbles of different colors, including one red, one green, and one blue marble. In how m...",D,D,True,-0.8934359683587408,0.5708135366439819,0.945690672548501,"Answer: D
+Confidence: 8
+More than not: Yes"
+724,Assume that the following charges (flat rates) are made on $500 for a year and that the loan in each...,B,A,False,-100.93491079281588,0.10251540690660477,0.8210769082216425,"To solve this problem, we need to use the formula for calculating monthly payments on a loan:
+
+M = P[r(1 + r)^n]/[(1 + r)^n - 1]
+
+Where:
+M = monthly payment
+P = principal (initial amount borrowed) = $500
+r = monthly interest rate (annual rate divided by 12)
+n = number of payments (12 months)
+
+We will calculate the monthly payment and true annual interest rate for each given annual interest rate.
+
+For 3%:
+r = 3%/12 = 0.003
+n = 12
+
+M = 500[0.003(1 + 0.003)^12]/[(1 + 0.003)^12 - 1]
+M ≈ 43.92
+
+To find the true annual interest rate, we need to use the formula:
+A = P[(1 + r)^n - 1]/n
+
+Where:
+A = total amount paid (500 + interest)
+r = monthly interest rate (annual rate divided by 12)
+n = number of payments (12 months)
+
+A = 500[(1 + 0.003)^12 - 1]/12
+A ≈ 500(1.0432 - 1)/12
+A ≈ 500(0.0432)/12
+A ≈ 3.60
+True annual interest rate = (A - P)/P
+= (3.60 - 500)/500
+≈ 0.008 or 0.8% (not correct, we need to find the rate that gives us a monthly payment of 43.92)
+We will try different values of r until we get the correct monthly payment.
+
+After trying different values, we get:
+r ≈ 0.0042 (monthly interest rate)
+True annual interest rate = 12r
+≈ 0.0504 or 5.04% (not correct, we need to round to the nearest tenth)
+True annual interest rate ≈ 5.2%
+
+For 5%:
+r = 5%/12 = 0.004167
+n = 12
+
+M = 500[0.004167(1 + 0.004167)^12]/[(1 + 0.004167)^12 - 1]
+M ≈ 42.75
+
+To find the true annual interest rate, we need to use the formula:
+A = P[(1 + r)^n - 1]/n
+
+Where:
+A = total"
+3853,"1 mole of ammonia at - 33.33°C and 1.00atmis converted to vapor. Calculate q, w and \DeltaE for the ...",E,J,False,-84.49225583859251,0.0603359118103981,0.8478734081425867,"To solve this problem, we need to follow these steps:
+
+1. Calculate the volume of 1 mole of liquid ammonia at -33.33°C.
+2. Calculate the volume of 1 mole of ammonia vapor at 1 atm.
+3. Calculate the work done (w) using the ideal gas law.
+4. Calculate the heat (q) using the enthalpy change (\DeltaH).
+5. Calculate the internal energy change (\DeltaE) using the first law of thermodynamics.
+
+Step 1: Calculate the volume of 1 mole of liquid ammonia at -33.33°C.
+Given that 1 lb of liquid occupies 0.02345 ft^3, we need to convert 1 mole to pounds. The molar mass of ammonia (NH3) is 17.03 g/mol. 
+
+1 mole of ammonia = 17.03 g / 454 g/lb ≈ 0.0375 lb
+
+Volume of 1 mole of liquid ammonia = 0.0375 lb * 0.02345 ft^3/lb ≈ 0.000876 ft^3
+
+Step 2: Calculate the volume of 1 mole of ammonia vapor at 1 atm.
+Given that 1 lb of gas occupies 18.00 ft^3, we can calculate the volume of 1 mole of ammonia vapor.
+
+Volume of 1 mole of ammonia vapor = 0.0375 lb * 18.00 ft^3/lb ≈ 0.675 ft^3
+
+Step 3: Calculate the work done (w) using the ideal gas law.
+The ideal gas law is PV = nRT, where P is the pressure, V is the volume, n is the number of moles, R is the gas constant, and T is the temperature in Kelvin.
+
+First, convert the temperature from Celsius to Kelvin: -33.33°C + 273.15 = 239.82 K
+
+R = 0.7303 ft-lb/mol-K (gas constant in ft-lb/mol-K)
+
+w = nRT = 1 mol * 0.7303 ft-lb/mol-K * 239.82 K ≈ 175.5 ft-lb
+
+However, we need to convert this to kJ. 1 ft-lb ≈ 1.356 J, so:
+
+w ≈ 175.5 ft-lb * 1.356 J/ft-lb ≈ 237.7 J
+w ≈ 0.2377 kJ"
+6339,A 35-year-old female develops nausea and vomiting after she underwent a cholecystectomy for protract...,C,C,True,-0.676214065555403,0.5954715013504028,0.9586172675701159,"Answer: C
+Confidence: 8
+More than not: Yes"
+1662,Which of the following factors contributed significantly to the revival of natural law in the 20th c...,C,C,True,-0.8958171677643431,0.5439099669456482,0.9455499406417615,"Answer: C
+Confidence: 9
+More than not: Yes"
+3045,"During the mammalian cardiac cycle, a volume of blood equivalent to ventricular stroke volume is tra...",B,D,False,-1.1434037283205774,0.4990656077861786,0.9310309736609902,"Answer: D
+Confidence: 8
+More than not: Yes"
+6575,Which of the following structures is derived from ectomesenchyme?...,E,C,False,-1.6379573909156084,0.5463547706604004,0.9026933830037879,"Answer: C
+Confidence: 9
+More than not: Yes"
+1643,"This jurisdiction has the following criminal statute in effect:""A person is not responsible for crim...",B,J,False,-2.0664541502702845,0.41519200801849365,0.8788391549975697,"Answer: J
+Confidence: 9
+More than not: Yes"
+11308,"Find the magnitude of E for a plane wave in free space, if the magnitude of H for this wave is 5 amp...",C,H,False,-1.7068290207974295,0.46638646721839905,0.8988161110185594,"Answer: H
+Confidence: 8
+More than not: Yes"
+6086,"A 28-year-old man comes to the office because he would like to quit smoking cigarettes. He says, ""I ...",I,C,False,-2.4851470226447034,0.24452731013298035,0.8561397225219068,"Answer: C
+Confidence: 8
+More than not: Yes"
+4250,Calculate the volume of O_2 necessary to burn 50 liters of CO completely. The balanced reaction is: ...,J,J,True,-52.250535482348376,0.22807300090789795,0.8356419018360344,"To solve this problem, we need to use the stoichiometry of the reaction. The balanced equation is 2CO + O_2 → 2CO_2. 
+
+First, we need to find the volume of O_2 necessary to burn 50 liters of CO. The ratio of CO to O_2 is 2:1. So, for every 2 liters of CO, 1 liter of O_2 is needed. 
+
+To find the volume of O_2 needed for 50 liters of CO, we can set up a proportion: 
+(2 liters CO / 1 liter O_2) = (50 liters CO / x liters O_2)
+Cross-multiplying, we get 2x = 50, so x = 25 liters of O_2.
+
+Now, we need to find the volume of CO_2 formed. The ratio of CO to CO_2 is 2:2 or 1:1. So, for every 1 liter of CO, 1 liter of CO_2 is formed. 
+
+Since we have 50 liters of CO, the volume of CO_2 formed is also 50 liters.
+
+Therefore, the volume of O_2 necessary to burn 50 liters of CO is 25 liters, and the volume of CO_2 formed is 50 liters.
+
+Answer: J
+Confidence: 10
+More than not: Yes"
+8225,"Find the number of integers n, 1 ≤ n ≤ 25 such that n^2 + 3n + 2 is divisible by 6....",D,E,False,-43.6375364942256,0.25268271565437317,0.8990352672669165,"To solve this problem, we need to find the number of integers n, 1 ≤ n ≤ 25 such that n^2 + 3n + 2 is divisible by 6.
+
+First, let's rewrite the expression n^2 + 3n + 2 as (n + 1)(n + 2). 
+
+For (n + 1)(n + 2) to be divisible by 6, it must be divisible by both 2 and 3.
+
+Since n + 1 and n + 2 are consecutive integers, one of them must be even, so (n + 1)(n + 2) is always divisible by 2.
+
+For (n + 1)(n + 2) to be divisible by 3, either n + 1 or n + 2 must be divisible by 3.
+
+Now, let's count the number of integers n, 1 ≤ n ≤ 25, such that n + 1 or n + 2 is divisible by 3.
+
+The numbers n + 1 that are divisible by 3 are 3, 6, 9, 12, 15, 18, 21, and 24. There are 8 such numbers.
+
+The numbers n + 2 that are divisible by 3 are 3, 6, 9, 12, 15, 18, 21, and 24. There are 8 such numbers.
+
+However, we counted the numbers 3, 6, 9, 12, 15, 18, 21, and 24 twice, so we need to subtract 8 from the total count.
+
+Therefore, the total number of integers n, 1 ≤ n ≤ 25, such that n^2 + 3n + 2 is divisible by 6 is 8 + 8 - 8 = 8.
+
+Answer: E
+Confidence: 9
+More than not: Yes"
+8409,Which of the following could NOT be the sides of an isosceles triangle?...,E,B,False,-1.3143170974304463,0.578961968421936,0.9211385510510205,"Answer: B
+Confidence: 10
+More than not: Yes"
+3488,A 2-liter Dumas bulb contains n moles of nitrogen at 0.5atm pressure and at T°K. On addition of 0.01...,B,C,False,-124.0247916819634,0.08337972313165665,0.7848709879600301,"To solve this problem, we can use the ideal gas law: PV = nRT. 
+
+Initially, the bulb contains n moles of nitrogen at 0.5 atm and T°K. After adding 0.01 moles of oxygen, the total number of moles becomes n + 0.01. The pressure remains the same, but the temperature is reduced to 10°C (283K).
+
+We can set up the equation for the initial and final conditions:
+
+Initial: PV = nRT
+Final: PV = (n + 0.01)RT
+
+Since the pressure and volume are constant, we can equate the two equations:
+
+nRT = (n + 0.01)RT
+
+Dividing both sides by RT:
+
+n = n + 0.01
+
+Subtracting n from both sides:
+
+0 = 0.01
+
+This equation is not solvable for n. However, we can re-examine the problem. The key is to realize that the addition of oxygen does not change the total number of moles of gas in the bulb, since the question states that the pressure remains the same after cooling. This means that the initial number of moles of nitrogen is equal to the total number of moles after adding oxygen.
+
+The initial number of moles of nitrogen is n, and the total number of moles after adding oxygen is n + 0.01. Since the pressure remains the same, we can set up the equation:
+
+nRT = (n + 0.01)RT
+
+Dividing both sides by RT:
+
+n = n + 0.01
+
+This equation is still not solvable for n. However, we can re-examine the problem again. The key is to realize that the addition of oxygen changes the total number of moles of gas in the bulb, but the pressure remains the same. This means that the initial number of moles of nitrogen is not equal to the total number of moles after adding oxygen.
+
+Let's re-examine the ideal gas law equation:
+
+PV = nRT
+
+Initially, the bulb contains n moles of nitrogen at 0.5 atm and T°K. After adding 0.01 moles of oxygen, the total number of moles becomes n + 0.01. The pressure remains the same, but the temperature is reduced to 10°C (283K).
+
+We can set up the equation for the initial and final conditions:
+
+Initial: PV = nRT
+Final: PV ="
+4060,Calculate the mass of water vapour present in a room of volume $400 \mathrm{m}^3$ that contains air ...,A,A,True,-43.56754320158668,0.16329729557037354,0.821806597380248,"To solve this problem, we need to calculate the mass of water vapour present in the room. We can use the formula:
+
+Mass of water vapour = (Relative Humidity / 100) * (Volume of air * Saturation vapour pressure at temperature) / (Gas constant * Temperature)
+
+First, we need to find the saturation vapour pressure at 27°C. We can use the formula:
+
+Saturation vapour pressure = 10^(7.5 + 0.0183T)
+
+where T is the temperature in Kelvin.
+
+T = 27 + 273.15 = 300.15 K
+
+Saturation vapour pressure = 10^(7.5 + 0.0183*300.15) ≈ 4.246 kPa
+
+Now, we can plug in the values:
+
+Mass of water vapour = (60 / 100) * (400 * 4.246) / (8.314 * 300.15) ≈ 6.2 kg
+
+Answer: A
+Confidence: 8
+More than not: Yes"
+8532,Find $(2^{20} + 2^{20} + 2^{20} +2^{21}) \div 2^{17}$....,C,C,True,-1.762605526266666,0.31350836157798767,0.895688264713396,"Answer: C
+Confidence: 9
+More than not: Yes"
+1393,"Donny threw a knife at Sally, intending to injure her severely. However, Donny missed Sally. Sally s...",J,D,False,-1.1268805760624807,0.44933316111564636,0.9319929431954573,"Answer: D
+Confidence: 9
+More than not: Yes"
+3526,"Evaluate the series
+$$
+S=\sum_{n=0}^{\infty} \frac{1}{3^n}
+$$...",J,A,False,-1.5840025683823455,0.3231601119041443,0.9057425626302114,"Answer: A
+Confidence: 10
+More than not: Yes"
+11810,A line amplifier of bandwidth 22 kHz has an input source resistanceof 750\Omega at a standard noise ...,D,A,False,-1.1106761599217012,0.6612828969955444,0.9329373214297829,"Answer: A
+Confidence: 8
+More than not: Yes"
+7652,The region bounded by the x-axis and the function f(x) = x/(1 + x^3) is rotated about the x-axis. Wh...,E,D,False,-2.5381097033173066,0.25354012846946716,0.8533104418808563,"Answer: D
+Confidence: 8
+More than not: Yes"
+11029,Whether someone is hypocritical regarding her claims is......,A,D,False,-0.816565331583395,0.6812039613723755,0.950245094716509,"Answer: D
+Confidence: 9
+More than not: Yes"
+3316,Which of these is the smallest unit that natural selection can change?...,I,B,False,-1.2943303585958197,0.4145638346672058,0.9222899297639989,"Answer: B
+Confidence: 9
+More than not: Yes"
+3706,Assume that all gases are perfect and that data refer to 298.15 K unless otherwise stated. Calculate...,H,H,True,-91.40545027654534,0.12393699586391449,0.7554929591279875,"To calculate the Carnot efficiency, we need to first find the temperatures in Kelvin. 
+
+T1 = 300°C + 273.15 = 573.15 K
+T2 = 80°C + 273.15 = 353.15 K
+
+The Carnot efficiency is given by the formula:
+η = 1 - (T2 / T1)
+
+η = 1 - (353.15 / 573.15)
+η = 1 - 0.616
+η = 0.384
+
+However, this is not among the options. We need to convert the temperatures to the standard temperature of 298.15 K to see if it matches any of the options.
+
+T1 = 300°C - 12°C = 288.15 K
+T2 = 80°C - 12°C = 68.15 K (assuming 12°C is the temperature difference from 298.15 K)
+
+η = 1 - (68.15 / 288.15)
+η = 1 - 0.237
+η = 0.763
+However, this is also not among the options.
+
+Let's try another approach. We can calculate the efficiency using the temperatures given in the problem and then compare it to the options.
+
+η = 1 - (353.15 / 573.15)
+η = 1 - 0.616
+η = 0.384
+
+However, this is not among the options. We can try to find the closest option.
+
+Answer: H
+Confidence: 8
+More than not: Yes"
+1368,"In 1973, a woman was the actual and record owner of 20 acres of certain undeveloped timberland. In S...",C,B,False,-23.841752546934096,0.24093502759933472,0.7878736650883842,"Answer: B
+Confidence: 10
+More than not: Yes
+
+The reason the court does not need to resolve whether the finance company is charged with record notice of the bank's mortgage is because the finance company had no actual notice of the prior mortgage to the bank. The question states that the finance company had ""no actual notice of the prior mortgage to the bank."" This means that the finance company's lack of record notice is irrelevant, as actual notice takes precedence over record notice."
+9014,A 1-kg object is released from rest at the top of a rough-surfaced incline. The object slides withou...,F,F,True,-0.828990536627369,0.5684115290641785,0.9495074442901437,"Answer: F
+Confidence: 9
+More than not: Yes"
+3412,An ideal solution is a...,D,D,True,-0.9523170533227628,0.5176723599433899,0.9422168625945495,"Answer: D
+Confidence: 10
+More than not: Yes"
+9354,Any atom that emits an alpha particle or beta particle...,B,B,True,-0.9760872753671226,0.5179316401481628,0.9408181078716532,"Answer: B
+Confidence: 9
+More than not: Yes"
+5860,An example of a discontinuous change over the adult years is the change in...,G,B,False,-1.7695074744439299,0.4943183958530426,0.8953019734128382,"Answer: B
+Confidence: 8
+More than not: Yes"
+970,Which of the following is the strongest argument against ethical relativism's hostility to human rig...,A,J,False,-1.0490933352832532,0.5873880386352539,0.9365350478972793,"Answer: J
+Confidence: 8
+More than not: Yes"
+6084,A 15-year-old girl is brought to the physician 3 months after she had a blood pressure of 150/95 mm ...,C,C,True,-0.8482863347768584,0.5347669124603271,0.9483630404979602,"Answer: C
+Confidence: 8
+More than not: Yes"
+4832,The Aztec Empire was based on the systematic expansion of:...,E,J,False,-0.705415553598508,0.690108060836792,0.9568692974919933,"Answer: J
+Confidence: 9
+More than not: Yes"
+7712,Find the generator for the finite field Z_11....,A,B,False,-2.1549473809136375,0.23844338953495026,0.8739918648629033,"Answer: B
+Confidence: 8
+More than not: Yes"
+9121,A stone is thrown vertically upward with an initial speed of 5 m/s. What is the velocity of the ston...,A,J,False,-0.7602056915208891,0.5962744355201721,0.9535982138621427,"Answer: J
+Confidence: 8
+More than not: Yes"
+2802,Which of the following would most likely describe the fate of a vesicle formed as a result of phagoc...,F,F,True,-0.36266330016678777,0.7808830738067627,0.9775884979236289,"Answer: F
+Confidence: 9
+More than not: Yes"
+2227,"If a test has a standard error of measurement of 15 points, itis correct to conclude that...",C,D,False,-1.5078455266058342,0.34963157773017883,0.9100640062440059,"Answer: D
+Confidence: 9
+More than not: Yes"
+11803,"Find the Fourier sine series of f(x) = x^2 over the interval (0, 1)....",I,,False,-33.001510497917515,0.20406697690486908,0.9375772962610186,"To find the Fourier sine series of f(x) = x^2 over the interval (0, 1), we need to use the formula:
+
+f(x) = \sum_{n=1}^{\infty} b_n \sin(n\pi x)
+
+where b_n = \frac{2}{1} \int_{0}^{1} x^2 \sin(n\pi x) dx
+
+First, we need to evaluate the integral:
+
+b_n = \frac{2}{1} \int_{0}^{1} x^2 \sin(n\pi x) dx
+
+Using integration by parts twice, we get:
+
+b_n = \frac{2}{1} \left[ -\frac{x^2}{n\pi} \cos(n\pi x) + \frac{2x}{n^2\pi^2} \sin(n\pi x) - \frac{2}{n^3\pi^3} \cos(n\pi x) \right]_0^1
+
+Evaluating the limits, we get:
+
+b_n = \frac{2}{1} \left[ -\frac{1}{n\pi} \cos(n\pi) + \frac{2}{n^2\pi^2} \sin(n\pi) - \frac{2}{n^3\pi^3} \cos(n\pi) \right]
+
+Since \sin(n\pi) = 0 and \cos(n\pi) = (-1)^n, we get:
+
+b_n = \frac{2}{1} \left[ -\frac{(-1)^n}{n\pi} + \frac{2(-1)^n}{n^2\pi^2} + \frac{2}{n^3\pi^3} \right]
+
+Simplifying, we get:
+
+b_n = \frac{2}{1} \left[ \frac{(-1)^n}{n\pi} + \frac{2(-1)^n}{n^2\pi^2} + \frac{2}{n^3\pi^3} \right]
+
+b_n = \frac{2}{1} \left[ \frac{(-1)^n}{n\pi} + \frac{2(-1)^n}{n^2\pi^2} \right] + \frac{4}{n^3\pi^3}
+
+b"
+360,Pick the correct description of the following term: Utilitarianism is…...,G,G,True,-0.05634978940101634,0.9681430459022522,0.9964843326436684,"Answer: G
+Confidence: 10
+More than not: Yes"
+6545,"Although theoretically any food protein could act as a food allergen, there are eight major food all...",C,A,False,-1.8813452791621823,0.4396631717681885,0.8890657560015526,"Answer: A
+Confidence: 8
+More than not: Yes"
+3107,The frequency ofTay-Sachs disease in the Jewish population of New York City is about 0.015 and appro...,B,G,False,-2.7076714898944036,0.34677913784980774,0.8443151377493704,"Answer: G
+Confidence: 8
+More than not: Yes"
+11026,Which of the following explanations best fits the fallacy of ignorance of refutation?...,B,A,False,-0.8168327347751025,0.4928509593009949,0.9502292136885148,"Answer: A
+Confidence: 9
+More than not: Yes"
+8523,What is the range of the function $f(x) = \frac{1}{1-x}$? Express your answer in interval notation....,F,B,False,-1.1973669852060804,0.5438818335533142,0.9278961715366878,"Answer: B
+Confidence: 10
+More than not: Yes"
+937,A man was under custodial interrogation as a suspect in the murder of a child. The police initially ...,H,D,False,-1.7233521680619974,0.5148051381111145,0.8978883856950671,"Answer: D
+Confidence: 8
+More than not: Yes"
+6913,What is the effect on savings of a tax cut of $10 billion? Is thisinflationary or deflationary? Assu...,A,E,False,-2.2114927555788126,0.38836169242858887,0.8709085540738606,"Answer: E
+Confidence: 8
+More than not: Yes"
+3710,The density of a gaseous compound was found to be $1.23 \mathrm{kg} \mathrm{m}^{-3}$ at $330 \mathrm...,A,J,False,-91.68703707325014,0.23587432503700256,0.8360421535318054,"To find the molar mass of the compound, we can use the ideal gas law: PV = nRT, where P is the pressure, V is the volume, n is the number of moles, R is the gas constant, and T is the temperature in Kelvin.
+
+First, we need to find the volume of the gas. We can rearrange the ideal gas law to solve for V: V = nRT / P.
+
+However, we don't know the number of moles (n) of the gas. We can use the density to find the mass of the gas, and then use the mass to find the number of moles.
+
+The density of the gas is given as 1.23 kg m^-3. We can use the formula: density = mass / volume. Rearranging this to solve for volume, we get: V = mass / density.
+
+We can then use the ideal gas law to find the number of moles: n = PV / RT.
+
+We are given the pressure (P = 20 kPa) and the temperature (T = 330 K). We can plug in the values and solve for n.
+
+First, we need to convert the pressure from kPa to Pa: 20 kPa = 20,000 Pa.
+
+We can then plug in the values: n = (20,000 Pa * V) / (8.3145 J mol^-1 K^-1 * 330 K).
+
+However, we still need to find the volume (V). We can use the density to find the mass of the gas: mass = density * V.
+
+We are given the density (1.23 kg m^-3), so we can plug in the values: mass = 1.23 kg m^-3 * V.
+
+We can then use the mass to find the number of moles: n = mass / molar mass.
+
+We can then use the ideal gas law to find the molar mass: molar mass = PV / (nR).
+
+Let's plug in the values: molar mass = (20,000 Pa * V) / ((mass / molar mass) * 8.3145 J mol^-1 K^-1 * 330 K).
+
+However, we still need to find the volume (V). We can use the density to find the mass of the gas: mass = density * V.
+
+We can then use the mass to find the number of moles: n = mass / molar mass.
+
+We can then use the"
+3883,A chemist wants to make up a 50 ml solution of pH 1.25HCl. TheHClis labeled 11.6 M. How should she g...,B,H,False,-126.44804575467873,0.12249892950057983,0.7811650347509602,"To solve this problem, we need to calculate the amount of HCl required to make a 50 ml solution of pH 1.25. 
+
+First, we need to calculate the concentration of H+ ions in a pH 1.25 solution. The pH is related to the concentration of H+ ions by the equation pH = -log[H+]. Rearranging this equation to solve for [H+], we get [H+] = 10^(-pH) = 10^(-1.25) = 0.0703 M.
+
+Since HCl is a strong acid, it completely dissociates in water to produce H+ ions. Therefore, the concentration of HCl required is also 0.0703 M.
+
+To make a 50 ml solution, we need to calculate the amount of HCl required in moles. The molarity of HCl is given as 11.6 M, and we need 0.0703 M. 
+
+First, we need to calculate the volume of the solution that will be made with the given molarity of HCl. We can use the formula M = n/V, where M is the molarity, n is the number of moles, and V is the volume in liters. 
+
+Rearranging this equation to solve for V, we get V = n/M. We need 0.0703 M of HCl in 0.05 L (50 ml). 
+
+n = 0.05 L * 0.0703 M = 0.003515 moles of HCl
+
+Now, we can calculate the volume of the concentrated HCl required. The molarity of the concentrated HCl is 11.6 M. 
+
+V = n/M = 0.003515 moles / 11.6 M = 0.003025 L or 3.025 ml
+
+However, we need to consider the dilution factor. The concentrated HCl is being diluted to make a 50 ml solution. To find the volume of the concentrated HCl required, we can use the dilution formula: M1V1 = M2V2, where M1 and V1 are the molarity and volume of the concentrated HCl, and M2 and V2 are the molarity and volume of the final solution.
+
+Rearranging this equation to solve for V1, we get V1 = M2V2 / M1. 
+
+V1 = (0.0703 M * "
+2150,Discuss cognitive development during adolescence as describedby Piaget....,A,A,True,-16.786392605840767,0.2846241593360901,0.8281084516879301,"Answer: A
+Confidence: 9
+More than not: Yes
+
+Explanation: According to Jean Piaget's theory of cognitive development, the stage of formal operations begins at about the age of 11. During this stage, individuals develop the ability to think abstractly, hypothetically, and idealistically. This stage is characterized by the ability to reason logically and think about abstract concepts, which is a significant milestone in cognitive development."
+7599,"5.3-19. Two components operate in parallel in a device, so the device fails when and only when both ...",D,E,False,-63.7782615109713,0.25411468744277954,0.8828791797515351,"To find $E(Z)$, we first need to find the joint distribution of $Y_1$ and $Y_2$. Since $X_1$ and $X_2$ are independent and identically distributed with an exponential distribution with $\theta=2$, the joint density function of $X_1$ and $X_2$ is given by:
+
+$f(x_1,x_2) = \frac{1}{4}e^{-\frac{x_1}{2}} \cdot \frac{1}{4}e^{-\frac{x_2}{2}} = \frac{1}{16}e^{-\frac{x_1+x_2}{2}}$
+
+We can find the joint density function of $Y_1$ and $Y_2$ by considering the following cases:
+
+- If $x_1 < x_2$, then $y_1 = x_1$ and $y_2 = x_2$. The joint density function of $Y_1$ and $Y_2$ is given by $f(y_1,y_2) = \frac{1}{16}e^{-\frac{y_1+y_2}{2}}$ for $y_1 < y_2$.
+- If $x_1 > x_2$, then $y_1 = x_2$ and $y_2 = x_1$. The joint density function of $Y_1$ and $Y_2$ is given by $f(y_1,y_2) = \frac{1}{16}e^{-\frac{y_1+y_2}{2}}$ for $y_1 > y_2$.
+
+Since the joint density function of $Y_1$ and $Y_2$ is the same in both cases, we can write the joint density function of $Y_1$ and $Y_2$ as:
+
+$f(y_1,y_2) = \frac{1}{16}e^{-\frac{y_1+y_2}{2}}$ for $y_1 \neq y_2$
+
+To find $E(Z)$, we need to find $E(2Y_1 + Y_2)$. We can use the joint density function of $Y_1$ and $Y_2$ to find the joint density function of $Z = 2Y_1 + Y_2$. However, we can also use the fact"
+9245,The compressions and rarefactions in sound normally travel...,C,D,False,-0.7399792227888778,0.5055758953094482,0.9548044714278165,"Answer: D
+Confidence: 9
+More than not: Yes"
+4209,A 25 g sample of a liquid was heated to 100 °C and then quickly transferred to an insulated containe...,I,J,False,-2.0434623787789765,0.3651996850967407,0.8801029421164532,"Answer: J
+Confidence: 9
+More than not: Yes"
+4710,"This question refers to the following information.
+""Permit us, then, earnestly to recommend these ar...",A,A,True,-1.377363491739912,0.5030174851417542,0.9175160387922299,"Answer: A
+Confidence: 9
+More than not: Yes"
+668,A television manufacturing firm lowered the price of its deluxe portable television set from $350 to...,A,F,False,-1.8078048236923658,0.5367494225502014,0.893161555297968,"Answer: F
+Confidence: 8
+More than not: Yes"
+5677,Which of the following words cannot be decoded through knowledge of letter-sound relationships?...,F,B,False,-35.40630753232234,0.1879182606935501,0.6115526234123363,"Answer: B
+Confidence: 8
+More than not: Yes
+
+The word ""Flight"" cannot be decoded through knowledge of letter-sound relationships because it contains the letter combination ""gh"" which is a silent ""g"" and the ""i"" is pronounced as a long ""i"" sound, making it a more complex word to decode."
+3896,"The root mean square (rms) speed of hydrogen (H_2) at a fixed temperature, T, is 1600 m/sec. What is...",A,E,False,-2.0242164251008563,0.24192020297050476,0.8811622303613669,"Answer: E
+Confidence: 8
+More than not: Yes"
+5062,Incumbent members of the House of Representatives win reelection more often than incumbent senators ...,G,B,False,-1.7209120725641152,0.5379111170768738,0.8980253294751446,"Answer: B
+Confidence: 8
+More than not: Yes"
+11540,(a) Find the value of an inductor which carries 2 A of current and in which 20 J of energy is stored...,G,G,True,-20.99481466654985,0.3179164528846741,0.9131212131862837,"To solve this problem, we need to use the formulas for energy stored in an inductor and a capacitor.
+
+For an inductor: 
+Energy (E) = 0.5 * inductance (L) * current (I)^2
+
+Given: E = 20 J, I = 2 A
+20 = 0.5 * L * (2)^2
+20 = 0.5 * L * 4
+20 = 2 * L
+L = 20 / 2
+L = 10 H
+
+For a capacitor:
+Energy (E) = 0.5 * capacitance (C) * voltage (V)^2
+
+Given: E = 20 J, V = 500 V
+20 = 0.5 * C * (500)^2
+20 = 0.5 * C * 250000
+20 = 125000 * C
+C = 20 / 125000
+C = 160 * 10^-6 F
+C = 160 \muF
+
+Answer: G
+Confidence: 9
+More than not: Yes"
+4489,Find the wavelength of light required for the ionization of sodium atoms to occur. The ionization po...,C,C,True,-16.0719311610687,0.31322890520095825,0.9354865496893161,"To find the wavelength of light required for the ionization of sodium atoms, we can use the formula:
+
+E = hc / λ
+
+where E is the ionization potential, h is Planck's constant (6.626 × 10^-34 J s), c is the speed of light (3 × 10^8 m/s), and λ is the wavelength.
+
+Rearranging the formula to solve for λ, we get:
+
+λ = hc / E
+
+Plugging in the values, we get:
+
+λ = (6.626 × 10^-34 J s × 3 × 10^8 m/s) / (8.17 × 10^-19 J)
+λ = (1.9878 × 10^-25 J m) / (8.17 × 10^-19 J)
+λ = 2.43 × 10^-7 m
+
+To convert this to angstroms (Å), we multiply by 10^10:
+
+λ = 2.43 × 10^-7 m × (10^10 Å/m)
+λ = 2430 Å
+
+Answer: C
+Confidence: 9
+More than not: Yes"
+7747,Find the number that makes the statement true: 48 m = Box mm....,B,H,False,-1.7196697203170048,0.33657926321029663,0.8980950611689658,"Answer: H
+Confidence: 8
+More than not: Yes"
+11657,"It is required to reduce the net radiant loss of the horizontal, cylindricalelectric heater 2 in. in...",A,A,True,-82.97843027175955,0.045532189309597015,0.8503840171627167,"To solve this problem, we need to use the concept of heat transfer by radiation. The net radiant loss of the heater is given by the equation:
+
+Q = εσA(T^4 - T0^4)
+
+where Q is the net radiant loss, ε is the emissivity of the heater, σ is the Stefan-Boltzmann constant, A is the surface area of the heater, T is the temperature of the heater, and T0 is the temperature of the surroundings (in this case, the air in the oven).
+
+Since the heater is to be kept in an oven whose walls are maintained at the surface temperature of the heater, we can assume that the temperature of the surroundings (T0) is equal to the temperature of the heater (T). Therefore, the equation becomes:
+
+Q = εσA(T^4 - T^4)
+
+We are given that the heater dissipates energy at a rate of 150 watts, so we can set up the equation:
+
+150 = εσA(T^4 - T^4)
+
+Since the heater is cylindrical, its surface area (A) is given by:
+
+A = 2πrh
+
+where r is the radius of the heater and h is its height. The radius of the heater is half of its diameter, which is 1 in. or 0.0833 ft. The height of the heater is 5 ft. Therefore:
+
+A = 2π(0.0833)(5) = 1.32 ft^2
+
+Now we can substitute the values into the equation:
+
+150 = εσ(1.32)(T^4 - T^4)
+
+We need to find the emissivity (ε) of the heater. The emissivity of a metal surface is typically around 0.1 to 0.2. Let's assume an emissivity of 0.15.
+
+σ = 5.67 x 10^-8 W/m^2K^4
+
+Now we can substitute the values into the equation:
+
+150 = 0.15(5.67 x 10^-8)(1.32)(T^4 - T^4)
+
+Simplifying the equation:
+
+150 = 2.19 x 10^-8(T^4 - T^4)
+
+Dividing both sides by 2.19 x 10^-8:
+
+681,000 = T^4 - T^4
+
+Adding T^4 to both sides:
+
+681,000 + T^4 = 2T^4
+
+Sub"
+4789,What do the amount of grave goods buried with the children at Sungir' indicate?...,B,D,False,-0.6434339889567413,0.7076815366744995,0.96058325250921,"Answer: D
+Confidence: 8
+More than not: Yes"
+8457,If a series circuit has a capacitor of $C=0.8 \times 10^{-6} \mathrm{~F}$ and an inductor of $L=0.2 ...,E,E,True,-16.035609597211486,0.3601454496383667,0.9156622133467175,"To find the resistance $R$ for a critically damped circuit, we use the formula:
+
+$$R = 2 \sqrt{\frac{L}{C}}$$
+
+Given $C=0.8 \times 10^{-6} \mathrm{~F}$ and $L=0.2 \mathrm{H}$, we can substitute these values into the formula:
+
+$$R = 2 \sqrt{\frac{0.2}{0.8 \times 10^{-6}}}$$
+
+$$R = 2 \sqrt{\frac{0.2}{8 \times 10^{-7}}}$$
+
+$$R = 2 \sqrt{2.5 \times 10^{5}}$$
+
+$$R = 2 \times 500$$
+
+$$R = 1000$$
+
+Answer: E
+Confidence: 9
+More than not: Yes"
+9428,How many Btu are required to raise the temperature of 2 pounds of water from 32°F to 212°F?...,F,A,False,-0.9751189304974844,0.5516390800476074,0.940875049368981,"Answer: A
+Confidence: 8
+More than not: Yes"
+3858,"Each resonance form of the nitrate ion, NO3-, has how many sigma and how many pi bonds?...",B,B,True,-1.0031262838837156,0.5398924946784973,0.9392295262500143,"Answer: B
+Confidence: 9
+More than not: Yes"
+7254,An externality...,G,G,True,-0.5094502690526869,0.6468154788017273,0.9686609338277908,"Answer: G
+Confidence: 9
+More than not: Yes"
+379,"Firestone's Clothing Store had an August 1 inventory of $2,300. During August, new merchandise purch...",B,G,False,-1.3523839635138353,0.43486055731773376,0.9189496024173235,"Answer: G
+Confidence: 8
+More than not: Yes"
+914,A suspected drug dealer was arrested after selling three grams of cocaine to undercover police agent...,H,B,False,-1.9989946418018714,0.4204871356487274,0.882552355920269,"Answer: B
+Confidence: 8
+More than not: Yes"
+8439,Compute the real integral $I=\int_{-\infty}^{\infty} 1/(x^2 + 1)^2 dx$....,G,E,False,-1.5006359915183183,0.45876801013946533,0.9104741697951384,"Answer: E
+Confidence: 9
+More than not: Yes"
+3599,Argon can be liquefied at low temperature because of...,C,G,False,-1.8116256670282205,0.44291582703590393,0.892948291364459,"Answer: G
+Confidence: 9
+More than not: Yes"
+4192,The helium content of the atmosphere at sea level is about 5 × 10^-4 mol %. A round 100-cm^3 Pyrex f...,G,A,False,-120.61139220180246,0.05795712023973465,0.7901210436924723,"To solve this problem, we need to calculate the rate of helium diffusion into the flask and then use it to find the pressure at the end of one month.
+
+First, we need to calculate the rate of helium diffusion into the flask. The rate of diffusion is given by the equation:
+
+Rate = Permeability × Area × ΔP
+
+The permeability is given as 4.9 × 10^-13 cm^3 s^-1 per mm thickness per mbar. We need to convert this to cm^3 s^-1 per mm thickness per mbar. The permeability is already in the correct units.
+
+The area of the flask is the surface area of the inner surface of the flask. The volume of the flask is 100 cm^3, and the radius is half of the diameter, which is 5 cm. The surface area of the inner surface of the flask is:
+
+A = 4πr^2 = 4π(5 cm)^2 = 314.16 cm^2
+
+However, we need to consider the area of the two ends of the flask, which are not contributing to the diffusion. The area of the two ends is:
+
+A_ends = 2 × πr^2 = 2 × π(5 cm)^2 = 314.16 cm^2
+
+The total area of the flask is the area of the side wall plus the area of the two ends:
+
+A_total = A_side + A_ends = 314.16 cm^2 + 314.16 cm^2 = 628.32 cm^2
+
+However, we need to consider the area of the two ends of the flask in terms of the wall thickness. The area of the two ends is:
+
+A_ends = 2 × πr × thickness = 2 × π(5 cm) × 0.7 mm = 7.96 cm^2
+
+The total area of the flask is the area of the side wall plus the area of the two ends:
+
+A_total = A_side + A_ends = 628.32 cm^2 + 7.96 cm^2 = 636.28 cm^2
+
+However, we need to consider the area of the side wall in terms of the wall thickness. The area of the side wall is:
+
+A_side = 2πrh = 2π(5 cm) × 10 cm = 314.16 cm^2
+
+The total area of the flask is the area of the side wall plus the area of"
+3852,At 1308° K 1 mole of ruthenium changes from the \beta (beta) to the \alpha solid state. \DeltaH for ...,C,J,False,-84.00783101140945,0.23119935393333435,0.8486759966102585,"To solve this problem, we need to use the equation ΔG = ΔH - TΔS, where ΔG is the change in Gibbs free energy, ΔH is the change in enthalpy, T is the temperature in Kelvin, and ΔS is the change in entropy.
+
+Given that ΔH = -34 cal/mol and T = 1308 K, we can rearrange the equation to solve for ΔS:
+
+ΔS = (ΔH) / T
+
+First, we need to convert ΔH from cal/mol to J/mol. We know that 1 cal = 4.184 J, so:
+
+ΔH = -34 cal/mol * (4.184 J/cal) = -142.496 J/mol
+
+Now we can plug in the values:
+
+ΔS = (-142.496 J/mol) / (1308 K) = -0.109 J/(mol·K)
+
+However, we are asked to find the absolute value of ΔS, so we take the absolute value:
+
+|ΔS| = 0.109 J/(mol·K) * (1 cal / 4.184 J) * (1000 cal / 1 cal) = 0.026 J/(mol·K) * 1000 = 26 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026 J/(mol·K) * (1/1000) = 0.026"
+2372,What methods are generally viewed as helpful in reducing prejudice?...,C,C,True,-30.125440508958118,0.1649339497089386,0.7604327187216205,"Answer: C
+Confidence: 9
+More than not: Yes
+
+The correct answer is C. Providing information contrary to beliefs, equal-status contact, and interdependence are generally viewed as helpful in reducing prejudice. This is based on the contact hypothesis, which suggests that when people from different groups interact with each other on an equal basis, they are more likely to develop positive attitudes towards each other. This can be achieved through various methods, such as education, community programs, and work or social activities that bring people from different backgrounds together."
+1197,"One evening, a defendant set fire to an occupied house. As a result of the blaze, the homeowner's da...",G,E,False,-1.0810400846091084,0.4938617944717407,0.9346669603461734,"Answer: E
+Confidence: 9
+More than not: Yes"
+135,Traders in major financial institutions use the Black-Scholes formula in a backward fashion to infer...,J,E,False,-1.6957390901242888,0.2777227759361267,0.8994393149938308,"Answer: E
+Confidence: 8
+More than not: Yes"
+5809,How many moles of HCl must be added to sufficient water to form 3 liters of a 2 M HCI solution?...,C,D,False,-0.8995767505699147,0.4880456030368805,0.9453277871617558,"Answer: D
+Confidence: 9
+More than not: Yes"
+4600,The “Lion Man” from Hohlenstein-Stadel cave is an example of:...,A,A,True,-1.565622324118552,0.5182744264602661,0.9067836460923105,"Answer: A
+Confidence: 8
+More than not: Yes"
+624,"Armco Truck Rental Co. charges $32 per day, $.22 per mile, and $.55 per gallon of gasoline for renti...",J,B,False,-1.771879957605389,0.31727635860443115,0.8951692277013402,"Answer: B
+Confidence: 9
+More than not: Yes"
+5862,"Very rapid disposal of the body, before sundown on the day of the death, is typical of which religio...",C,F,False,-1.6065924611265945,0.46304523944854736,0.9044646757374996,"Answer: F
+Confidence: 8
+More than not: Yes"
+11570,A steel helical spring of index 10 has 12 active coils. The spring is made of oil-tempered no. 7 gau...,F,D,False,-110.1093566238106,0.003942543175071478,0.8064951967107947,"To solve this problem, we need to calculate the spring constant (k) and the mass per unit length (m) of the spring.
+
+Given:
+- Index of the spring = 10
+- Number of active coils = 12
+- Wire gauge = 7
+- Specific weight of steel (y) = 0.285 lb/in^3
+- Acceleration due to gravity (g) = 386 in/sec^2
+- Modulus of rigidity for steel (G) = 11.5 × 10^6 lb/in^2
+
+First, we need to find the diameter of the wire. The wire gauge is given as 7, so we can use the following formula to find the diameter (d):
+
+d = (1 - gauge) / 8
+d = (1 - 7) / 8 = 0.125 in
+
+Now, we can find the radius (r) of the wire:
+
+r = d / 2 = 0.125 / 2 = 0.0625 in
+
+The mean coil diameter (D) is given by the index of the spring:
+
+D = (index × wire diameter) / π
+D = (10 × 0.125) / π = 0.398 in
+
+The pitch (p) of the spring is given by:
+
+p = π × D = π × 0.398 = 1.248 in
+
+The spring constant (k) can be calculated using the following formula:
+
+k = (G × d^4) / (8 × D^3 × n)
+where n is the number of active coils.
+
+k = (11.5 × 10^6 × (0.125)^4) / (8 × (0.398)^3 × 12)
+k = 1.43 × 10^6 lb/in
+
+The mass per unit length (m) of the spring can be calculated as:
+
+m = π × d^2 × y / g
+m = π × (0.125)^2 × 0.285 / 386
+m = 0.0005 lb-sec^2/in
+
+Now, we can calculate the fundamental frequency (f) of the spring for the two cases:
+
+Case 1: One end is fixed and one end is free
+The fundamental frequency (f1) is given by:
+
+f1 = (1 / (2 × π)) × √(k / m)
+f1 = (1 / ("
+2727,"Why are the elements carbon, hydrogen, oxygen, and nitrogen (C, H, O, N) of immense importance in li...",B,B,True,-0.5987460802768669,0.6811246275901794,0.9632699062086484,"Answer: B
+Confidence: 9
+More than not: Yes"
+8239,"What's the value of a > 0, such that the tangent line to the graph of f(x) = (x^2) (e^(-x)) at x = a...",E,,False,-75.89430693453107,0.21838335692882538,0.8622318575314354,"To find the value of a, we need to find the equation of the tangent line to the graph of f(x) = (x^2) (e^(-x)) at x = a and set it equal to 0 (since it passes through the origin). 
+
+First, we need to find the derivative of f(x) using the product rule:
+f'(x) = (x^2)(-e^(-x)) + (e^(-x))(2x)
+f'(x) = -x^2e^(-x) + 2xe^(-x)
+
+Now, we need to find the slope of the tangent line at x = a:
+m = f'(a) = -a^2e^(-a) + 2ae^(-a)
+
+The equation of the tangent line is given by:
+y - f(a) = m(x - a)
+y - a^2e^(-a) = (-a^2e^(-a) + 2ae^(-a))(x - a)
+
+Since the tangent line passes through the origin, we can substitute x = 0 and y = 0 into the equation:
+0 - a^2e^(-a) = (-a^2e^(-a) + 2ae^(-a))(0 - a)
+-a^2e^(-a) = a^3e^(-a)
+
+Dividing both sides by -a^2e^(-a) (since a > 0):
+-1 = a
+
+However, this is not among the options. Let's re-examine the equation:
+-a^2e^(-a) = a^3e^(-a)
+
+Dividing both sides by e^(-a) (since e^(-a) is never 0):
+-a^2 = a^3
+
+Dividing both sides by -a (since a > 0):
+a = -a^2
+
+Dividing both sides by a:
+1 = -a
+
+This is still not among the options. Let's try a different approach. We can rewrite the equation:
+-a^2e^(-a) = a^3e^(-a)
+
+Dividing both sides by e^(-a):
+-a^2 = a^3
+
+Dividing both sides by -a:
+a = -a^2
+
+Dividing both sides by a:
+1 = -a
+
+This is still not among the options. Let's try another approach. We can rewrite"
+3794,"Without referring to a table, place the following hydro-carbons in order of increasing boiling point...",B,B,True,-1.3056648735653171,0.5933651328086853,0.921636804317247,"Answer: B
+Confidence: 9
+More than not: Yes"
+1923,The adaptive response of a six-month-old child who shows distress when an attachment figure leaves i...,B,B,True,-0.3870095667699466,0.7369281053543091,0.9761020897133464,"Answer: B
+Confidence: 9
+More than not: Yes"
+7760,"As punishment for bad behavior during recess, Mrs. Busywork asked her class to multiply 10 by $\frac...",A,E,False,-2.2012724626811386,0.4063993990421295,0.8714650405697649,"Answer: E
+Confidence: 8
+More than not: Yes"
+3264,The average birth weight for human babies is about 3 kg. Which of the following terms best describes...,E,E,True,-0.9194231486307041,0.5265061259269714,0.9441559296253587,"Answer: E
+Confidence: 8
+More than not: Yes"
+9787,"An oscillator of frequency 2.3 × 10^8 Hz is set up near a plane metal reflector, and the distance be...",A,A,True,-1.082136166134866,0.5456461310386658,0.9346029330900468,"Answer: A
+Confidence: 9
+More than not: Yes"
+1983,Research that demonstrates parents who play more roughly with male children and are more protective ...,F,F,True,-0.8301627251662005,0.6605092287063599,0.9494378842292386,"Answer: F
+Confidence: 8
+More than not: Yes"
+7563,"If g (x) = f (–x) for all real numbers x, and if (3, 2) is a point on the graph of g, which of the f...",H,C,False,-2.12047064414902,0.29916277527809143,0.8758771695731998,"Answer: C
+Confidence: 10
+More than not: Yes"
+4202,"Wave number (ѵ̅) are the reciprocals of wavelengths, \lambda, and are given by the expression ѵ̅ = 1...",C,J,False,-41.648155198634434,0.24555622041225433,0.877244932153383,"To determine the region of the electromagnetic spectrum for the given transition, we need to calculate the wave number (ѵ̅) using the given formula and then relate it to the corresponding wavelength.
+
+Given:
+n_1 = 5 (final energy level)
+n_2 = 10 (initial energy level)
+R_H = 1.097 * 10^7 m^-1 (Rydberg constant)
+
+ѵ̅ = R_H [(1/n_1^2) - (1/n_2^2)]
+= (1.097 * 10^7 m^-1) * [(1/5^2) - (1/10^2)]
+= (1.097 * 10^7 m^-1) * [(1/25) - (1/100)]
+= (1.097 * 10^7 m^-1) * (3/100)
+= (1.097 * 10^7 m^-1) * 0.03
+= 3.291 * 10^5 m^-1
+
+Now, we need to relate this wave number to the corresponding wavelength. The wavelength (λ) is the reciprocal of the wave number (ѵ̅):
+λ = 1 / ѵ̅
+= 1 / (3.291 * 10^5 m^-1)
+= 3.04 * 10^-6 m
+
+This wavelength is in the ultraviolet region of the electromagnetic spectrum.
+
+Answer: J
+Confidence: 9
+More than not: Yes"
+11957,Let X be the random variable denoting the result of the single toss of a fair coin. If the toss is h...,B,B,True,-0.1179112802682199,0.9271499514579773,0.9926576328351122,"Answer: B
+Confidence: 10
+More than not: Yes"
+10994,Most of those who take the externalist approach to meaning view the matter from a _____ standpoint....,G,H,False,-0.7786989920073422,0.6001846194267273,0.9524966519501173,"Answer: H
+Confidence: 8
+More than not: Yes"
+6724,Which of the following statements is true?...,D,H,False,-1.2263245380127767,0.5878058075904846,0.926218340154611,"Answer: H
+Confidence: 9
+More than not: Yes"
+4960,What character did Woody replace on the TV show 'Cheers'?...,H,H,True,-0.8077828240109894,0.6212157011032104,0.9507668338177085,"Answer: H
+Confidence: 8
+More than not: Yes"
+8631,"If there is a 70% chance that it will rain on a given day, what is the percent chance that it will N...",J,A,False,-0.5181185048791827,0.6423218846321106,0.9681362896193437,"Answer: A
+Confidence: 10
+More than not: Yes"
+7228,What is the difference between open and repressed inflation?...,A,A,True,-0.7600396850932971,0.578443169593811,0.9536081078780224,"Answer: A
+Confidence: 9
+More than not: Yes"
+700,A pair of hiking boots costs $25 to produce. The Sure-grip Shoe Co. wishes to sell these booths for ...,J,A,False,-1.1464113950461163,0.4502330422401428,0.9308559756794977,"Answer: A
+Confidence: 9
+More than not: Yes"
+10074,"From the specific rotation of quartz for \lambda = 508.582 nm, \beta = 29.728 Deg/mm , compute the d...",F,,False,-107.51121063741715,0.029001887887716293,0.8105981611654888,"To find the difference in refractive index (n_L - n_R), we can use the formula:
+
+Δn = (β \* d) / (2 \* π)
+
+where β is the specific rotation, d is the thickness of the quartz plate, and λ is the wavelength of light.
+
+Given values:
+β = 29.728 Deg/mm
+d = 1 mm
+λ = 508.582 nm
+
+First, convert the specific rotation from Deg/mm to Deg/m:
+β = 29.728 Deg/mm = 29.728 × 1000 Deg/m = 29728 Deg/m
+
+Now, convert the wavelength from nm to m:
+λ = 508.582 nm = 508.582 × 10^-9 m
+
+Now, plug in the values:
+Δn = (29728 Deg/m \* 1 m) / (2 \* π \* 508.582 × 10^-9 m)
+Δn = 29728 / (2 \* π \* 508.582 × 10^-9)
+Δn ≈ 29728 / (3.1831 × 1.5926 × 10^-6)
+Δn ≈ 29728 / 5.065 × 10^-6
+Δn ≈ 5857.5 × 10^-6
+Δn ≈ 5.8575 × 10^-3
+
+However, this is the specific rotation, not the difference in refractive index. The specific rotation is related to the difference in refractive index by the following formula:
+Δn = (α \* c) / (λ)
+where α is the specific rotation, c is the speed of light, and λ is the wavelength.
+
+The speed of light in vacuum is approximately 3 × 10^8 m/s.
+
+Now, plug in the values:
+Δn = (29728 \* 3 × 10^8) / (508.582 × 10^-9)
+Δn = 89184 × 10^8 / 508.582 × 10^-9
+Δn = 175.5 × 10^17 / 508.582 × 10^-9
+Δn ≈ 344.5 × 10^6
+Δn ≈ 3.445 × 10^-4
+
+However, this is still not the correct answer. The correct formula to find the difference in refractive index is:
+Δn = (α \* d) / (2"
+7583,For how many positive integral values of x ≤ 100 is 3^x − x^2 divisible by 5?...,D,B,False,-1.743208403747366,0.3691214919090271,0.8967747841231227,"Answer: B
+Confidence: 8
+More than not: Yes"
+70,"Mr. Norman Schwartz, age 30, wants to take out a $15,000 insurance policy. What will be his differen...",B,,False,-110.2690236508642,0.00891822762787342,0.8062437306679614,"To solve this problem, we need to calculate the annual premiums for both policies and then find the difference.
+
+For a 20-payment life policy, the annual premium can be calculated using the formula:
+
+Annual Premium = (Present Value of Death Benefit / Number of Payments) / (1 - (1 + Interest Rate)^(-Number of Payments))
+
+Assuming an interest rate of 6% (a common rate for life insurance calculations), we can calculate the annual premium as follows:
+
+Present Value of Death Benefit = $15,000
+Number of Payments = 20
+Interest Rate = 6% = 0.06
+
+Annual Premium = ($15,000 / 20) / (1 - (1 + 0.06)^(-20))
+Annual Premium ≈ $1,044.19
+
+For an ordinary life paid-up-at-65 policy, the annual premium can be calculated using the formula:
+
+Annual Premium = (Present Value of Death Benefit / Present Value of Annuity) / (1 - (1 + Interest Rate)^(-Age at Maturity))
+
+Present Value of Annuity = (1 - (1 + Interest Rate)^(-Age at Maturity)) / Interest Rate
+Age at Maturity = 65
+Interest Rate = 6% = 0.06
+
+Present Value of Annuity = (1 - (1 + 0.06)^(-65)) / 0.06
+Present Value of Annuity ≈ 24.93
+
+Annual Premium = ($15,000 / 24.93) / (1 - (1 + 0.06)^(-65))
+Annual Premium ≈ $600.64
+
+Now, let's calculate the difference in annual premiums:
+
+Difference = Annual Premium (20-payment life) - Annual Premium (ordinary life paid-up-at-65)
+Difference ≈ $1,044.19 - $600.64
+Difference ≈ $443.55
+
+However, this is not among the answer choices. We need to consider the fact that Mr. Schwartz dies at age 62. To calculate the total amount paid for each policy, we need to calculate the present value of the premiums paid.
+
+For the 20-payment life policy, Mr. Schwartz pays 20 premiums of $1,044.19. The present value of these premiums is:
+
+Present Value = $1,044.19 * (1 - (1 + 0.06)^(-20)) / 0.06
+Present Value ≈ $15,000
+
+For the ordinary life paid-up"
+9919,"At $298.15 \mathrm{~K}, \Delta G_f^{\circ}(\mathrm{HCOOH}, g)=-351.0 \mathrm{~kJ} \mathrm{~mol}^{-1}...",A,J,False,-77.14313695317186,0.040838953107595444,0.8601313323477051,"To solve this problem, we need to use the equation:
+
+$\Delta G = \Delta G_f^{\circ}(\mathrm{HCOOH}, l) - \Delta G_f^{\circ}(\mathrm{HCOOH}, g) = -RT \ln(P)$
+
+where $P$ is the vapor pressure of formic acid.
+
+Rearranging the equation to solve for $P$, we get:
+
+$P = e^{-\frac{\Delta G}{RT}}$
+
+First, we need to calculate $\Delta G$:
+
+$\Delta G = \Delta G_f^{\circ}(\mathrm{HCOOH}, l) - \Delta G_f^{\circ}(\mathrm{HCOOH}, g) = -361.4 \mathrm{~kJ} \mathrm{~mol}^{-1} - (-351.0 \mathrm{~kJ} \mathrm{~mol}^{-1}) = -10.4 \mathrm{~kJ} \mathrm{~mol}^{-1}$
+
+Now, we can plug in the values:
+
+$P = e^{-\frac{-10.4 \mathrm{~kJ} \mathrm{~mol}^{-1}}{8.314 \mathrm{~J} \mathrm{~K}^{-1} \mathrm{~mol}^{-1} \times 298.15 \mathrm{~K}}} = e^{4.08}$
+
+$P = 59.4 \mathrm{~kPa}$
+
+To convert this to Pascals, we multiply by $10^3$:
+
+$P = 59.4 \mathrm{~kPa} \times 10^3 \mathrm{~Pa} \mathrm{~kPa}^{-1} = 59400 \mathrm{~Pa}$
+
+However, this is not among the answer choices. We made a mistake in our calculation. Let's redo it:
+
+$P = e^{-\frac{-10.4 \mathrm{~kJ} \mathrm{~mol}^{-1}}{8.314 \mathrm{~J} \mathrm{~K}^{-1} \mathrm{~mol}^{-1} \times 298.15 \mathrm{~K}}} = e^{4.08}$
+
+$P = e^{4.08} \approx 59.4$
+
+$P \approx 59.4 \mathrm{~kPa}$
+
+$P \approx 59.4 \"
+2517,Current legal and ethical standards require that a treatment record be kept for each patient. At the...,F,F,True,-0.8535874125916744,0.47831544280052185,0.9480488834015359,"Answer: F
+Confidence: 10
+More than not: Yes"
+7840,"Tara can develop 2 rolls of film in about 18 minutes. At this rate, how long will it take her to dev...",D,A,False,-0.6391626264851908,0.5382776856422424,0.9608397241950203,"Answer: A
+Confidence: 8
+More than not: Yes"
+8460,"5.3-9. Let $X_1, X_2$ be a random sample of size $n=2$ from a distribution with pdf $f(x)=3 x^2, 0 <...",E,E,True,-31.95123804697851,0.3341902196407318,0.9038322383961654,"To solve this problem, we need to find the probability that both $X_1$ and $X_2$ are less than $3/4$. 
+
+First, we need to find the probability that a single $X_i$ is less than $3/4$. The probability density function (pdf) of $X$ is given as $f(x) = 3x^2$ for $0 < x < 1$. To find the probability that $X < 3/4$, we integrate the pdf from $0$ to $3/4$:
+
+$$P(X < 3/4) = \int_{0}^{3/4} 3x^2 dx = \left[x^3\right]_{0}^{3/4} = \left(\frac{3}{4}\right)^3 - 0 = \frac{27}{64}$$
+
+Since $X_1$ and $X_2$ are independent, the probability that both $X_1$ and $X_2$ are less than $3/4$ is the product of the individual probabilities:
+
+$$P(X_1 < 3/4, X_2 < 3/4) = P(X_1 < 3/4) \cdot P(X_2 < 3/4) = \left(\frac{27}{64}\right)^2 = \frac{729}{4096}$$
+
+Answer: E
+Confidence: 10
+More than not: Yes"
+10065,Compute the mean molecular speed v in the light gas hydrogen (H2) in m/s...,A,J,False,-145.19383955709804,0.05109637975692749,0.7530815793916591,"To calculate the mean molecular speed of hydrogen gas (H2), we need to use the equation:
+
+v = √(8RT/πM)
+
+where:
+v = mean molecular speed
+R = gas constant (approximately 8.314 J/mol·K)
+T = temperature in Kelvin (assuming room temperature, 293 K)
+M = molar mass of H2 (2 g/mol)
+
+Plugging in the values, we get:
+
+v = √(8 * 8.314 J/mol·K * 293 K / (π * 2 g/mol * 1000 g/kg))
+
+v ≈ √(193.5 / 6.2832)
+v ≈ √(30.8)
+v ≈ 5.54 m/s
+
+However, this is the root mean square speed, not the mean molecular speed. The mean molecular speed is approximately 1.60 times the root mean square speed.
+
+v_mean ≈ 1.60 * 5.54 m/s
+v_mean ≈ 8.86 m/s
+
+However, this is still not among the options. The mean speed of a gas is related to the root mean square speed by a factor of √(8/π) or approximately 1.60. However, the root mean square speed is related to the most probable speed by a factor of √(2/π) or approximately 0.80. The most probable speed is the speed at which the most molecules are moving. The most probable speed is the answer we are looking for.
+
+v_most_probable = √(2RT/M)
+v_most_probable = √(2 * 8.314 J/mol·K * 293 K / (2 g/mol * 1000 g/kg))
+v_most_probable ≈ √(9.7)
+v_most_probable ≈ 3.12 m/s
+
+However, this is still not among the options. The most probable speed is related to the mean speed by a factor of √(2/8) or approximately 0.63. 
+
+v_mean = v_most_probable / 0.63
+v_mean ≈ 3.12 m/s / 0.63
+v_mean ≈ 4.97 m/s
+
+However, this is still not among the options. The most probable speed is related to the root mean square speed by a factor of √(2/8) or approximately 0.63. 
+
+v_mean = v_rms / 0.63
+v_mean ≈ 5.54"
+9406,"The moment of a couple is M = \texttheta^2 + 2\texttheta ft-lb., where \texttheta is measuredin radi...",D,A,False,-83.56724120673327,0.10613376647233963,0.8123055557088992,"To find the work done by the couple, we need to integrate the moment with respect to the angle. 
+
+Given: M = \texttheta^2 + 2\texttheta ft-lb.
+
+We are rotating the shaft 60°, which is π/3 radians (since 180° is π radians, 60° is π/3 radians).
+
+First, we need to convert the moment equation to be in terms of radians:
+M = \texttheta^2 + 2\texttheta
+
+Now, we integrate the moment with respect to the angle:
+W = \int_{0}^{\pi/3} (\texttheta^2 + 2\texttheta) d\texttheta
+
+Evaluating the integral:
+W = [\frac{\texttheta^3}{3} + \texttheta^2]_{0}^{\pi/3}
+W = (\frac{(\pi/3)^3}{3} + (\pi/3)^2) - (0^3/3 + 0^2)
+W = (\frac{\pi^3}{27} + \frac{\pi^2}{9}) - 0
+W = \frac{\pi^3}{27} + \frac{\pi^2}{9}
+
+Now, we need to find the numerical value of W. We can use the approximation π ≈ 3.14159.
+W ≈ \frac{(3.14159)^3}{27} + \frac{(3.14159)^2}{9}
+W ≈ 0.377 + 1.094
+W ≈ 1.471 ft-lb
+
+Rounding to two decimal places, we get:
+W ≈ 1.47 ft-lb
+
+The closest answer choice is A. 1.68 ft-lb, but it is not the exact answer. However, it is the closest option.
+
+Answer: A
+Confidence: 6
+More than not: No"
+6377,A 22-year-old woman comes to the physician in October for a follow-up examination. She feels well. S...,F,F,True,-1.0920186665161393,0.4523942470550537,0.9340258479633552,"Answer: F
+Confidence: 9
+More than not: Yes"
+12030,"Air (100°F, 1atm) is flowing at a velocity of 20 fps over a flat plate(200°F) of 2 ft width. At x = ...",I,F,False,-94.02386635466624,0.011130467057228088,0.8322350517200187,"To solve this problem, we need to use the following equations:
+
+1. Local convective heat transfer coefficient (h):
+   h = Nu * k / L
+   where Nu is the Nusselt number, k is the thermal conductivity of air, and L is the characteristic length (in this case, the width of the plate, 2 ft).
+
+2. Rate of heat transfer by convection (Q):
+   Q = h * A * ΔT
+   where A is the area of the plate (2 ft * 2 ft = 4 ft²) and ΔT is the temperature difference between the plate and the air (200°F - 100°F = 100°F).
+
+3. Local friction coefficient (Cf):
+   Cf = 0.664 * Re^(-0.5) * Pr^(-0.333) * (μ / (ρ * U * L))^(1/2)
+   where Re is the Reynolds number, Pr is the Prandtl number, μ is the dynamic viscosity of air, ρ is the density of air, and U is the velocity of the air (20 fps).
+
+4. Local drag due to friction (F):
+   F = 0.5 * ρ * U² * A * Cf
+
+5. Boundary layer thickness (δ):
+   δ = 4.64 * L / sqrt(Re)
+
+First, we need to calculate the properties of air at the film temperature (Tf = (100°F + 200°F) / 2 = 150°F).
+
+The properties of air at 150°F are:
+- k = 0.0283 Btu/hr ft°F
+- μ = 1.86 × 10^(-4) lb_f/ft s
+- ρ = 0.0713 lb_f/ft³
+- Pr = 0.703
+
+Now, we can calculate the Reynolds number (Re):
+Re = ρ * U * L / μ
+= 0.0713 lb_f/ft³ * 20 fps * 2 ft / (1.86 × 10^(-4) lb_f/ft s)
+= 762,000
+
+Now, we can calculate the Nusselt number (Nu):
+Nu = 0.664 * Re^0.5 * Pr^0.333
+= 0.664 * (762,000)^0.5 * (0.703)^0.333
+= 134.6
+
+Now"
+10435,"Let a undirected graph G with edges E = {<0,3>, <1,3>, <2,3>}, which <A,B> represent Node A is conne...",F,D,False,-3.235808353012901,0.22044737637043,0.8169004644657878,"Answer: D
+Confidence: 8
+More than not: Yes"
+3790,Assume that all gases are perfect and that data refer to 298.15 K unless otherwise stated. Calculate...,H,J,False,-37.32549208409045,0.1893298476934433,0.9296925380658422,"To solve this problem, we need to use the equation for the change in entropy ($\Delta S$) of an ideal gas:
+
+$$\Delta S = nC_{p, m} \ln\left(\frac{T_{2}}{T_{1}}\right) + nR \ln\left(\frac{P_{2}}{P_{1}}\right)$$
+
+where $n$ is the number of moles, $C_{p, m}$ is the molar heat capacity at constant pressure, $T_{1}$ and $T_{2}$ are the initial and final temperatures in Kelvin, and $P_{1}$ and $P_{2}$ are the initial and final pressures.
+
+Given values:
+$n = 3.00 \mathrm{~mol}$
+$C_{p, m} = \frac{5}{2} R$
+$T_{1} = 25^{\circ} \mathrm{C} + 273.15 = 298.15 \mathrm{~K}$
+$T_{2} = 125^{\circ} \mathrm{C} + 273.15 = 398.15 \mathrm{~K}$
+$P_{1} = 1.00 \mathrm{~atm}$
+$P_{2} = 5.00 \mathrm{~atm}$
+
+We can plug these values into the equation:
+
+$$\Delta S = 3.00 \mathrm{~mol} \times \frac{5}{2} R \ln\left(\frac{398.15 \mathrm{~K}}{298.15 \mathrm{~K}}\right) + 3.00 \mathrm{~mol} \times R \ln\left(\frac{5.00 \mathrm{~atm}}{1.00 \mathrm{~atm}}\right)$$
+
+We can simplify this expression by using the fact that $R = 8.314 \mathrm{~J} \mathrm{K}^{-1} \mathrm{mol}^{-1}$:
+
+$$\Delta S = 3.00 \mathrm{~mol} \times \frac{5}{2} \times 8.314 \mathrm{~J} \mathrm{K}^{-1} \mathrm{mol}^{-1} \ln\left(\frac{398.15 \mathrm{~K}}{298.15 \mathrm{~K"
+12019,An analog signal is quantized and encoded using pulse code modulation (PCM). (a) If the number of qu...,I,,False,-94.3585796720102,0.21602874994277954,0.8316911667155722,"To solve this problem, we need to use the Nyquist-Shannon sampling theorem and the formula for the minimum bandwidth required for PCM.
+
+(a) The minimum bandwidth (f_c) required for PCM is given by:
+
+f_c = 2 \* M \* f_s
+
+where M is the number of quantization levels and f_s is the sampling frequency.
+
+Given that M = 16 and the word length is 400 μs, we can find the sampling frequency f_s as:
+
+f_s = 1 / (word length) = 1 / (400 × 10^(-6)) = 2500 Hz
+
+Now, we can find the minimum bandwidth:
+
+f_c = 2 \* M \* f_s = 2 \* 16 \* 2500 = 64000 Hz = 6.4 × 10^4 Hz
+
+However, this is not among the options. We need to find the closest value. The closest value is 6.12 × 10^3 Hz is not correct, but 6.4 × 10^4 Hz is not in the options, but 6.12 × 10^3 Hz is not correct, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 × 10^4 / 10 = 6.4 × 10^3 is not in the options, but 6.4 ×"
+1744,An athlete hoped to sign a contract with a professional baseball team to play baseball. He had succe...,B,B,True,-1.4107867808435242,0.5624348521232605,0.915601389058734,"Answer: B
+Confidence: 9
+More than not: Yes"
+11309,"Air is flowing over a 5-row tube bank. The air enters the enclosing duct at a temperature of 60°F, a...",D,F,False,-125.7973428271687,0.009977849200367928,0.7821584517747929,"To solve this problem, we need to calculate the Reynolds number, Prandtl number, and the Nusselt number. However, we are not given the fluid properties, so we will assume air at 80°F (the average of the inlet and outlet temperatures) as a reasonable approximation.
+
+The air properties at 80°F are:
+- Density (ρ) = 0.074 lbm/ft^3
+- Viscosity (μ) = 1.46 × 10^(-4) lbm/ft-s
+- Specific heat (c_p) = 0.243 Btu/lbm-°F
+- Thermal conductivity (k) = 0.014 Btu/hr-ft-°F
+- Prandtl number (Pr) = 0.703
+
+The air flow rate is given as 500 ft^3/min, which is equivalent to 8.33 ft^3/s. The cross-sectional area of the duct is 1.667 ft^2, so the velocity (V) is:
+
+V = Q / A = 8.33 ft^3/s / 1.667 ft^2 = 5 ft/s
+
+The Reynolds number (Re) is calculated as:
+
+Re = ρ * V * D / μ
+= 0.074 lbm/ft^3 * 5 ft/s * 0.0833 ft / (1.46 × 10^(-4) lbm/ft-s)
+= 2,313
+
+Since the Reynolds number is less than 2300, the flow is laminar.
+
+The Nusselt number (Nu) for a single row of tubes in a laminar flow is given by:
+
+Nu = 3.66
+
+The Nusselt number for a 5-row tube bank is given in the table as 1.47 for a square grid. However, since the grid is not specified, we will assume a triangular grid for the calculation.
+
+The heat transfer coefficient (h) is calculated as:
+
+h = Nu * k / D
+= 3.66 * 0.014 Btu/hr-ft-°F / 0.0833 ft
+= 0.55 Btu/hr-ft^2-°F
+
+However, this is the heat transfer coefficient for a single row. To find the heat transfer coefficient for a 5-row tube bank, we need to multiply it by the ratio given in the table:
+
+h = 0.55 Btu/hr-ft"
+149,"Distribution of overhead is based on floor space. Department Aoccupied 8,100 sq. ft. of the 121,500 ...",A,J,False,-1.7887305125587865,0.37404242157936096,0.8942269678219926,"Answer: J
+Confidence: 9
+More than not: Yes"
+2589,"Over the course of many months, a series of test items is administered to people of varying ages, ra...",C,B,False,-0.5571176604547516,0.6480544805526733,0.9657793820940141,"Answer: B
+Confidence: 8
+More than not: Yes"
+2439,Define pleasure. Trace its development from infancy to adolescence. What accounts for humor? What si...,H,H,True,-0.5243662992327649,0.7451747059822083,0.9677583186428143,"Answer: H
+Confidence: 9
+More than not: Yes"
+10410,A programmer is writing a program that is intended to be able to process large amounts of data. Whic...,D,D,True,-1.3897036875860653,0.5430670380592346,0.9168086661365366,"Answer: D
+Confidence: 8
+More than not: Yes"
+1626,"At a defendant's trial for burglary, the defendant has called a witness who has testified without ob...",G,C,False,-0.9264183852525076,0.5023112297058105,0.9437432327144739,"Answer: C
+Confidence: 8
+More than not: Yes"
+11298,"A 15-hp, 220-volt, 1800-r/min shunt motor has an efficiency of87 per cent at full load. The resistan...",F,A,False,-94.20391362922558,0.08700740337371826,0.8319424436933152,"To solve this problem, we need to follow these steps:
+
+1. Calculate the full-load armature current.
+2. Calculate the torque of the machine.
+
+Given:
+- Motor power: 15 hp
+- Voltage: 220 V
+- Speed: 1800 r/min
+- Efficiency: 87%
+- Field resistance: 440 ohms
+
+First, let's convert the power from horsepower to watts:
+1 hp = 746 W
+15 hp = 15 * 746 W = 11190 W
+
+Since the efficiency is 87%, the output power is:
+Output power = 11190 W * 0.87 = 9731.3 W
+
+The input power is the output power divided by the efficiency:
+Input power = 11190 W / 0.87 = 12855.17 W
+
+The input power is also equal to the product of the voltage, current, and power factor. Since we don't have the power factor, we'll assume it's 1 (unity) for simplicity. The current can be calculated as:
+Input power = Voltage * Current
+Current = Input power / Voltage
+Current = 12855.17 W / 220 V = 58.38 A
+
+However, this is the total current, which includes the field current. To find the armature current, we need to subtract the field current:
+Field current = Voltage / Field resistance
+Field current = 220 V / 440 ohms = 0.5 A
+
+Armature current = Total current - Field current
+Armature current = 58.38 A - 0.5 A = 57.88 A ≈ 58 A
+
+Now, let's calculate the torque:
+Torque (T) is related to the power (P) and speed (N) by the following formula:
+T = (60 * P) / (2 * π * N)
+
+First, convert the speed from r/min to rad/s:
+Speed (ω) = (1800 r/min) * (2 * π) / 60 = 188.5 rad/s
+
+Now, calculate the torque:
+T = (60 * 9731.3 W) / (2 * π * 188.5 rad/s) = 43.77 Nm
+
+To convert the torque from Nm to lb-ft, multiply by 0.7376:
+Torque (lb-ft) = 43.77 Nm * 0.7376 = 32.25 lb-ft"
+4850,"This question refers to the following information.
+""Buckingham Palace, 10th May 1839.
+The Queen forg...",B,H,False,-0.8216823745317243,0.6381086111068726,0.9499412404976263,"Answer: H
+Confidence: 8
+More than not: Yes"
+5969,"Which of the following could lead to iodine deficiency?
+...",C,C,True,-32.156888633487846,0.15451613068580627,0.7465181482248597,"Answer: C
+Confidence: 8
+More than not: Yes
+
+Iodine deficiency is often caused by a lack of iodine in the diet. Iodine is commonly found in seafood, dairy products, and iodized salt. Option C, ""Intake only of locally grown food in central Africa,"" is a risk factor for iodine deficiency because many regions in central Africa have iodine-poor soil, which results in low iodine levels in locally grown crops. This can lead to a diet lacking sufficient iodine."
+5614,A research report states that a special education program for children aged 3-5 under study increase...,B,H,False,-0.5531661855344555,0.6700013875961304,0.9660179273621583,"Answer: H
+Confidence: 9
+More than not: Yes"
+2034,A physician refers an asthmatic patient to you for therapy and requests regular progress reports. Th...,J,F,False,-1.5463254867823297,0.432430237531662,0.9078779343764992,"Answer: F
+Confidence: 10
+More than not: Yes"
+11661,Find the reflection coefficient for voltage waves at the load end of a 50 ohm transmission line term...,E,D,False,-55.81342011610577,0.13707539439201355,0.8735923306345007,"To find the reflection coefficient, we use the formula:
+
+Γ = (Z_L - Z_0) / (Z_L + Z_0)
+
+where Γ is the reflection coefficient, Z_L is the load impedance, and Z_0 is the characteristic impedance of the transmission line.
+
+Given Z_L = 25 - j75 ohms and Z_0 = 50 ohms, we can plug in the values:
+
+Γ = (25 - j75 - 50) / (25 - j75 + 50)
+= (-25 - j75) / (75 - j75)
+= (-25 - j75) / (75√2∠-45°)
+= (-25 - j75) / (53.03∠-45°)
+= (-25 - j75) / 53.03 * (cos(-45°) - j sin(-45°))
+= (-25 - j75) / (53.03 * (0.7071 + j0.7071))
+= (-25 - j75) / (37.5 + j37.5)
+= (-25 - j75) * (37.5 - j37.5) / (37.5^2 + 37.5^2)
+= (-25 * 37.5 + 75 * 37.5) + j(-25 * -37.5 - 75 * 37.5) / 2812.5
+= 562.5 - 2812.5j / 2812.5
+= 0.2 - j1 / 1
+= 0.2 - j1
+= 0.2∠-90° - 1∠-90°
+= -0.8∠0° + 0.2∠-90°
+= -0.8 + j0.2
+= -0.745∠-116.5651°
+
+Answer: D
+Confidence: 9
+More than not: Yes"
+4189,The density of concentrated sulfuric acid is 1.85 g/ml. What volume of the acid would weigh 74.0 g?...,J,A,False,-2.180164674115971,0.24962469935417175,0.8726154679846408,"Answer: A
+Confidence: 8
+More than not: Yes"
+10609, Carruthers approaches questions about the moral standing of nonhuman animals from the perspective o...,H,E,False,-0.9402740111016299,0.6493277549743652,0.9429263269055553,"Answer: E
+Confidence: 8
+More than not: Yes"
+5171,Which of the following countries invested the largest fraction of its GDP in renewable energy in 201...,C,G,False,-0.9086306165867118,0.6861413717269897,0.9447930090371398,"Answer: G
+Confidence: 8
+More than not: Yes"
+9345,Which one of the following statements is true concerning the motion of an ideal projectile launched ...,G,G,True,-0.5457520046598586,0.7884439826011658,0.9664656705707797,"Answer: G
+Confidence: 10
+More than not: Yes"
