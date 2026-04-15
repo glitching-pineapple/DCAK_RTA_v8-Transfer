@@ -103,24 +103,24 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
                 answer_text
             )[0]
             # Step 3: Extract the number
-            num_match = re.search(r'\$?([\d,]+)', answer_text)
+            num_match = re.search(r'\$?([\d,]+(?:\.\d+)?)', answer_text)
             if num_match:
                 return num_match.group(1).replace(',', '')
-        
+
         # Priority 2: Common phrasing patterns
         patterns = [
-            r'[Tt]he answer is:?\s*\$?([\d,]+)',
-            r'[Ff]inal answer:?\s*\$?([\d,]+)',
-            r'=\s*\$?([\d,]+)\s*$',
-            r'####\s*([\d,]+)',
+            r'[Tt]he answer is:?\s*\$?([\d,]+(?:\.\d+)?)',
+            r'[Ff]inal answer:?\s*\$?([\d,]+(?:\.\d+)?)',
+            r'=\s*\$?([\d,]+(?:\.\d+)?)\s*$',
+            r'####\s*([\d,]+(?:\.\d+)?)',
         ]
         for pattern in patterns:
             match = re.search(pattern, response)
             if match:
                 return match.group(1).replace(',', '')
-        
+
         # Priority 3: Last number in response (fallback)
-        numbers = re.findall(r'\b(\d+)\b', response)
+        numbers = re.findall(r'\b(\d+(?:\.\d+)?)\b', response)
         if numbers:
             return numbers[-1]
         return None
@@ -234,26 +234,34 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
 def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
     """
     Strict answer extraction for SE samples — only accepts answers from
-    an explicit "Answer:" line (Priority 1). Does NOT fall back to 
+    an explicit "Answer:" line (Priority 1). Does NOT fall back to
     "last number in response" or other heuristics, because those grab
     intermediate CoT reasoning numbers and inflate semantic clusters.
-    
-    Returns None if no clean "Answer:" line is found.
+
+    Priority 1: explicit "Answer:" line
+    Priority 2: last 2 lines of response (still strict — avoids mid-CoT numbers)
+
+    Returns None if no clean answer can be found.
     """
     cleaned = response.replace('*', '')
-    
+
     if dataset == "gsm8k":
-        # Step 1: Find "Answer:" and capture the rest of that line (up to newline)
+        # Priority 1: explicit "Answer:" line
         answer_match = re.search(r'[Aa]nswer\s*:\s*([^\n]+)', cleaned)
         if answer_match:
             answer_text = answer_match.group(1)
-            # Step 2: Within the answer line, remove anything after rubric phrases
             answer_text = re.split(
-                r'[Cc]onfidence|Almost|Highly|Very good|Likely|Unlikely|Better than|Less than|Chances', 
+                r'[Cc]onfidence|Almost|Highly|Very good|Likely|Unlikely|Better than|Less than|Chances',
                 answer_text
             )[0]
-            # Step 3: Extract the number
-            num_match = re.search(r'\$?([\d,]+)', answer_text)
+            # Capture integers and decimals (e.g. 47.25)
+            num_match = re.search(r'\$?([\d,]+(?:\.\d+)?)', answer_text)
+            if num_match:
+                return num_match.group(1).replace(',', '')
+        # Priority 2: last 2 lines — only accept a line that is purely a number
+        last_lines = [l.strip() for l in cleaned.strip().splitlines() if l.strip()][-2:]
+        for line in reversed(last_lines):
+            num_match = re.fullmatch(r'\$?([\d,]+(?:\.\d+)?)', line)
             if num_match:
                 return num_match.group(1).replace(',', '')
         return None
