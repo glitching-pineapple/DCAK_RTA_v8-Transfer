@@ -190,6 +190,29 @@ class SemanticEntropyCalculator:
         
         return clusters
     
+    def cluster_by_reasoning(
+        self,
+        reasonings: List[str],
+    ) -> List[List[int]]:
+        """
+        Cluster answers by their reasoning chain instead of NLI.
+
+        Answers that produced identical reasoning text are placed in the same
+        cluster.  This bypasses the NLI model entirely and treats each unique
+        reasoning path as a semantic equivalence class.
+        """
+        reasoning_to_cluster_idx: Dict[str, int] = {}
+        clusters: List[List[int]] = []
+
+        for idx, reasoning in enumerate(reasonings):
+            if reasoning in reasoning_to_cluster_idx:
+                clusters[reasoning_to_cluster_idx[reasoning]].append(idx)
+            else:
+                reasoning_to_cluster_idx[reasoning] = len(clusters)
+                clusters.append([idx])
+
+        return clusters
+
     def compute_semantic_entropy(
         self,
         context: str,
@@ -197,6 +220,7 @@ class SemanticEntropyCalculator:
         log_probs: List[float],
         length_normalize: bool = False,
         answer_lengths: List[int] = None,
+        reasonings: Optional[List[str]] = None,
     ) -> Dict[str, float]:
         """
         Compute semantic entropy over meaning-clusters.
@@ -237,8 +261,12 @@ class SemanticEntropyCalculator:
         
         predictive_entropy_normalized = float(max(0.0, -np.sum(probs * np.log(probs + 1e-10))))
         
-        # Cluster answers by semantic equivalence
-        clusters = self.cluster_answers(context, answers)
+        # Cluster answers: use provided reasoning chains if available,
+        # otherwise fall back to NLI-based semantic equivalence.
+        if reasonings is not None and len(reasonings) == len(answers):
+            clusters = self.cluster_by_reasoning(reasonings)
+        else:
+            clusters = self.cluster_answers(context, answers)
         num_clusters = len(clusters)
         cluster_sizes = [len(c) for c in clusters]
         
@@ -345,9 +373,18 @@ def compute_semantic_entropy_for_sample(
     temperature: float = 0.5,
     max_new_tokens: int = 256,
     answer_extractor=None,
+    reasoning_extractor=None,
 ) -> Dict:
     """
     Convenience function to compute semantic entropy for a single question.
+
+    If ``reasoning_extractor`` is provided it is called on each raw model
+    output to obtain a reasoning string.  Those strings are then used as
+    cluster identifiers (answers that share the same reasoning chain are
+    placed in the same cluster), bypassing the NLI model entirely.
+
+    If ``reasoning_extractor`` is None the calculator falls back to the
+    standard NLI-based semantic clustering.
     """
     # Sample multiple answers
     answers, log_probs, lengths = sample_answers_with_probs(
@@ -356,13 +393,18 @@ def compute_semantic_entropy_for_sample(
         max_new_tokens=max_new_tokens,
         temperature=temperature,
     )
-    
+
     # Extract just the answer portion if extractor provided
     if answer_extractor:
         extracted_answers = [answer_extractor(a) or a for a in answers]
     else:
         extracted_answers = answers
-    
+
+    # Extract reasoning chains if extractor provided
+    reasonings = None
+    if reasoning_extractor:
+        reasonings = [reasoning_extractor(a) or a for a in answers]
+
     # Compute semantic entropy
     se_results = semantic_calculator.compute_semantic_entropy(
         context=question,
@@ -370,12 +412,14 @@ def compute_semantic_entropy_for_sample(
         log_probs=log_probs,
         length_normalize=True,
         answer_lengths=lengths,
+        reasonings=reasonings,
     )
-    
+
     return {
         **se_results,
         "sampled_answers": answers,
         "extracted_answers": extracted_answers,
+        "reasonings": reasonings,
         "log_probs": log_probs,
         "answer_lengths": lengths,
     }
