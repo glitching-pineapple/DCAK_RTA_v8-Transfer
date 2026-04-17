@@ -312,6 +312,15 @@ def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
     return None
 
 
+def extract_reasoning(response: str) -> str:
+    """
+    Extract the reasoning chain from a raw model response by taking
+    everything before the final "Answer:" line.
+    """
+    parts = re.split(r'\n?[Aa]nswer\s*:', response)
+    return parts[0].strip() if len(parts) > 1 else response.strip()
+
+
 def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
     """
     Special correctness check for TriviaQA (multiple acceptable answers).

@@ -2,7 +2,7 @@
 
 from typing import Dict, Optional
 from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, check_triviaqa_correct
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
@@ -190,14 +190,16 @@ def compute_semantic_entropy_for_question(
     extracted_answers = []
     valid_log_probs = []
     valid_lengths = []
+    valid_reasonings = []
     extraction_failures = 0
-    
+
     for i, ans in enumerate(answers):
         extracted = extract_model_answer_strict(ans, dataset)
         if extracted:
             extracted_answers.append(extracted)
             valid_log_probs.append(log_probs[i])
             valid_lengths.append(lengths[i])
+            valid_reasonings.append(extract_reasoning(ans))
         else:
             extraction_failures += 1
     
@@ -223,17 +225,21 @@ def compute_semantic_entropy_for_question(
             "se_extraction_failure_rate": se_extraction_failure_rate,
         }
     
-    # Compute semantic entropy over valid extractions only
+    # Compute semantic entropy over valid extractions only.
+    # Pass reasoning chains so clusters are defined by reasoning path,
+    # not NLI-based answer equivalence.
     se_results = semantic_calculator.compute_semantic_entropy(
         context=question,
         answers=extracted_answers,
         log_probs=valid_log_probs,
         length_normalize=True,
         answer_lengths=valid_lengths,
+        reasonings=valid_reasonings,
     )
-    
+
     se_results["extracted_answers"] = extracted_answers
     se_results["raw_answers"] = answers
+    se_results["reasonings"] = valid_reasonings
     se_results["se_extraction_failure_rate"] = se_extraction_failure_rate
     
     return se_results
