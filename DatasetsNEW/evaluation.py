@@ -120,9 +120,11 @@ def evaluate_sample(
         )
         result.update({
             "semantic_entropy": se_results["semantic_entropy"],
+            "semantic_entropy_answers": se_results["semantic_entropy_answers"],
             "predictive_entropy": se_results["predictive_entropy"],
             "predictive_entropy_normalized": se_results["predictive_entropy_normalized"],
             "num_semantic_clusters": se_results["num_clusters"],
+            "num_answer_clusters": se_results["num_answer_clusters"],
             "cluster_sizes": se_results["cluster_sizes"],
             "sampled_answers": se_results.get("extracted_answers", []),
             "se_extraction_failure_rate": se_results.get("se_extraction_failure_rate", 0.0),
@@ -161,14 +163,16 @@ def compute_semantic_entropy_for_question(
     # (e.g., "3" from a computation step instead of the final "36"), which
     # inflates semantic cluster counts and corrupts SE.
     extracted_answers = []
+    valid_raw_answers = []
     valid_log_probs = []
     valid_lengths = []
     extraction_failures = 0
-    
+
     for i, ans in enumerate(answers):
         extracted = extract_model_answer_strict(ans, dataset)
         if extracted:
             extracted_answers.append(extracted)
+            valid_raw_answers.append(ans)
             valid_log_probs.append(log_probs[i])
             valid_lengths.append(lengths[i])
         else:
@@ -196,13 +200,16 @@ def compute_semantic_entropy_for_question(
             "se_extraction_failure_rate": se_extraction_failure_rate,
         }
     
-    # Compute semantic entropy over valid extractions only
+    # Compute semantic entropy — cluster on full CoT reasoning chains so that
+    # "A via different reasoning" counts as a separate semantic cluster, while
+    # PE is still computed from the discrete answer letter distribution.
     se_results = semantic_calculator.compute_semantic_entropy(
         context=question,
         answers=extracted_answers,
         log_probs=valid_log_probs,
         length_normalize=True,
         answer_lengths=valid_lengths,
+        clustering_answers=valid_raw_answers,
     )
     
     se_results["extracted_answers"] = extracted_answers

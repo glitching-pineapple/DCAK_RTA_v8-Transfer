@@ -247,7 +247,7 @@ class SemanticEntropyCalculator:
         answer_counts = Counter(answers)
         n = len(answers)
         count_probs = np.array([c / n for c in answer_counts.values()], dtype=np.float64)
-        predictive_entropy = float(-np.sum(count_probs * np.log(count_probs + 1e-10)))
+        predictive_entropy = float(max(0.0, -np.sum(count_probs * np.log(count_probs + 1e-10))))
         predictive_entropy_normalized = predictive_entropy / np.log(n) if n > 1 else 0.0
 
         # Length-normalized sequence probs for SE cluster weighting
