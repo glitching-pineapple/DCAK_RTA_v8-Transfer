@@ -214,53 +214,53 @@ class SemanticEntropyCalculator:
                 "predictive_entropy_normalized": float('inf'),
             }
         
-        # Optionally length-normalize
-        if length_normalize and answer_lengths:
-            log_probs = [lp / max(1, length) for lp, length in zip(log_probs, answer_lengths)]
-        
-        # Convert log-probs to probabilities (normalized)
+        # Count-based predictive entropy over discrete answer choices.
+        # Raw sequence log_probs produce entropy ≈ ln(N) for all long CoT
+        # responses because similar-length sequences have nearly uniform
+        # softmax weights. Count-based entropy directly measures answer
+        # diversity: 0 when all samples agree, ln(N) when all differ.
+        from collections import Counter
+        answer_counts = Counter(answers)
+        n = len(answers)
+        count_probs = np.array([c / n for c in answer_counts.values()], dtype=np.float64)
+        predictive_entropy = float(-np.sum(count_probs * np.log(count_probs + 1e-10)))
+        predictive_entropy_normalized = predictive_entropy / np.log(n) if n > 1 else 0.0
+
+        # Length-normalized sequence probs for SE cluster weighting
         log_probs_arr = np.array(log_probs, dtype=np.float64)
-        
-        # Use log-sum-exp for numerical stability
-        max_log_prob = np.max(log_probs_arr)
-        probs = np.exp(log_probs_arr - max_log_prob)
-        probs = probs / np.sum(probs)  # Normalize to sum to 1
-        
-        # Compute standard predictive entropy (baseline)
-        predictive_entropy = -np.sum(probs * np.log(probs + 1e-10))
-        
+        if length_normalize and answer_lengths:
+            norm_log_probs_arr = np.array(
+                [lp / max(1, length) for lp, length in zip(log_probs, answer_lengths)],
+                dtype=np.float64,
+            )
+        else:
+            norm_log_probs_arr = log_probs_arr
+        max_norm = np.max(norm_log_probs_arr)
+        probs = np.exp(norm_log_probs_arr - max_norm)
+        probs = probs / np.sum(probs)
+
         # Cluster answers by semantic equivalence
         clusters = self.cluster_answers(context, answers)
         num_clusters = len(clusters)
         cluster_sizes = [len(c) for c in clusters]
-        
+
         # Compute semantic cluster probabilities
         cluster_probs = []
         for cluster in clusters:
             cluster_prob = sum(probs[idx] for idx in cluster)
             cluster_probs.append(cluster_prob)
-        
+
         cluster_probs = np.array(cluster_probs)
-        
+
         # Compute semantic entropy
         semantic_entropy = -np.sum(cluster_probs * np.log(cluster_probs + 1e-10))
         
-        # Also compute length-normalized predictive entropy
-        if length_normalize and answer_lengths:
-            norm_log_probs = np.array([lp / max(1, l) for lp, l in zip(log_probs, answer_lengths)])
-            max_nlp = np.max(norm_log_probs)
-            norm_probs = np.exp(norm_log_probs - max_nlp)
-            norm_probs = norm_probs / np.sum(norm_probs)
-            predictive_entropy_normalized = -np.sum(norm_probs * np.log(norm_probs + 1e-10))
-        else:
-            predictive_entropy_normalized = predictive_entropy
-        
         return {
-            "semantic_entropy": float(semantic_entropy),
+            "semantic_entropy": float(max(0.0, semantic_entropy)),
             "num_clusters": num_clusters,
             "cluster_sizes": cluster_sizes,
-            "predictive_entropy": float(predictive_entropy),
-            "predictive_entropy_normalized": float(predictive_entropy_normalized),
+            "predictive_entropy": predictive_entropy,
+            "predictive_entropy_normalized": predictive_entropy_normalized,
         }
 
 

@@ -238,15 +238,20 @@ class SemanticEntropyCalculator:
                 "predictive_entropy_normalized": float('inf'),
             }
         
+        # Count-based predictive entropy over discrete answer choices.
+        # Raw sequence log_probs produce entropy ≈ ln(N) for all long CoT
+        # responses because similar-length sequences have nearly uniform
+        # softmax weights. Count-based entropy directly measures answer
+        # diversity: 0 when all samples agree, ln(N) when all differ.
+        from collections import Counter
+        answer_counts = Counter(answers)
+        n = len(answers)
+        count_probs = np.array([c / n for c in answer_counts.values()], dtype=np.float64)
+        predictive_entropy = float(-np.sum(count_probs * np.log(count_probs + 1e-10)))
+        predictive_entropy_normalized = predictive_entropy / np.log(n) if n > 1 else 0.0
+
+        # Length-normalized sequence probs for SE cluster weighting
         raw_log_probs_arr = np.array(log_probs, dtype=np.float64)
-        
-        # --- Raw predictive entropy (baseline, no length normalization) ---
-        max_raw = np.max(raw_log_probs_arr)
-        raw_probs = np.exp(raw_log_probs_arr - max_raw)
-        raw_probs = raw_probs / np.sum(raw_probs)
-        predictive_entropy = float(max(0.0, -np.sum(raw_probs * np.log(raw_probs + 1e-10))))
-        
-        # --- Length-normalized probs (used for SE and PE_normalized) ---
         if length_normalize and answer_lengths:
             norm_log_probs_arr = np.array(
                 [lp / max(1, length) for lp, length in zip(log_probs, answer_lengths)],
@@ -254,12 +259,10 @@ class SemanticEntropyCalculator:
             )
         else:
             norm_log_probs_arr = raw_log_probs_arr
-        
+
         max_norm = np.max(norm_log_probs_arr)
         probs = np.exp(norm_log_probs_arr - max_norm)
         probs = probs / np.sum(probs)
-        
-        predictive_entropy_normalized = float(max(0.0, -np.sum(probs * np.log(probs + 1e-10))))
         
         # Cluster answers: use provided reasoning chains if available,
         # otherwise fall back to NLI-based semantic equivalence.
