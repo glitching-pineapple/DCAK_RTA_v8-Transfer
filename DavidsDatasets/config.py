@@ -1,7 +1,7 @@
 # config.py - Model and experiment configuration
 
 # ============== Model Configuration ==============
-# Choose model family: "qwen", "llama", or "gemma"
+# Choose model family: "qwen", "qwen3", "llama", or "gemma"
 MODEL_FAMILY = "qwen"
 
 # Choose variant: "instruct" or "base"
@@ -23,6 +23,9 @@ MODEL_NAMES = {
     "gemma": {
         "instruct": "google/gemma-2-9b-it",
         "base": "google/gemma-2-9b"
+    },
+    "qwen3": {
+        "instruct": "Qwen/Qwen3.6-35B-A3B",
     }
 }
 
@@ -69,6 +72,7 @@ def get_model_label():
     """Get a readable label for results/filenames."""
     labels = {
         "qwen": "Qwen2.5-7B",
+        "qwen3": "Qwen3.6-35B-A3B",
         "llama": "Llama3.1-8B",
         "gemma": "Gemma2-9B"
     }

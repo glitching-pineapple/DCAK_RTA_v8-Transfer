@@ -1,7 +1,8 @@
 # evaluation.py - Sample evaluation with semantic entropy
 
+import re
 from typing import Dict, Optional
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, COMPUTE_ANSWER_TOKEN_ENTROPY
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
@@ -66,7 +67,11 @@ def evaluate_sample(
     # Generate main answer with CoT prompt (includes verbalized confidence)
     prompt = create_prompt(tokenizer, question, choices)
     response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
-    
+
+    # Qwen3 emits <think>...</think> before the answer — strip it before any parsing
+    if MODEL_FAMILY == "qwen3":
+        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+
     # Extract model's answer
     model_answer = extract_model_answer(response, DATASET)
     
