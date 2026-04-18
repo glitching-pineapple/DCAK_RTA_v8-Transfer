@@ -93,9 +93,9 @@ def main():
     
     if COMPUTE_SEMANTIC_ENTROPY and 'semantic_entropy' in result:
         print(f"\n--- Semantic Entropy ---")
-        print(f"Semantic entropy: {result['semantic_entropy']:.4f}")
-        print(f"Predictive entropy: {result['predictive_entropy']:.4f}")
-        print(f"Num semantic clusters: {result['num_semantic_clusters']}")
+        print(f"SE (reasoning clusters):  {result['semantic_entropy']:.4f}  ({result['num_semantic_clusters']} clusters)")
+        print(f"SE (answer clusters):     {result['semantic_entropy_answers']:.4f}  ({result['num_answer_clusters']} clusters)")
+        print(f"Predictive entropy:       {result['predictive_entropy']:.4f}")
         print(f"Cluster sizes: {result['cluster_sizes']}")
         if result.get('sampled_answers'):
             print(f"Sampled answers preview: {result['sampled_answers'][:3]}")
