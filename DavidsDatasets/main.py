@@ -8,8 +8,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import (
-    DATASET, N_SAMPLES, RANDOM_SEED, get_model_label, 
-    COMPUTE_SEMANTIC_ENTROPY, NLI_MODEL, print_config
+    DATASET, N_SAMPLES, RANDOM_SEED, get_model_label,
+    COMPUTE_SEMANTIC_ENTROPY, COMPUTE_ANSWER_TOKEN_ENTROPY, NLI_MODEL, print_config
 )
 from model_utils import get_device, load_model_and_tokenizer
 from data_utils import load_gsm8k, load_mmlupro, load_strategyqa, load_medqa, load_triviaqa
@@ -91,6 +91,12 @@ def main():
     if result.get('more_likely_than_not') is not None:
         print(f"More likely than not: {result['more_likely_than_not']}")
     
+    if COMPUTE_ANSWER_TOKEN_ENTROPY and result.get('answer_token_entropy') is not None:
+        print(f"\n--- Answer Token Entropy ---")
+        print(f"Entropy: {result['answer_token_entropy']:.4f} nats")
+        print(f"Letter probs: {result['answer_letter_probs']}")
+        print(f"Top letter: {result['top_answer_letter']}  |  Chosen raw prob: {result['chosen_answer_raw_prob']}")
+
     if COMPUTE_SEMANTIC_ENTROPY and 'semantic_entropy' in result:
         print(f"\n--- Semantic Entropy ---")
         print(f"SE (reasoning clusters):  {result['semantic_entropy']:.4f}  ({result['num_semantic_clusters']} clusters)")
@@ -126,6 +132,13 @@ def main():
     
     print(f"\nCompleted {len(results)} evaluations")
     
+    # Expand answer_letter_probs dict into flat prob_A / prob_B / … columns
+    if COMPUTE_ANSWER_TOKEN_ENTROPY and DATASET in ("mmlupro", "medqa"):
+        for r in results:
+            probs = r.pop("answer_letter_probs", None) or {}
+            for letter, p in probs.items():
+                r[f"prob_{letter}"] = p
+
     # Create DataFrame
     df = pd.DataFrame(results)
     
