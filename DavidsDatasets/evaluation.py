@@ -1,11 +1,12 @@
 # evaluation.py - Sample evaluation with semantic entropy
 
 from typing import Dict, Optional
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, COMPUTE_ANSWER_TOKEN_ENTROPY
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
+    extract_answer_token_entropy,
     extract_verbalized_confidence,
     extract_more_likely_than_not,
     create_prompt,
@@ -64,7 +65,7 @@ def evaluate_sample(
     
     # Generate main answer with CoT prompt (includes verbalized confidence)
     prompt = create_prompt(tokenizer, question, choices)
-    response, token_probs, tokens = generate_with_logits(model, tokenizer, prompt)
+    response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
     
     # Extract model's answer
     model_answer = extract_model_answer(response, DATASET)
@@ -77,6 +78,17 @@ def evaluate_sample(
     
     # Compute logit-based confidence
     confidence_metrics = compute_confidence_metrics(token_probs)
+
+    # Compute answer-token logit entropy for MCQ datasets (single forward pass)
+    if COMPUTE_ANSWER_TOKEN_ENTROPY and DATASET in ("mmlupro", "medqa"):
+        ate_results = extract_answer_token_entropy(tokens, raw_scores, tokenizer, DATASET)
+    else:
+        ate_results = {
+            "answer_token_entropy": None,
+            "answer_letter_probs": None,
+            "top_answer_letter": None,
+            "chosen_answer_raw_prob": None,
+        }
     
     # Extract single-pass verbalized confidence from CoT response (1-10 scale)
     single_pass_conf = extract_verbalized_confidence(response, DATASET)
@@ -134,6 +146,12 @@ def evaluate_sample(
         
         # Full response for inspection
         "full_response": response,
+
+        # Answer-token logit entropy (MCQ only; None for gsm8k/strategyqa/triviaqa)
+        "answer_token_entropy": ate_results["answer_token_entropy"],
+        "answer_letter_probs": ate_results["answer_letter_probs"],
+        "top_answer_letter": ate_results["top_answer_letter"],
+        "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
     }
     
     # Compute semantic entropy if calculator provided

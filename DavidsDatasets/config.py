@@ -53,6 +53,10 @@ NLI_MODEL = "microsoft/deberta-large-mnli"
 # Whether to compute semantic entropy (slower but more informative)
 COMPUTE_SEMANTIC_ENTROPY = True
 
+# Whether to compute answer-token logit entropy for MCQ datasets (mmlupro, medqa).
+# Requires only 1 forward pass; set False to skip if not needed.
+COMPUTE_ANSWER_TOKEN_ENTROPY = True
+
 
 # ============== Helper Functions ==============
 

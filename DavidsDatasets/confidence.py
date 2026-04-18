@@ -14,18 +14,19 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
-) -> Tuple[str, List[float], List[str]]:
+) -> Tuple[str, List[float], List[str], list]:
     """
     Generate response and capture token-level probabilities.
-    
+
     Returns:
         - generated_text: The model's response
         - token_probs: Probability of each generated token
         - tokens: The actual tokens generated
+        - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
-    
+
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
@@ -36,23 +37,24 @@ def generate_with_logits(
             output_scores=True,
             pad_token_id=tokenizer.pad_token_id,
         )
-    
-    # Extract generated tokens (excluding prompt)
+
     generated_ids = outputs.sequences[0, input_length:]
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
-    
-    # Calculate probabilities for each generated token
+
+    # Keep raw per-step distributions for answer token entropy
+    raw_scores = list(outputs.scores)
+
     token_probs = []
     tokens = []
-    
+
     for i, score in enumerate(outputs.scores):
         probs = torch.softmax(score[0], dim=-1)
         token_id = generated_ids[i].item()
         token_prob = probs[token_id].item()
         token_probs.append(token_prob)
         tokens.append(tokenizer.decode([token_id]))
-    
-    return generated_text, token_probs, tokens
+
+    return generated_text, token_probs, tokens, raw_scores
 
 
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
@@ -73,6 +75,122 @@ def compute_confidence_metrics(token_probs: List[float]) -> dict:
         "log_prob_sum": float(np.sum(np.log(probs + 1e-10))),
         "mean_prob": float(np.mean(probs)),
     }
+
+
+def extract_answer_token_entropy(
+    tokens: List[str],
+    raw_scores: list,
+    tokenizer,
+    dataset: str,
+) -> Dict:
+    """
+    Compute Shannon entropy over answer-letter logits at the answer decision token.
+
+    At the exact position where the model emits the answer letter (A/B/C/…),
+    we read the full vocab distribution, extract probabilities for valid answer
+    letters, renormalize, and compute entropy.  Requires only the single forward
+    pass already performed by generate_with_logits.
+
+    Returns dict with keys:
+        answer_token_entropy  – float (nats); nan if answer position not found
+        answer_letter_probs   – {letter: renorm_prob} or None
+        top_answer_letter     – str or None
+        chosen_answer_raw_prob – raw (pre-renorm) prob of the emitted letter
+    """
+    MCQ_DATASETS = {"mmlupro", "medqa"}
+    null_result = {
+        "answer_token_entropy": None,
+        "answer_letter_probs": None,
+        "top_answer_letter": None,
+        "chosen_answer_raw_prob": None,
+    }
+
+    if dataset not in MCQ_DATASETS:
+        return null_result
+
+    valid_letters = list("ABCDEFGHIJ") if dataset == "mmlupro" else list("ABCDE")
+
+    # Build letter -> set of token IDs mapping.
+    # Some tokenizers encode "A" and " A" as different IDs; we collect both.
+    letter_to_token_ids: Dict[str, set] = {}
+    for letter in valid_letters:
+        ids: set = set()
+        for form in (letter, f" {letter}"):
+            encoded = tokenizer.encode(form, add_special_tokens=False)
+            if len(encoded) == 1:
+                ids.add(encoded[0])
+        letter_to_token_ids[letter] = ids
+
+    # Locate the last "Answer:" marker in the token stream, then find the
+    # first answer-letter token that follows it.
+    accumulated = ""
+    marker_end_char = None
+    import re as _re
+    for tok in tokens:
+        accumulated += tok
+        m = _re_answer_marker.search(accumulated)
+        if m:
+            marker_end_char = m.end()  # keep updating → last occurrence
+
+    if marker_end_char is None:
+        return {**null_result, "answer_token_entropy": float("nan")}
+
+    # Walk tokens to find which index starts at/after marker_end_char
+    char_count = 0
+    search_from = len(tokens)  # fallback: no letter found
+    for pos, tok in enumerate(tokens):
+        char_count += len(tok)
+        if char_count >= marker_end_char:
+            search_from = pos + 1
+            break
+
+    answer_pos = None
+    chosen_letter = None
+    for pos in range(search_from, len(tokens)):
+        tok_clean = tokens[pos].strip().upper()
+        if tok_clean in valid_letters:
+            answer_pos = pos
+            chosen_letter = tok_clean
+            break
+        # Stop if a non-whitespace, non-trivial token intervenes
+        if tokens[pos].strip() and tokens[pos].strip() not in (":", "-", ".", "*", "\n", "#"):
+            break
+
+    if answer_pos is None or answer_pos >= len(raw_scores):
+        return {**null_result, "answer_token_entropy": float("nan")}
+
+    # Softmax over full vocab at the answer decision step
+    logits = raw_scores[answer_pos]
+    if logits.dim() == 2:
+        logits = logits[0]  # (1, vocab_size) -> (vocab_size,)
+    probs = torch.softmax(logits.float(), dim=-1)
+
+    # Extract and sum probabilities for each valid letter (all token-ID forms)
+    letter_probs: Dict[str, float] = {}
+    for letter in valid_letters:
+        p = sum(probs[tid].item() for tid in letter_to_token_ids[letter] if tid < probs.shape[0])
+        letter_probs[letter] = p
+
+    chosen_answer_raw_prob = letter_probs.get(chosen_letter, 0.0)
+
+    total = sum(letter_probs.values())
+    if total <= 0:
+        return {**null_result, "answer_token_entropy": float("nan")}
+
+    renorm = {l: p / total for l, p in letter_probs.items()}
+    entropy = float(max(0.0, -sum(p * np.log(p + 1e-10) for p in renorm.values())))
+    top_letter = max(renorm, key=renorm.get)
+
+    return {
+        "answer_token_entropy": entropy,
+        "answer_letter_probs": {l: round(renorm[l], 4) for l in valid_letters},
+        "top_answer_letter": top_letter,
+        "chosen_answer_raw_prob": round(chosen_answer_raw_prob, 6),
+    }
+
+
+# Pre-compiled pattern reused across calls
+_re_answer_marker = re.compile(r"[Aa]nswer\s*:", re.IGNORECASE)
 
 
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
@@ -356,11 +474,12 @@ Think step by step, then write JUST Yes or No after "Answer:".
 Solution:"""
 
     elif DATASET == "medqa":
-         # choices must be a list of strings by this point (normalized in evaluation.py)
-    if not choices or not isinstance(choices[0], str) or len(choices[0]) <= 1:
-        raise ValueError(f"medqa choices look wrong — got: {choices}. "
-                         f"Check evaluation.py options extraction.")
-    choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+        # choices must be a list of strings by this point (normalized in evaluation.py)
+        if not choices or not isinstance(choices[0], str) or len(choices[0]) <= 1:
+            raise ValueError(f"medqa choices look wrong — got: {choices}. "
+                             f"Check evaluation.py options extraction.")
+        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+        base_prompt = f"""Question: {question}
 
 {choices_text}
 
@@ -524,3 +643,60 @@ Correct: Yes or No"""
         "two_pass_correct": correct_judgment,
         "two_pass_critique": critique_response,
     }
+
+
+if __name__ == "__main__":
+    """Quick smoke-test for extract_answer_token_entropy.
+
+    Loads Qwen2.5-7B-Instruct, runs one greedy forward pass on a MedQA-style
+    question, and prints the answer-letter probability dict + entropy so you
+    can verify the signal looks sane before running the full pipeline.
+
+    Expected confident output:   {A: ~0.90, B: ~0.05, ...}  entropy ≈ 0.3
+    Expected uncertain output:   {A: ~0.35, B: ~0.30, ...}  entropy ≈ 1.3
+    If entropy is near ln(5) ≈ 1.61 for every sample the raw_scores are wrong.
+    """
+    import sys
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    model_name = "Qwen/Qwen2.5-7B-Instruct"
+    print(f"Loading {model_name} …")
+    tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    mdl = AutoModelForCausalLM.from_pretrained(
+        model_name, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True
+    )
+
+    question = (
+        "A 45-year-old man presents with chest pain radiating to the left arm, "
+        "diaphoresis, and shortness of breath for 30 minutes. "
+        "Which of the following is the most likely diagnosis?"
+    )
+    choices = [
+        "Stable angina",
+        "Acute myocardial infarction",
+        "Pulmonary embolism",
+        "Aortic dissection",
+        "Pericarditis",
+    ]
+    choices_text = "\n".join(f"{chr(65+i)}. {c}" for i, c in enumerate(choices))
+    prompt_text = (
+        f"Answer the following medical question.\n\nQuestion: {question}\n\n"
+        f"{choices_text}\n\nAnswer:"
+    )
+    messages = [{"role": "user", "content": prompt_text}]
+    formatted = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+    response, token_probs, tokens, raw_scores = generate_with_logits(
+        mdl, tok, formatted, max_new_tokens=256, do_sample=False
+    )
+
+    print("\n--- Generated response ---")
+    print(response[:500])
+
+    result = extract_answer_token_entropy(tokens, raw_scores, tok, dataset="medqa")
+    print("\n--- Answer token entropy ---")
+    print(f"  Letter probs : {result['answer_letter_probs']}")
+    print(f"  Entropy      : {result['answer_token_entropy']:.4f}" if result["answer_token_entropy"] is not None else "  Entropy: None")
+    print(f"  Top letter   : {result['top_answer_letter']}")
+    print(f"  Chosen raw p : {result['chosen_answer_raw_prob']}")
+    sys.exit(0)
