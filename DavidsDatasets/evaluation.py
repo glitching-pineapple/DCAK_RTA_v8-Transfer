@@ -147,9 +147,11 @@ def evaluate_sample(
         )
         result.update({
             "semantic_entropy": se_results["semantic_entropy"],
+            "semantic_entropy_answers": se_results["semantic_entropy_answers"],
             "predictive_entropy": se_results["predictive_entropy"],
             "predictive_entropy_normalized": se_results["predictive_entropy_normalized"],
             "num_semantic_clusters": se_results["num_clusters"],
+            "num_answer_clusters": se_results["num_answer_clusters"],
             "cluster_sizes": se_results["cluster_sizes"],
             "sampled_answers": se_results.get("extracted_answers", []),
             "se_extraction_failure_rate": se_results.get("se_extraction_failure_rate", 0.0),
@@ -188,18 +190,18 @@ def compute_semantic_entropy_for_question(
     # (e.g., "3" from a computation step instead of the final "36"), which
     # inflates semantic cluster counts and corrupts SE.
     extracted_answers = []
+    valid_raw_answers = []
     valid_log_probs = []
     valid_lengths = []
-    valid_reasonings = []
     extraction_failures = 0
 
     for i, ans in enumerate(answers):
         extracted = extract_model_answer_strict(ans, dataset)
         if extracted:
             extracted_answers.append(extracted)
+            valid_raw_answers.append(ans)
             valid_log_probs.append(log_probs[i])
             valid_lengths.append(lengths[i])
-            valid_reasonings.append(extract_reasoning(ans))
         else:
             extraction_failures += 1
     
@@ -216,30 +218,31 @@ def compute_semantic_entropy_for_question(
     if len(extracted_answers) < 2:
         return {
             "semantic_entropy": float('inf'),
+            "semantic_entropy_answers": float('inf'),
             "predictive_entropy": float('inf'),
             "predictive_entropy_normalized": float('inf'),
             "num_clusters": 0,
+            "num_answer_clusters": 0,
             "cluster_sizes": [],
             "extracted_answers": extracted_answers,
             "raw_answers": answers,
             "se_extraction_failure_rate": se_extraction_failure_rate,
         }
     
-    # Compute semantic entropy over valid extractions only.
-    # Pass reasoning chains so clusters are defined by reasoning path,
-    # not NLI-based answer equivalence.
+    # Cluster on full CoT reasoning chains so that "A via different reasoning"
+    # counts as a separate semantic cluster. Answer strings are clustered
+    # separately for the secondary semantic_entropy_answers column.
     se_results = semantic_calculator.compute_semantic_entropy(
         context=question,
         answers=extracted_answers,
         log_probs=valid_log_probs,
         length_normalize=True,
         answer_lengths=valid_lengths,
-        reasonings=valid_reasonings,
+        clustering_answers=valid_raw_answers,
     )
 
     se_results["extracted_answers"] = extracted_answers
     se_results["raw_answers"] = answers
-    se_results["reasonings"] = valid_reasonings
     se_results["se_extraction_failure_rate"] = se_extraction_failure_rate
     
     return se_results

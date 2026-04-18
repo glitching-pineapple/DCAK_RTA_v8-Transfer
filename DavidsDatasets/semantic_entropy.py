@@ -38,8 +38,24 @@ class SemanticEntropyCalculator:
         self.entailment_id = 2
         print("NLI model loaded successfully")
     
+    @staticmethod
+    def truncate_for_nli(text: str, max_chars: int = 1800) -> str:
+        """
+        Trim a CoT response to fit within DeBERTa's 512-token limit.
+
+        Strips the boilerplate answer/confidence/correct footer first (those
+        are already captured elsewhere), then keeps the last `max_chars`
+        characters of the remaining reasoning — the conclusion of the chain
+        is most discriminative for semantic equivalence.
+        """
+        import re
+        text = re.sub(r'\n*(Answer|Confidence|Correct)\s*:.*', '', text, flags=re.IGNORECASE).strip()
+        if len(text) > max_chars:
+            text = text[-max_chars:]
+        return text
+
     def check_entailment_batch(
-        self, 
+        self,
         premise_hypothesis_pairs: List[Tuple[str, str]],
         batch_size: int = 32,
     ) -> List[bool]:
@@ -122,8 +138,12 @@ class SemanticEntropyCalculator:
         if len(answers) == 1:
             return [[0]]
         
-        # Build all comparison texts
-        answer_texts = [f"Question: {context} Answer: {a}" for a in answers]
+        # Build comparison texts, truncating long CoT responses so they fit
+        # within DeBERTa's 512-token limit without losing the reasoning conclusion.
+        answer_texts = [
+            f"Question: {context} Answer: {self.truncate_for_nli(a)}"
+            for a in answers
+        ]
         
         # We need to compare each answer (starting from index 1) against
         # existing cluster representatives. Since clusters form dynamically,
@@ -220,29 +240,30 @@ class SemanticEntropyCalculator:
         log_probs: List[float],
         length_normalize: bool = False,
         answer_lengths: List[int] = None,
-        reasonings: Optional[List[str]] = None,
+        clustering_answers: List[str] = None,
     ) -> Dict[str, float]:
         """
         Compute semantic entropy over meaning-clusters.
-        
+
         SE(x) = -sum_c p(c|x) * log(p(c|x))
-        
+
         where p(c|x) = sum_{s in c} p(s|x) is the probability mass of a semantic cluster.
+
+        clustering_answers: if provided, NLI clustering is run on these texts
+        (full CoT responses) rather than on `answers` (extracted letters).
         """
         if not answers or not log_probs:
             return {
                 "semantic_entropy": float('inf'),
+                "semantic_entropy_answers": float('inf'),
                 "num_clusters": 0,
+                "num_answer_clusters": 0,
                 "cluster_sizes": [],
                 "predictive_entropy": float('inf'),
                 "predictive_entropy_normalized": float('inf'),
             }
-        
+
         # Count-based predictive entropy over discrete answer choices.
-        # Raw sequence log_probs produce entropy ≈ ln(N) for all long CoT
-        # responses because similar-length sequences have nearly uniform
-        # softmax weights. Count-based entropy directly measures answer
-        # diversity: 0 when all samples agree, ln(N) when all differ.
         from collections import Counter
         answer_counts = Counter(answers)
         n = len(answers)
@@ -263,30 +284,33 @@ class SemanticEntropyCalculator:
         max_norm = np.max(norm_log_probs_arr)
         probs = np.exp(norm_log_probs_arr - max_norm)
         probs = probs / np.sum(probs)
-        
-        # Cluster answers: use provided reasoning chains if available,
-        # otherwise fall back to NLI-based semantic equivalence.
-        if reasonings is not None and len(reasonings) == len(answers):
-            clusters = self.cluster_by_reasoning(reasonings)
-        else:
-            clusters = self.cluster_answers(context, answers)
+
+        # --- SE over CoT reasoning chains (primary) ---
+        # Cluster on full CoT if provided, otherwise fall back to answer letters.
+        texts_to_cluster = clustering_answers if clustering_answers is not None else answers
+        clusters = self.cluster_answers(context, texts_to_cluster)
         num_clusters = len(clusters)
         cluster_sizes = [len(c) for c in clusters]
-        
-        # Compute semantic cluster probabilities (from length-normalized probs)
-        cluster_probs = []
-        for cluster in clusters:
-            cluster_prob = sum(probs[idx] for idx in cluster)
-            cluster_probs.append(cluster_prob)
-        
-        cluster_probs = np.array(cluster_probs)
-        
-        # Compute semantic entropy, clamped to >= 0
+
+        cluster_probs = np.array([sum(probs[i] for i in c) for c in clusters])
         semantic_entropy = float(max(0.0, -np.sum(cluster_probs * np.log(cluster_probs + 1e-10))))
-        
+
+        # --- SE over answer strings (secondary, useful for open-ended datasets) ---
+        # Only computed when clustering_answers were provided (i.e. CoT was used above).
+        if clustering_answers is not None:
+            ans_clusters = self.cluster_answers(context, answers)
+            ans_cluster_probs = np.array([sum(probs[i] for i in c) for c in ans_clusters])
+            semantic_entropy_answers = float(max(0.0, -np.sum(ans_cluster_probs * np.log(ans_cluster_probs + 1e-10))))
+            num_answer_clusters = len(ans_clusters)
+        else:
+            semantic_entropy_answers = semantic_entropy
+            num_answer_clusters = num_clusters
+
         return {
             "semantic_entropy": semantic_entropy,
+            "semantic_entropy_answers": semantic_entropy_answers,
             "num_clusters": num_clusters,
+            "num_answer_clusters": num_answer_clusters,
             "cluster_sizes": cluster_sizes,
             "predictive_entropy": predictive_entropy,
             "predictive_entropy_normalized": predictive_entropy_normalized,
