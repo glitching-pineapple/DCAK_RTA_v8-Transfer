@@ -45,16 +45,13 @@ def evaluate_sample(
         choices = None
     elif DATASET == "medqa":
         question = sample['question']
-    raw_options = sample.get('options', sample.get('choices', {}))
-    # GBaker/MedQA-USMLE-4-options stores options as a dict: {"A": "text", "B": "text", ...}
-    # We need an ordered list of just the values for create_prompt
-    if isinstance(raw_options, dict):
-        choices = [raw_options[k] for k in sorted(raw_options.keys())]
-    elif isinstance(raw_options, list):
-        choices = raw_options
-    else:
-        choices = []
-        
+        raw_options = sample.get('options', sample.get('choices', {}))
+        if isinstance(raw_options, dict):
+            choices = [raw_options[k] for k in sorted(raw_options.keys())]
+        elif isinstance(raw_options, list):
+            choices = raw_options
+        else:
+            choices = []
     elif DATASET == "triviaqa":
         question = sample['question']
         choices = None
