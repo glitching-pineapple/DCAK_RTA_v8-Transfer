@@ -1,7 +1,7 @@
 # config.py - Model and experiment configuration
 
 # ============== Model Configuration ==============
-# Choose model family: "qwen", "llama", or "gemma"
+# Choose model family: "qwen", "qwen3", "llama", or "gemma"
 MODEL_FAMILY = "qwen"
 
 # Choose variant: "instruct" or "base"
@@ -23,13 +23,22 @@ MODEL_NAMES = {
     "gemma": {
         "instruct": "google/gemma-2-9b-it",
         "base": "google/gemma-2-9b"
+    },
+    "qwen3": {
+        "instruct": "Qwen/Qwen3.6-35B-A3B",
     }
 }
 
 # ============== Experiment Parameters ==============
 N_SAMPLES = 10        # Number of evaluation samples 
 RANDOM_SEED = 42        # Random seed for reproducibility
-MAX_NEW_TOKENS = 1024    # Max tokens for main generation
+# Qwen3 thinking models need much more room — thinking chain alone is 1000-2000 tokens
+_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024}
+MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
+
+# SE sampling budget — Qwen3 needs room for <think> block + Answer line
+_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 2048, "llama": 256, "gemma": 256}
+SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 
 # ============== Semantic Entropy Parameters ==============
 # Based on Kuhn et al. (2023) "Semantic Uncertainty" paper
@@ -53,6 +62,10 @@ NLI_MODEL = "microsoft/deberta-large-mnli"
 # Whether to compute semantic entropy (slower but more informative)
 COMPUTE_SEMANTIC_ENTROPY = True
 
+# Whether to compute answer-token logit entropy for MCQ datasets (mmlupro, medqa).
+# Requires only 1 forward pass; set False to skip if not needed.
+COMPUTE_ANSWER_TOKEN_ENTROPY = True
+
 
 # ============== Helper Functions ==============
 
@@ -65,6 +78,7 @@ def get_model_label():
     """Get a readable label for results/filenames."""
     labels = {
         "qwen": "Qwen2.5-7B",
+        "qwen3": "Qwen3.6-35B-A3B",
         "llama": "Llama3.1-8B",
         "gemma": "Gemma2-9B"
     }

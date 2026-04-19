@@ -1,11 +1,13 @@
 # evaluation.py - Sample evaluation with semantic entropy
 
+import re
 from typing import Dict, Optional
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, check_triviaqa_correct
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
+    extract_answer_token_entropy,
     extract_verbalized_confidence,
     extract_more_likely_than_not,
     create_prompt,
@@ -45,16 +47,13 @@ def evaluate_sample(
         choices = None
     elif DATASET == "medqa":
         question = sample['question']
-    raw_options = sample.get('options', sample.get('choices', {}))
-    # GBaker/MedQA-USMLE-4-options stores options as a dict: {"A": "text", "B": "text", ...}
-    # We need an ordered list of just the values for create_prompt
-    if isinstance(raw_options, dict):
-        choices = [raw_options[k] for k in sorted(raw_options.keys())]
-    elif isinstance(raw_options, list):
-        choices = raw_options
-    else:
-        choices = []
-        
+        raw_options = sample.get('options', sample.get('choices', {}))
+        if isinstance(raw_options, dict):
+            choices = [raw_options[k] for k in sorted(raw_options.keys())]
+        elif isinstance(raw_options, list):
+            choices = raw_options
+        else:
+            choices = []
     elif DATASET == "triviaqa":
         question = sample['question']
         choices = None
@@ -67,8 +66,12 @@ def evaluate_sample(
     
     # Generate main answer with CoT prompt (includes verbalized confidence)
     prompt = create_prompt(tokenizer, question, choices)
-    response, token_probs, tokens = generate_with_logits(model, tokenizer, prompt)
-    
+    response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+
+    # Qwen3 emits <think>...</think> before the answer — strip it before any parsing
+    if MODEL_FAMILY == "qwen3":
+        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+
     # Extract model's answer
     model_answer = extract_model_answer(response, DATASET)
     
@@ -80,6 +83,17 @@ def evaluate_sample(
     
     # Compute logit-based confidence
     confidence_metrics = compute_confidence_metrics(token_probs)
+
+    # Compute answer-token logit entropy for MCQ datasets (single forward pass)
+    if COMPUTE_ANSWER_TOKEN_ENTROPY and DATASET in ("mmlupro", "medqa"):
+        ate_results = extract_answer_token_entropy(tokens, raw_scores, tokenizer, DATASET)
+    else:
+        ate_results = {
+            "answer_token_entropy": None,
+            "answer_letter_probs": None,
+            "top_answer_letter": None,
+            "chosen_answer_raw_prob": None,
+        }
     
     # Extract single-pass verbalized confidence from CoT response (1-10 scale)
     single_pass_conf = extract_verbalized_confidence(response, DATASET)
@@ -137,6 +151,12 @@ def evaluate_sample(
         
         # Full response for inspection
         "full_response": response,
+
+        # Answer-token logit entropy (MCQ only; None for gsm8k/strategyqa/triviaqa)
+        "answer_token_entropy": ate_results["answer_token_entropy"],
+        "answer_letter_probs": ate_results["answer_letter_probs"],
+        "top_answer_letter": ate_results["top_answer_letter"],
+        "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
     }
     
     # Compute semantic entropy if calculator provided
@@ -147,9 +167,11 @@ def evaluate_sample(
         )
         result.update({
             "semantic_entropy": se_results["semantic_entropy"],
+            "semantic_entropy_answers": se_results["semantic_entropy_answers"],
             "predictive_entropy": se_results["predictive_entropy"],
             "predictive_entropy_normalized": se_results["predictive_entropy_normalized"],
             "num_semantic_clusters": se_results["num_clusters"],
+            "num_answer_clusters": se_results["num_answer_clusters"],
             "cluster_sizes": se_results["cluster_sizes"],
             "sampled_answers": se_results.get("extracted_answers", []),
             "se_extraction_failure_rate": se_results.get("se_extraction_failure_rate", 0.0),
@@ -178,24 +200,30 @@ def compute_semantic_entropy_for_question(
     answers, log_probs, lengths = sample_answers_with_probs(
         model, tokenizer, prompt,
         num_samples=SE_NUM_SAMPLES,
-        max_new_tokens=256,
+        max_new_tokens=SE_MAX_NEW_TOKENS,
         temperature=SE_TEMPERATURE,
     )
-    
+
+    # Strip Qwen3 <think>...</think> blocks before extraction
+    if MODEL_FAMILY == "qwen3":
+        answers = [re.sub(r'<think>.*?</think>', '', a, flags=re.DOTALL).strip() for a in answers]
+
     # Extract just the answer portion from each response.
     # STRICT mode: only accept answers found via the "Answer:" line (Priority 1).
     # The fallback extractors (Priority 2/3) grab intermediate CoT numbers
     # (e.g., "3" from a computation step instead of the final "36"), which
     # inflates semantic cluster counts and corrupts SE.
     extracted_answers = []
+    valid_raw_answers = []
     valid_log_probs = []
     valid_lengths = []
     extraction_failures = 0
-    
+
     for i, ans in enumerate(answers):
         extracted = extract_model_answer_strict(ans, dataset)
         if extracted:
             extracted_answers.append(extracted)
+            valid_raw_answers.append(ans)
             valid_log_probs.append(log_probs[i])
             valid_lengths.append(lengths[i])
         else:
@@ -214,24 +242,29 @@ def compute_semantic_entropy_for_question(
     if len(extracted_answers) < 2:
         return {
             "semantic_entropy": float('inf'),
+            "semantic_entropy_answers": float('inf'),
             "predictive_entropy": float('inf'),
             "predictive_entropy_normalized": float('inf'),
             "num_clusters": 0,
+            "num_answer_clusters": 0,
             "cluster_sizes": [],
             "extracted_answers": extracted_answers,
             "raw_answers": answers,
             "se_extraction_failure_rate": se_extraction_failure_rate,
         }
     
-    # Compute semantic entropy over valid extractions only
+    # Cluster on full CoT reasoning chains so that "A via different reasoning"
+    # counts as a separate semantic cluster. Answer strings are clustered
+    # separately for the secondary semantic_entropy_answers column.
     se_results = semantic_calculator.compute_semantic_entropy(
         context=question,
         answers=extracted_answers,
         log_probs=valid_log_probs,
         length_normalize=True,
         answer_lengths=valid_lengths,
+        clustering_answers=valid_raw_answers,
     )
-    
+
     se_results["extracted_answers"] = extracted_answers
     se_results["raw_answers"] = answers
     se_results["se_extraction_failure_rate"] = se_extraction_failure_rate

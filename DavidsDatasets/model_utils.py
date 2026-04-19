@@ -20,28 +20,33 @@ def get_device():
 
 def load_model_and_tokenizer(model_device: str = "cuda:0"):
     """
-    Load the model and tokenizer onto a single GPU.
-    
-    A 7B fp16 model uses ~14GB, fits comfortably on one 40GB A100.
-    Pinning to one GPU avoids cross-GPU tensor transfer overhead
-    that device_map='auto' causes when sharding unnecessarily.
+    Load the model and tokenizer.
+
+    Small models (≤7B) are pinned to a single GPU.
+    Large models (>7B, e.g. Qwen3-35B) use device_map='auto' to shard
+    across all available GPUs automatically.
     """
+    from config import MODEL_FAMILY
     model_name = get_model_name()
-    print(f"Loading: {model_name} → {model_device}")
-    
-    # Load tokenizer
+
+    large_model_families = {"qwen3"}
+    use_auto_device_map = MODEL_FAMILY in large_model_families
+    device = "auto" if use_auto_device_map else model_device
+    print(f"Loading: {model_name} → device_map={device}")
+
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    
-    # Load model onto a single GPU
+
+    dtype = torch.bfloat16 if MODEL_FAMILY == "qwen3" else torch.float16
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=torch.float16,
-        device_map=model_device,
+        torch_dtype=dtype,
+        device_map=device,
         trust_remote_code=True,
+        use_safetensors=True,
     )
     model.eval()
-    print(f"Model loaded successfully: {get_model_label()} on {model_device}")
-    
+    print(f"Model loaded successfully: {get_model_label()} on {device}")
+
     return model, tokenizer
