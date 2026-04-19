@@ -32,7 +32,13 @@ MODEL_NAMES = {
 # ============== Experiment Parameters ==============
 N_SAMPLES = 10        # Number of evaluation samples 
 RANDOM_SEED = 42        # Random seed for reproducibility
-MAX_NEW_TOKENS = 1024    # Max tokens for main generation
+# Qwen3 thinking models need much more room — thinking chain alone is 1000-2000 tokens
+_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024}
+MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
+
+# SE sampling budget — Qwen3 needs room for <think> block + Answer line
+_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 2048, "llama": 256, "gemma": 256}
+SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 
 # ============== Semantic Entropy Parameters ==============
 # Based on Kuhn et al. (2023) "Semantic Uncertainty" paper

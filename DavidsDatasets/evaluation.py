@@ -2,7 +2,7 @@
 
 import re
 from typing import Dict, Optional
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
@@ -200,10 +200,14 @@ def compute_semantic_entropy_for_question(
     answers, log_probs, lengths = sample_answers_with_probs(
         model, tokenizer, prompt,
         num_samples=SE_NUM_SAMPLES,
-        max_new_tokens=256,
+        max_new_tokens=SE_MAX_NEW_TOKENS,
         temperature=SE_TEMPERATURE,
     )
-    
+
+    # Strip Qwen3 <think>...</think> blocks before extraction
+    if MODEL_FAMILY == "qwen3":
+        answers = [re.sub(r'<think>.*?</think>', '', a, flags=re.DOTALL).strip() for a in answers]
+
     # Extract just the answer portion from each response.
     # STRICT mode: only accept answers found via the "Answer:" line (Priority 1).
     # The fallback extractors (Priority 2/3) grab intermediate CoT numbers
