@@ -41,7 +41,7 @@ def load_model_and_tokenizer(model_device: str = "cuda:0"):
     dtype = torch.bfloat16 if MODEL_FAMILY == "qwen3" else torch.float16
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=dtype,
+        dtype=dtype,
         device_map=device,
         trust_remote_code=True,
         use_safetensors=True,

@@ -25,7 +25,7 @@ MODEL_NAMES = {
         "base": "google/gemma-2-9b"
     },
     "qwen3": {
-        "instruct": "Qwen/Qwen3.6-35B-A3B",
+        "instruct": "Qwen/Qwen3-30B-A3B",
     }
 }
 
