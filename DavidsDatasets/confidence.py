@@ -7,6 +7,27 @@ from typing import Optional, Tuple, List, Dict
 from config import MODEL_VARIANT, MAX_NEW_TOKENS
 
 
+def _format_choices(choices: list) -> str:
+    return "\n".join(f"{chr(65+i)}. {c}" for i, c in enumerate(choices))
+
+
+_CONF_RUBRIC = """
+Then, evaluate how likely your answer is to be correct by selecting EXACTLY ONE of these confidence classes:
+
+1 = "Almost no chance" (0-10% likely correct)
+2 = "Highly unlikely" (10-20% likely correct)
+3 = "Chances are slight" (20-30% likely correct)
+4 = "Unlikely" (30-40% likely correct)
+5 = "Less than even" (40-50% likely correct)
+6 = "Better than even" (50-60% likely correct)
+7 = "Likely" (60-70% likely correct)
+8 = "Very good chance" (70-80% likely correct)
+9 = "Highly likely" (80-90% likely correct)
+10 = "Almost certain" (90-100% likely correct)
+
+"""
+
+
 def generate_with_logits(
     model,
     tokenizer,
@@ -125,7 +146,6 @@ def extract_answer_token_entropy(
     # first answer-letter token that follows it.
     accumulated = ""
     marker_end_char = None
-    import re as _re
     for tok in tokens:
         accumulated += tok
         m = _re_answer_marker.search(accumulated)
@@ -189,8 +209,9 @@ def extract_answer_token_entropy(
     }
 
 
-# Pre-compiled pattern reused across calls
+# Pre-compiled patterns reused across calls
 _re_answer_marker = re.compile(r"[Aa]nswer\s*:", re.IGNORECASE)
+_re_think_block = re.compile(r'<think>.*?</think>', re.DOTALL)
 
 
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
@@ -248,60 +269,28 @@ def extract_more_likely_than_not(response: str) -> Optional[bool]:
     return None
 
 
-def create_prompt(tokenizer, question: str, choices: list = None) -> str:
+def create_prompt(tokenizer, question: str, choices: list = None, include_confidence: bool = True) -> str:
     """
-    Create prompt with Chain-of-Thought reasoning and verbalized confidence.
-    
+    Create prompt with Chain-of-Thought reasoning and optionally verbalized confidence.
+
+    When include_confidence=False (qwen3 Gen 1), the prompt asks only for thorough
+    reasoning and a final answer — no confidence rubric or Confidence/Correct output.
+    Confidence is elicited separately in Gen 2 to avoid token-limit truncation.
+
     The prompt structure asks the model to:
     1. Think through the problem step by step
     2. Provide a final answer (JUST the value, no sentence)
-    3. Rate confidence as a decimal from 1-10 (Ex. 7.2)
-    4. State if answer is more likely correct than not
+    3. (if include_confidence) Rate confidence 1-10 and state Correct: Yes/No
     """
     from config import MODEL_VARIANT, DATASET
 
-#for confidence #commented out to test rubric based verbalized conf. evaluation
-
-    
-#     if DATASET == "gsm8k":
-#         base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
-
-# Question: {question}
-
-# Instructions:
-# 1. Show your reasoning step by step
-# 2. State ONLY the final numerical answer after "Answer:" (just the number, no words)
-# 3. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
-# 4. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
-
-# Example format:
-# Answer: 42
-# Confidence: 8
-# Correct: Yes
-
-# Solution:
-# Let me work through this step by step.
-# """
-
     if DATASET == "gsm8k":
-        base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
+        if include_confidence:
+            base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
 
 Question: {question}
 
-First, explicitly reason through the question step by step to arrive at an answer. Then, evaluate how likely your answer is to be correct by selecting EXACTLY ONE of these confidence classes:
-
-1 = "Almost no chance" (0-10% likely correct)
-2 = "Highly unlikely" (10-20% likely correct)
-3 = "Chances are slight" (20-30% likely correct)
-4 = "Unlikely" (30-40% likely correct)
-5 = "Less than even" (40-50% likely correct)
-6 = "Better than even" (50-60% likely correct)
-7 = "Likely" (60-70% likely correct)
-8 = "Very good chance" (70-80% likely correct)
-9 = "Highly likely" (80-90% likely correct)
-10 = "Almost certain" (90-100% likely correct)
-
-After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_NUMBER> with your computed answer):
+First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_NUMBER> with your computed answer):
 Answer: <YOUR_NUMBER>
 Confidence: <1-10>
 Correct: Yes or No
@@ -309,13 +298,26 @@ Correct: Yes or No
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
 
 Solution:
-Let me work through this step by step. 
+Let me work through this step by step.
+
+"""
+        else:
+            base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer.
+
+Question: {question}
+
+Reason through the problem step by step. You MUST end with EXACTLY this format:
+Answer: <YOUR_NUMBER>
+
+Solution:
+Let me work through this step by step.
 
 """
 
     elif DATASET == "mmlupro":
-        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
-        base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer and confidence.
+        choices_text = _format_choices(choices)
+        if include_confidence:
+            base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
@@ -336,9 +338,28 @@ Correct: Yes
 Solution:
 Let me analyze each option step by step.
 """
+        else:
+            base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer.
+
+Question: {question}
+
+{choices_text}
+
+Instructions:
+1. Analyze each option carefully
+2. Explain your reasoning step by step
+3. State ONLY the answer letter after "Answer:" (just the letter, e.g., A)
+
+Example format:
+Answer: B
+
+Solution:
+Let me analyze each option step by step.
+"""
 
     elif DATASET == "strategyqa":
-        base_prompt = f"""Answer the following yes/no question. Think through it step by step, then provide your answer and confidence.
+        if include_confidence:
+            base_prompt = f"""Answer the following yes/no question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
@@ -364,29 +385,27 @@ Correct: Yes
 Solution:
 Let me think through this step by step.
 """
+        else:
+            base_prompt = f"""Answer the following yes/no question. Think through it step by step, then provide your answer.
+
+Question: {question}
+
+Consider relevant facts and reasoning, and explain your thinking step by step. You MUST end with EXACTLY this format:
+Answer: Yes or No
+
+Solution:
+Let me think through this step by step.
+"""
 
     elif DATASET == "medqa":
-        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
-        base_prompt =    f"""Solve the following medical question. Think through it step by step, then provide your final answer and confidence. 
+        choices_text = _format_choices(choices)
+        if include_confidence:
+            base_prompt = f"""Solve the following medical question. Think through it step by step, then provide your final answer and confidence.
 
 Question: {question}
 {choices_text}
 
-First, explicitly reason through the question step by step to arrive at an answer. Then, evaluate how likely your answer is to be correct by selecting EXACTLY ONE of these confidence classes:
-
-1 = "Almost no chance" (0-10% likely correct)
-2 = "Highly unlikely" (10-20% likely correct)
-3 = "Chances are slight" (20-30% likely correct)
-4 = "Unlikely" (30-40% likely correct)
-5 = "Less than even" (40-50% likely correct)
-6 = "Better than even" (50-60% likely correct)
-7 = "Likely" (60-70% likely correct)
-8 = "Very good chance" (70-80% likely correct)
-9 = "Highly likely" (80-90% likely correct)
-10 = "Almost certain" (90-100% likely correct)
-
-
-After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_FINAL_ANSWER> with your answer letter):
+First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_FINAL_ANSWER> with your answer letter):
 Answer: <YOUR_FINAL_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
@@ -397,11 +416,25 @@ Solution:
 Let me work through this step by step.
 
 """
+        else:
+            base_prompt = f"""Solve the following medical question. Think through it step by step, then provide your final answer.
+
+Question: {question}
+{choices_text}
+
+Reason through the clinical presentation step by step. You MUST end with EXACTLY this format:
+Answer: <YOUR_FINAL_ANSWER>
+
+Solution:
+Let me work through this step by step.
+
+"""
 
 
 
     elif DATASET == "triviaqa":
-        base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer and confidence.
+        if include_confidence:
+            base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
@@ -427,6 +460,17 @@ Example format:
 Answer: Paris
 Confidence: 8
 Correct: Yes
+
+Solution:
+Let me think through this step by step.
+"""
+        else:
+            base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer.
+
+Question: {question}
+
+Consider what you know and reason through related facts step by step. You MUST end with EXACTLY this format:
+Answer: [just the answer, no extra words]
 
 Solution:
 Let me think through this step by step.
@@ -459,7 +503,7 @@ Answer: [number]
 Solution:"""
 
     elif DATASET == "mmlupro":
-        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+        choices_text = _format_choices(choices)
         base_prompt = f"""Question: {question}
 
 {choices_text}
@@ -478,7 +522,7 @@ Solution:"""
         if not choices or not isinstance(choices[0], str) or len(choices[0]) <= 1:
             raise ValueError(f"medqa choices look wrong — got: {choices}. "
                              f"Check evaluation.py options extraction.")
-        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+        choices_text = _format_choices(choices)
         base_prompt = f"""Question: {question}
 
 {choices_text}
@@ -519,6 +563,7 @@ def get_verbalized_confidence_separate(
     
     Returns confidence as integer 1-10.
     """
+    from model_utils import generate_simple_response
     confidence_prompt = f"""You solved the following problem:
 
 Question: {question}
@@ -527,30 +572,11 @@ Your answer: {answer}
 
 How confident are you that your answer is correct?
 Respond with ONLY a single integer from 1 to 10 (where 1 = very uncertain, 10 = very certain), nothing else."""
-    
-    if MODEL_VARIANT == "instruct":
-        messages = [{"role": "user", "content": confidence_prompt}]
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-    else:
-        formatted_prompt = confidence_prompt + "\n\nConfidence:"
-    
-    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
-    
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=10,
-            do_sample=False,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-    
-    response = tokenizer.decode(
-        outputs[0, inputs.input_ids.shape[1]:], 
-        skip_special_tokens=True
-    ).strip()
-    
+
+    response = generate_simple_response(
+        model, tokenizer, confidence_prompt, max_new_tokens=10, base_suffix="\n\nConfidence:"
+    )
+
     match = re.search(r'(\d+(?:\.\d+)?)', response)
     if match:
         conf = float(match.group(1))
@@ -562,6 +588,80 @@ Respond with ONLY a single integer from 1 to 10 (where 1 = very uncertain, 10 = 
         return min(10.0, max(1.0, round(conf)))
     return None
 
+def get_gen2_confidence(
+    model,
+    tokenizer,
+    question: str,
+    reasoning: str,
+    answer: str,
+    choices: list = None,
+) -> Dict:
+    """
+    Gen 2 verbalized confidence for qwen3 (own-work-aware).
+
+    The model is explicitly told this is ITS OWN reasoning chain and asked
+    to rate confidence and more-likely-than-not based solely on that reasoning.
+    This is a short, separate generation so it cannot be truncated by a long
+    think block the way the inline confidence request can.
+
+    Returns:
+        gen2_confidence  – float 1-10 or None
+        gen2_correct     – bool or None
+        gen2_response    – raw response string
+    """
+    from config import MODEL_VARIANT, DATASET
+
+    # 3000 chars: Gen 2 is own-work-aware and benefits from seeing more detail
+    reasoning_trimmed = reasoning[:3000] if len(reasoning) > 3000 else reasoning
+    choices_text = ""
+    if choices:
+        choices_text = _format_choices(choices)
+        choices_text = f"\nAnswer choices:\n{choices_text}\n"
+
+    prompt = f"""The following is YOUR OWN reasoning chain and final answer that YOU previously produced for the question below. This work is entirely yours.
+
+Question: {question}
+{choices_text}
+YOUR reasoning chain:
+{reasoning_trimmed}
+
+YOUR final answer: {answer}
+
+Based on YOUR reasoning chain and thought process above, how confident are you that YOUR answer is correct?
+
+Select EXACTLY ONE confidence level:
+1 = "Almost no chance correct" (0-10%)
+2 = "Highly unlikely correct" (10-20%)
+3 = "Slight chance correct" (20-30%)
+4 = "Unlikely correct" (30-40%)
+5 = "Less than even" (40-50%)
+6 = "Better than even" (50-60%)
+7 = "Likely correct" (60-70%)
+8 = "Very good chance correct" (70-80%)
+9 = "Highly likely correct" (80-90%)
+10 = "Almost certain correct" (90-100%)
+
+Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
+Confidence: <1-10>
+Correct: Yes or No"""
+
+    from model_utils import generate_simple_response
+    response = generate_simple_response(
+        model, tokenizer, prompt, max_new_tokens=512, base_suffix="\n\nAssessment:"
+    )
+
+    # Strip think blocks before extraction so internal reasoning doesn't interfere
+    response_clean = _re_think_block.sub('', response).strip()
+    conf = extract_verbalized_confidence(response_clean, DATASET)
+    correct = extract_more_likely_than_not(response_clean)
+
+    return {
+        "gen2_confidence": conf,
+        "gen2_correct": correct,
+        "gen2_response": response_clean,
+    }
+
+
 def get_two_pass_confidence(
     model,
     tokenizer,
@@ -569,39 +669,60 @@ def get_two_pass_confidence(
     answer: str,
     reasoning: str,
     choices: list = None,
+    gen2_confidence: Optional[float] = None,
+    gen2_correct: Optional[bool] = None,
 ) -> Dict:
     """
-    Two-pass verbalized confidence: show the model its own reasoning and
-    answer in a SEPARATE generation, then ask it to critique before rating.
-    This breaks the self-reinforcement loop where the model generates an
-    answer and immediately rates itself highly because it just produced a
-    coherent chain of thought.  By forcing a fresh pass that explicitly
-    asks "look for errors", the model is more likely to notice mistakes
-    and assign a lower, more calibrated confidence.
-    Returns a dict with:
-        - two_pass_confidence: float 1-10
-        - two_pass_correct: bool or None
-        - two_pass_critique: str (the full critique response)
+    Gen 3 (two-pass) verbalized confidence: present the reasoning, answer, and
+    optionally a pre-assigned verbalized score as anonymous third-party work, then
+    ask the model to critique and independently rate confidence.
+
+    For qwen3, gen2_confidence and gen2_correct are passed in from Gen 2 so the
+    critique prompt includes the self-reported score — but the model is NOT told
+    the work is its own, reducing self-serving bias.
+
+    For other model families, gen2_confidence/gen2_correct are None and the prompt
+    mirrors the original two-pass structure.
+
+    Returns:
+        two_pass_confidence – float 1-10 or None
+        two_pass_correct    – bool or None
+        two_pass_critique   – raw critique response string
     """
     from config import MODEL_VARIANT, DATASET
-    # Truncate reasoning to avoid blowing context on very long CoT
+
+    # 2000 chars: blinded reviewer gets a summary; longer would bloat the critique prompt
     reasoning_trimmed = reasoning[:2000] if len(reasoning) > 2000 else reasoning
-    # Build the choices text if applicable
     choices_text = ""
     if choices:
-        choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
+        choices_text = _format_choices(choices)
         choices_text = f"\nAnswer choices:\n{choices_text}\n"
-    critique_prompt = f"""You are reviewing a solution to the following problem. Your job is to check the reasoning for errors before rating your confidence.
+
+    # When Gen 2 scores are available, include them as context so the critique can
+    # agree or push back on the self-reported confidence — without revealing authorship.
+    if gen2_confidence is not None:
+        gen2_correct_str = "Yes" if gen2_correct else ("No" if gen2_correct is not None else "unknown")
+        assigned_score_block = f"""
+The respondent also self-assessed their answer and assigned:
+  Verbalized confidence: {gen2_confidence}/10
+  More likely correct than not: {gen2_correct_str}
+"""
+    else:
+        assigned_score_block = ""
+
+    critique_prompt = f"""You are reviewing a solution submitted by someone else to the following problem. Your job is to check the reasoning for errors and independently assess how likely the final answer is correct.
+
 Question: {question}
 {choices_text}
-Proposed solution:
+Submitted solution:
 {reasoning_trimmed}
-Final answer given: {answer}
+
+Final answer given: {answer}{assigned_score_block}
 Instructions:
 1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
 2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
 3. If you find errors, explain them briefly.
-4. Based on your review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
+4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
 1 = "Almost no chance correct" (0-10%)
 2 = "Highly unlikely correct" (10-20%)
 3 = "Slight chance correct" (20-30%)
@@ -615,29 +736,15 @@ Instructions:
 You MUST end your response with exactly:
 Confidence: <1-10>
 Correct: Yes or No"""
-    if MODEL_VARIANT == "instruct":
-        messages = [{"role": "user", "content": critique_prompt}]
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-    else:
-        formatted_prompt = critique_prompt + "\n\nReview:"
-    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            do_sample=False,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-    critique_response = tokenizer.decode(
-        outputs[0, inputs.input_ids.shape[1]:],
-        skip_special_tokens=True,
-    ).strip()
-    # Extract confidence from critique
+
+    from model_utils import generate_simple_response
+    critique_response = generate_simple_response(
+        model, tokenizer, critique_prompt, max_new_tokens=1024, base_suffix="\n\nReview:"
+    )
+
     conf = extract_verbalized_confidence(critique_response, DATASET)
-    # Extract correct judgment from critique
     correct_judgment = extract_more_likely_than_not(critique_response)
+
     return {
         "two_pass_confidence": conf,
         "two_pass_correct": correct_judgment,
@@ -678,7 +785,7 @@ if __name__ == "__main__":
         "Aortic dissection",
         "Pericarditis",
     ]
-    choices_text = "\n".join(f"{chr(65+i)}. {c}" for i, c in enumerate(choices))
+    choices_text = _format_choices(choices)
     prompt_text = (
         f"Answer the following medical question.\n\nQuestion: {question}\n\n"
         f"{choices_text}\n\nAnswer:"

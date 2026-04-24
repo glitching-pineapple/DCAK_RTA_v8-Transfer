@@ -2,7 +2,9 @@
 
 import re
 from typing import Dict, Optional
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY
+
+_QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
 from confidence import (
     generate_with_logits,
@@ -13,6 +15,7 @@ from confidence import (
     create_prompt,
     create_simple_prompt,
     get_verbalized_confidence_separate,
+    get_gen2_confidence,
     get_two_pass_confidence,
 )
 
@@ -62,29 +65,66 @@ def evaluate_sample(
         choices = sample.get('options', None)
     
     ground_truth = extract_ground_truth(sample, DATASET)
-    #print ("David, " + ground_truth)
-    
-    # Generate main answer with CoT prompt (includes verbalized confidence)
-    prompt = create_prompt(tokenizer, question, choices)
-    response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
 
-    # Qwen3 emits <think>...</think> before the answer — strip it before any parsing
+    token_probs: list = []  # populated by whichever branch runs below
     if MODEL_FAMILY == "qwen3":
-        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL).strip()
+        # --- qwen3 three-generation flow ---
+        # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
+        prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
+        response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+        response = _QWEN3_THINK_RE.sub('', response).strip()
 
-    # Extract model's answer
-    model_answer = extract_model_answer(response, DATASET)
-    
+        model_answer = extract_model_answer(response, DATASET)
+
+        # Gen 2: model told it's its own work; returns verbalized confidence + MLN
+        single_pass_conf = None
+        single_pass_correct = None
+        if model_answer:
+            gen2 = get_gen2_confidence(
+                model, tokenizer, question, response, model_answer, choices
+            )
+            single_pass_conf = gen2["gen2_confidence"]
+            single_pass_correct = gen2["gen2_correct"]
+
+        # Gen 3: blinded two-pass critique; includes Gen 2 scores as context
+        two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
+        if model_answer:
+            two_pass_results = get_two_pass_confidence(
+                model, tokenizer, question, model_answer, response, choices,
+                gen2_confidence=single_pass_conf,
+                gen2_correct=single_pass_correct,
+            )
+    else:
+        # --- standard single-pass flow for all other model families ---
+        prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
+        response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+
+        model_answer = extract_model_answer(response, DATASET)
+
+        single_pass_conf = extract_verbalized_confidence(response, DATASET)
+        single_pass_correct = extract_more_likely_than_not(response)
+
+        if single_pass_conf is None and model_answer:
+            single_pass_conf = get_verbalized_confidence_separate(
+                model, tokenizer, question, model_answer
+            )
+
+        two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
+        if model_answer:
+            two_pass_results = get_two_pass_confidence(
+                model, tokenizer, question, model_answer, response, choices
+            )
+
     # Check correctness (TriviaQA uses fuzzy matching for multiple aliases)
     if DATASET == "triviaqa":
         is_correct = check_triviaqa_correct(model_answer, sample)
     else:
         is_correct = (model_answer == ground_truth) if model_answer else False
-    
-    # Compute logit-based confidence
+
+    # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
 
-    # Compute answer-token logit entropy for MCQ datasets (single forward pass)
+    # Answer-token logit entropy for MCQ datasets (single forward pass)
     if COMPUTE_ANSWER_TOKEN_ENTROPY and DATASET in ("mmlupro", "medqa"):
         ate_results = extract_answer_token_entropy(tokens, raw_scores, tokenizer, DATASET)
     else:
@@ -94,31 +134,10 @@ def evaluate_sample(
             "top_answer_letter": None,
             "chosen_answer_raw_prob": None,
         }
-    
-    # Extract single-pass verbalized confidence from CoT response (1-10 scale)
-    single_pass_conf = extract_verbalized_confidence(response, DATASET)
-    
-    # Extract "Correct" judgment from single-pass
-    single_pass_correct = extract_more_likely_than_not(response)
-    
-    # If single-pass confidence not found in response, try separate query
-    if single_pass_conf is None and model_answer:
-        single_pass_conf = get_verbalized_confidence_separate(
-            model, tokenizer, question, model_answer
-        )
-    
-    # Two-pass confidence: separate critique-then-rate call
-    two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
-    if model_answer:
-        two_pass_results = get_two_pass_confidence(
-            model, tokenizer, question, model_answer, response, choices
-        )
-    
-    # Use two-pass as the primary verbalized confidence
+
+    # Primary verbalized confidence = two-pass; fall back to single-pass (Gen 2 for qwen3)
     verbalized_conf = two_pass_results["two_pass_confidence"]
     more_likely = two_pass_results["two_pass_correct"]
-    
-    # Fall back to single-pass if two-pass extraction failed
     if verbalized_conf is None:
         verbalized_conf = single_pass_conf
     if more_likely is None:
@@ -159,8 +178,8 @@ def evaluate_sample(
         "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
     }
     
-    # Compute semantic entropy if calculator provided
-    if compute_semantic_entropy and semantic_calculator is not None:
+    # Compute semantic entropy unless NLI clustering is disabled or no calculator provided
+    if compute_semantic_entropy and semantic_calculator is not None and not SKIP_NLI_CLUSTERING:
         se_results = compute_semantic_entropy_for_question(
             model, tokenizer, semantic_calculator,
             question, choices, DATASET
@@ -206,7 +225,7 @@ def compute_semantic_entropy_for_question(
 
     # Strip Qwen3 <think>...</think> blocks before extraction
     if MODEL_FAMILY == "qwen3":
-        answers = [re.sub(r'<think>.*?</think>', '', a, flags=re.DOTALL).strip() for a in answers]
+        answers = [_QWEN3_THINK_RE.sub('', a).strip() for a in answers]
 
     # Extract just the answer portion from each response.
     # STRICT mode: only accept answers found via the "Answer:" line (Priority 1).
@@ -241,10 +260,10 @@ def compute_semantic_entropy_for_question(
     # Need at least 2 valid answers for meaningful entropy
     if len(extracted_answers) < 2:
         return {
-            "semantic_entropy": float('inf'),
-            "semantic_entropy_answers": float('inf'),
-            "predictive_entropy": float('inf'),
-            "predictive_entropy_normalized": float('inf'),
+            "semantic_entropy": float('nan'),
+            "semantic_entropy_answers": float('nan'),
+            "predictive_entropy": float('nan'),
+            "predictive_entropy_normalized": float('nan'),
             "num_clusters": 0,
             "num_answer_clusters": 0,
             "cluster_sizes": [],
