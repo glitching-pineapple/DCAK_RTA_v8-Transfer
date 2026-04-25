@@ -139,6 +139,7 @@ def evaluate_sample(
             "answer_token_entropy": None,
             "answer_letter_probs": None,
             "top_answer_letter": None,
+            "chosen_letter": None,
             "chosen_answer_raw_prob": None,
         }
 
@@ -189,6 +190,9 @@ def evaluate_sample(
         "answer_token_entropy": ate_results["answer_token_entropy"],
         "answer_letter_probs": ate_results["answer_letter_probs"],
         "top_answer_letter": ate_results["top_answer_letter"],
+        # The letter actually emitted in the response text. Disagreement with
+        # top_answer_letter signals a tokenizer/letter-id mapping issue.
+        "chosen_letter": ate_results["chosen_letter"],
         "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
     }
     

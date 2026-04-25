@@ -164,6 +164,7 @@ def extract_answer_token_entropy(
         "answer_token_entropy": None,
         "answer_letter_probs": None,
         "top_answer_letter": None,
+        "chosen_letter": None,
         "chosen_answer_raw_prob": None,
     }
 
@@ -172,16 +173,9 @@ def extract_answer_token_entropy(
 
     valid_letters = list("ABCDEFGHIJ") if dataset == "mmlupro" else list("ABCDE")
 
-    # Build letter -> set of token IDs mapping.
-    # Some tokenizers encode "A" and " A" as different IDs; we collect both.
-    letter_to_token_ids: Dict[str, set] = {}
-    for letter in valid_letters:
-        ids: set = set()
-        for form in (letter, f" {letter}"):
-            encoded = tokenizer.encode(form, add_special_tokens=False)
-            if len(encoded) == 1:
-                ids.add(encoded[0])
-        letter_to_token_ids[letter] = ids
+    # Build letter -> set of token IDs mapping by scanning the vocab.
+    # Cached on the tokenizer so the O(vocab_size) decode loop runs once.
+    letter_to_token_ids = _get_letter_token_ids(tokenizer, valid_letters)
 
     # Locate the last "Answer:" marker in the token stream, then find the
     # first answer-letter token that follows it.
@@ -242,10 +236,25 @@ def extract_answer_token_entropy(
     entropy = float(max(0.0, -sum(p * np.log(p + 1e-10) for p in renorm.values())))
     top_letter = max(renorm, key=renorm.get)
 
+    # Sanity check: under greedy decoding, the letter the model actually emitted
+    # (chosen_letter, found by walking the decoded text) should match the argmax
+    # of the renormalized letter distribution (top_letter). When these disagree
+    # it usually means the letter→token-id map missed the actually-emitted token
+    # form — surface a warning rather than silently writing inconsistent CSV rows.
+    if chosen_letter is not None and top_letter != chosen_letter:
+        import warnings as _warnings
+        _warnings.warn(
+            f"extract_answer_token_entropy: emitted letter {chosen_letter!r} differs "
+            f"from prob-distribution top {top_letter!r} (renorm={dict((l, round(p, 4)) for l, p in renorm.items())}). "
+            f"Likely tokenizer/letter-id mismatch; the prob_X columns for this row may be unreliable.",
+            RuntimeWarning,
+        )
+
     return {
         "answer_token_entropy": entropy,
         "answer_letter_probs": {l: round(renorm[l], 4) for l in valid_letters},
         "top_answer_letter": top_letter,
+        "chosen_letter": chosen_letter,
         "chosen_answer_raw_prob": round(chosen_answer_raw_prob, 6),
     }
 
@@ -253,6 +262,57 @@ def extract_answer_token_entropy(
 # Pre-compiled patterns reused across calls
 _re_answer_marker = re.compile(r"[Aa]nswer\s*:", re.IGNORECASE)
 _re_think_block = re.compile(r'<think>.*?</think>', re.DOTALL)
+
+
+# Cache of letter -> {token_id, ...} mappings, keyed per (tokenizer instance, letter set).
+# Built once per tokenizer because vocab enumeration is O(vocab_size) decodes (~150k for Qwen).
+_LETTER_TOKEN_IDS_ATTR = "_dcak_letter_token_ids_cache"
+
+
+def _build_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]:
+    """Build a complete letter -> set-of-token-ids map by enumerating the vocab.
+
+    For each token in the vocabulary, decode it to a string and check whether
+    its stripped/uppercased form is exactly one of the valid letters. This
+    catches every form the model might actually emit at the answer position
+    ("E", " E", "E\\n", "E.", " E ", etc.) — including merged BPE tokens that
+    bare `tokenizer.encode("E")` would miss. Without this, when the model
+    emits a merged form like "E\\n" as a single token, that token's id falls
+    outside letter_to_token_ids["E"], and renormalization amplifies whatever
+    residual probability mass remains in the other letters' sets — typically
+    showing up as a +1 column shift in the prob_X CSV columns.
+    """
+    valid_set = set(valid_letters)
+    out: Dict[str, set] = {l: set() for l in valid_letters}
+    vocab_size = getattr(tokenizer, "vocab_size", None)
+    if not vocab_size:
+        try:
+            vocab_size = len(tokenizer.get_vocab())
+        except Exception:
+            return out
+    for tid in range(vocab_size):
+        try:
+            decoded = tokenizer.decode([tid])
+        except Exception:
+            continue
+        stripped = decoded.strip().upper()
+        if stripped in valid_set:
+            out[stripped].add(tid)
+    return out
+
+
+def _get_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]:
+    cache = getattr(tokenizer, _LETTER_TOKEN_IDS_ATTR, None)
+    if cache is None:
+        cache = {}
+        try:
+            setattr(tokenizer, _LETTER_TOKEN_IDS_ATTR, cache)
+        except (AttributeError, TypeError):
+            pass  # tokenizer doesn't allow attributes — just rebuild each time
+    cache_key = tuple(valid_letters)
+    if cache_key not in cache:
+        cache[cache_key] = _build_letter_token_ids(tokenizer, valid_letters)
+    return cache[cache_key]
 
 
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
