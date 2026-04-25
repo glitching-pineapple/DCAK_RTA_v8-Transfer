@@ -78,8 +78,22 @@ def evaluate_sample(
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
-        response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
-        response = _QWEN3_THINK_RE.sub('', response).strip()
+        response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
+        # Stripped form: <think>...</think> removed. Used for answer-letter
+        # extraction so the regex doesn't match a draft answer the model
+        # wrote inside its scratchpad.
+        response = _QWEN3_THINK_RE.sub('', response_raw).strip()
+        # The actual chain of thought lives inside <think>...</think>. The
+        # critic and self-rater need it — without it, critics confabulate
+        # ("the reasoning is sound") on easy questions and abdicate
+        # ("no detailed reasoning, confidence 1") on hard ones. Pull the
+        # think content out and pass that as the reasoning to evaluate.
+        # If the model emitted no think block (rare for qwen3), fall back
+        # to the stripped response so the critic at least sees the answer.
+        _think_match = re.search(r'<think>(.*?)</think>', response_raw, re.DOTALL)
+        reasoning_for_critique = (
+            _think_match.group(1).strip() if _think_match else response
+        )
 
         model_answer = extract_model_answer(response, DATASET)
 
@@ -88,7 +102,7 @@ def evaluate_sample(
         single_pass_correct = None
         if model_answer:
             gen2 = get_gen2_confidence(
-                model, tokenizer, question, response, model_answer, choices
+                model, tokenizer, question, reasoning_for_critique, model_answer, choices
             )
             single_pass_conf = gen2["gen2_confidence"]
             single_pass_correct = gen2["gen2_correct"]
@@ -97,7 +111,7 @@ def evaluate_sample(
         two_pass_results = dict(_empty_two_pass)
         if model_answer:
             two_pass_results = get_two_pass_confidence(
-                model, tokenizer, question, model_answer, response, choices,
+                model, tokenizer, question, model_answer, reasoning_for_critique, choices,
                 gen2_confidence=single_pass_conf,
                 gen2_correct=single_pass_correct,
             )
