@@ -5,7 +5,42 @@ import re
 import torch
 import numpy as np
 from typing import Optional, Tuple, List, Dict
-from config import MODEL_VARIANT, MAX_NEW_TOKENS
+from config import (
+    MODEL_VARIANT,
+    MAX_NEW_TOKENS,
+    TWO_PASS_MAX_NEW_TOKENS,
+    TWO_PASS_DISABLE_THINKING,
+)
+
+
+def _detect_truncation(
+    generated_text: str,
+    generated_ids,
+    tokenizer,
+    expect_confidence_markers: bool = False,
+) -> Dict:
+    """Classify why generation stopped and whether the output is structurally complete.
+
+    finish_reason is 'eos' if the last generated token is the EOS token,
+    else 'length' (i.e. hit max_new_tokens). was_truncated is True if
+    finish_reason is 'length', or — when expect_confidence_markers is True —
+    if the text is missing </think> (when <think> was opened) or the
+    "Confidence:" / "Correct:" markers the two-pass prompt requires.
+    """
+    last_id = int(generated_ids[-1]) if len(generated_ids) > 0 else -1
+    eos_id = tokenizer.eos_token_id
+    finish_reason = "eos" if eos_id is not None and last_id == eos_id else "length"
+
+    was_truncated = (finish_reason == "length")
+    if expect_confidence_markers:
+        think_opened = "<think>" in generated_text
+        think_closed = (not think_opened) or ("</think>" in generated_text)
+        has_confidence = bool(re.search(r"[Cc]onfidence\s*:", generated_text))
+        has_correct = bool(re.search(r"[Cc]orrect\s*:", generated_text))
+        if not (think_closed and has_confidence and has_correct):
+            was_truncated = True
+
+    return {"finish_reason": finish_reason, "was_truncated": was_truncated}
 
 
 def generate_with_logits(
@@ -15,7 +50,7 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
-) -> Tuple[str, List[float], List[str], list]:
+) -> Tuple[str, List[float], List[str], list, Dict]:
     """
     Generate response and capture token-level probabilities.
 
@@ -24,6 +59,7 @@ def generate_with_logits(
         - token_probs: Probability of each generated token
         - tokens: The actual tokens generated
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
+        - meta: {"finish_reason": "eos"|"length", "was_truncated": bool}
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
@@ -55,7 +91,11 @@ def generate_with_logits(
         token_probs.append(token_prob)
         tokens.append(tokenizer.decode([token_id]))
 
-    return generated_text, token_probs, tokens, raw_scores
+    meta = _detect_truncation(
+        generated_text, generated_ids, tokenizer, expect_confidence_markers=False
+    )
+
+    return generated_text, token_probs, tokens, raw_scores, meta
 
 
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
@@ -593,6 +633,11 @@ def get_two_pass_confidence(
         choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(choices)])
         choices_text = f"\nAnswer choices:\n{choices_text}\n"
     critique_prompt = f"""You are reviewing a solution to the following problem. Your job is to check the reasoning for errors before rating your confidence.
+
+REQUIRED OUTPUT FORMAT — your response MUST end with these two lines, exactly:
+Confidence: <integer 1-10>
+Correct: <Yes or No>
+
 Question: {question}
 {choices_text}
 Proposed solution:
@@ -601,7 +646,7 @@ Final answer given: {answer}
 Instructions:
 1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
 2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
-3. If you find errors, explain them briefly.
+3. If you find errors, explain them briefly. Keep the critique concise.
 4. Based on your review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
 1 = "Almost no chance correct" (0-10%)
 2 = "Highly unlikely correct" (10-20%)
@@ -618,23 +663,36 @@ Confidence: <1-10>
 Correct: Yes or No"""
     if MODEL_VARIANT == "instruct":
         messages = [{"role": "user", "content": critique_prompt}]
-        formatted_prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
+        # Qwen3 chat templates accept `enable_thinking`; pass it when we
+        # want to skip the <think> block so the critique budget is spent on
+        # the critique itself. Other tokenizers ignore unknown kwargs in
+        # most transformers versions, but guard with try/except to be safe.
+        template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if TWO_PASS_DISABLE_THINKING:
+            template_kwargs["enable_thinking"] = False
+        try:
+            formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
+        except TypeError:
+            template_kwargs.pop("enable_thinking", None)
+            formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
     else:
         formatted_prompt = critique_prompt + "\n\nReview:"
     inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_new_tokens=512,
+            max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
             do_sample=False,
+            return_dict_in_generate=True,
             pad_token_id=tokenizer.pad_token_id,
         )
+    generated_ids = outputs.sequences[0, inputs.input_ids.shape[1]:]
     critique_response = tokenizer.decode(
-        outputs[0, inputs.input_ids.shape[1]:],
-        skip_special_tokens=True,
+        generated_ids, skip_special_tokens=True
     ).strip()
+    meta = _detect_truncation(
+        critique_response, generated_ids, tokenizer, expect_confidence_markers=True
+    )
     # Extract confidence from critique
     conf = extract_verbalized_confidence(critique_response, DATASET)
     # Extract correct judgment from critique
@@ -643,6 +701,8 @@ Correct: Yes or No"""
         "two_pass_confidence": conf,
         "two_pass_correct": correct_judgment,
         "two_pass_critique": critique_response,
+        "two_pass_finish_reason": meta["finish_reason"],
+        "two_pass_was_truncated": meta["was_truncated"],
     }
 
 
@@ -687,7 +747,7 @@ if __name__ == "__main__":
     messages = [{"role": "user", "content": prompt_text}]
     formatted = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    response, token_probs, tokens, raw_scores = generate_with_logits(
+    response, token_probs, tokens, raw_scores, meta = generate_with_logits(
         mdl, tok, formatted, max_new_tokens=256, do_sample=False
     )
 

@@ -66,7 +66,7 @@ def evaluate_sample(
     
     # Generate main answer with CoT prompt (includes verbalized confidence)
     prompt = create_prompt(tokenizer, question, choices)
-    response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+    response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
 
     # Qwen3 emits <think>...</think> before the answer — strip it before any parsing
     if MODEL_FAMILY == "qwen3":
@@ -108,7 +108,13 @@ def evaluate_sample(
         )
     
     # Two-pass confidence: separate critique-then-rate call
-    two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
+    two_pass_results = {
+        "two_pass_confidence": None,
+        "two_pass_correct": None,
+        "two_pass_critique": "",
+        "two_pass_finish_reason": None,
+        "two_pass_was_truncated": None,
+    }
     if model_answer:
         two_pass_results = get_two_pass_confidence(
             model, tokenizer, question, model_answer, response, choices
@@ -148,7 +154,14 @@ def evaluate_sample(
         
         # Two-pass critique (for inspection)
         "two_pass_critique": two_pass_results["two_pass_critique"],
-        
+        "two_pass_finish_reason": two_pass_results["two_pass_finish_reason"],
+        "two_pass_was_truncated": two_pass_results["two_pass_was_truncated"],
+
+        # Main-pass generation diagnostics (truncation here means the CoT
+        # itself was cut off, not just the critique)
+        "main_pass_finish_reason": main_meta["finish_reason"],
+        "main_pass_was_truncated": main_meta["was_truncated"],
+
         # Full response for inspection
         "full_response": response,
 
