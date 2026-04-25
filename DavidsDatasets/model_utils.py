@@ -58,14 +58,26 @@ def generate_simple_response(
     prompt: str,
     max_new_tokens: int = 512,
     base_suffix: str = "\n\nResponse:",
+    enable_thinking=None,
 ) -> str:
-    """Format a prompt with the chat template (instruct) or a suffix (base) and generate."""
+    """Format a prompt with the chat template (instruct) or a suffix (base) and generate.
+
+    enable_thinking: optional kwarg passed to apply_chat_template for Qwen3-class
+    reasoning models. Pass False on short rating/extraction calls so the model
+    skips the <think> block and spends the budget on the actual response.
+    Tokenizers that don't accept the kwarg silently fall back.
+    """
     from config import MODEL_VARIANT
     if MODEL_VARIANT == "instruct":
         messages = [{"role": "user", "content": prompt}]
-        formatted = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
+        template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if enable_thinking is not None:
+            template_kwargs["enable_thinking"] = enable_thinking
+        try:
+            formatted = tokenizer.apply_chat_template(messages, **template_kwargs)
+        except TypeError:
+            template_kwargs.pop("enable_thinking", None)
+            formatted = tokenizer.apply_chat_template(messages, **template_kwargs)
     else:
         formatted = prompt + base_suffix
     inputs = tokenizer(formatted, return_tensors="pt").to(model.device)

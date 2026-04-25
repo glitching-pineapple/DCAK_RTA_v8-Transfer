@@ -747,8 +747,17 @@ Confidence: <1-10>
 Correct: Yes or No"""
 
     from model_utils import generate_simple_response
+    # Same fix as the two-pass critique: a Qwen3 thinking model spends its
+    # entire budget inside <think> on a 512-token call, so the Confidence:/
+    # Correct: lines never appear and extraction silently returns None.
+    # Use the bigger TWO_PASS_MAX_NEW_TOKENS budget and skip thinking on
+    # Qwen3 — Gen 2 is just a self-rating, it doesn't need extended reasoning.
+    enable_thinking = False if TWO_PASS_DISABLE_THINKING else None
     response = generate_simple_response(
-        model, tokenizer, prompt, max_new_tokens=512, base_suffix="\n\nAssessment:"
+        model, tokenizer, prompt,
+        max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
+        base_suffix="\n\nAssessment:",
+        enable_thinking=enable_thinking,
     )
 
     # Strip think blocks before extraction so internal reasoning doesn't interfere
