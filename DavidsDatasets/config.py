@@ -30,14 +30,14 @@ MODEL_NAMES = {
 }
 
 # ============== Experiment Parameters ==============
-N_SAMPLES = 10        # Number of evaluation samples 
+N_SAMPLES = 10        # Number of evaluation samples
 RANDOM_SEED = 42        # Random seed for reproducibility
-# Qwen3 thinking models need much more room — thinking chain alone is 1000-2000 tokens
-_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024}
+# Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
+_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
 # SE sampling budget — Qwen3 needs room for <think> block + Answer line
-_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 2048, "llama": 256, "gemma": 256}
+_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "gemma": 256}
 SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 
 # Two-pass critique budget. Previously hard-coded to 512, which truncated
@@ -55,7 +55,11 @@ TWO_PASS_DISABLE_THINKING = (MODEL_FAMILY == "qwen3")
 
 # Number of samples to draw for semantic entropy calculation
 # Paper recommends 5-10 samples; more samples = better estimate but slower
-SE_NUM_SAMPLES = 5
+# Temporarily set to 1 for speed during qwen3 debugging; restore to 5 for full runs
+SE_NUM_SAMPLES = 1
+
+# Skip NLI (DeBERTa) clustering for speed during testing; set False for full SE runs
+SKIP_NLI_CLUSTERING = True
 
 # Temperature for sampling answers (for semantic entropy)
 # Paper found 0.5 to be optimal, balancing diversity and accuracy
