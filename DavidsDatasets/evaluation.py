@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
@@ -137,11 +137,12 @@ def evaluate_sample(
                 model, tokenizer, question, model_answer, response, choices
             )
 
-    # Check correctness (TriviaQA uses fuzzy matching for multiple aliases)
-    if DATASET == "triviaqa":
-        is_correct = check_triviaqa_correct(model_answer, sample)
-    else:
-        is_correct = (model_answer == ground_truth) if model_answer else False
+    # Check correctness via the per-dataset comparator. answers_match handles:
+    # - gsm8k numeric equivalence ("6.00" == "6", "1,000" == "1000")
+    # - mmlupro/medqa case + wrapper normalization ("(A)" == "A", "a" == "A")
+    # - strategyqa case + trailing punctuation ("No." == "No")
+    # - triviaqa alias-aware fuzzy match (delegates to check_triviaqa_correct)
+    is_correct = answers_match(model_answer, ground_truth, DATASET, sample)
 
     # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
