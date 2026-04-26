@@ -32,6 +32,13 @@ MODEL_NAMES = {
 # ============== Experiment Parameters ==============
 N_SAMPLES = 10        # Number of evaluation samples
 RANDOM_SEED = 42        # Random seed for reproducibility
+
+# Override random sampling with explicit dataset row indices.
+# - None  → random sampling (uses N_SAMPLES + RANDOM_SEED, original behavior).
+# - list  → evaluate exactly these rows in order. N_SAMPLES is ignored.
+# Useful for re-running a single sample to inspect its CoT, or to repro a
+# specific failure: e.g. SPECIFIC_INDICES = [258] evaluates only row 258.
+SPECIFIC_INDICES = None
 # Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
 _MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
@@ -106,7 +113,10 @@ def print_config():
     print("=" * 50)
     print(f"Model: {get_model_name()}")
     print(f"Dataset: {DATASET}")
-    print(f"Samples: {N_SAMPLES}")
+    if SPECIFIC_INDICES:
+        print(f"Indices: {list(SPECIFIC_INDICES)} (override; N_SAMPLES ignored)")
+    else:
+        print(f"Samples: {N_SAMPLES} (random, seed={RANDOM_SEED})")
     print(f"Random Seed: {RANDOM_SEED}")
     print(f"\nSemantic Entropy Settings:")
     print(f"  - Num samples: {SE_NUM_SAMPLES}")
