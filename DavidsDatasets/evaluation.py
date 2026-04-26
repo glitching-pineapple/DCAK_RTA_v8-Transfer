@@ -1,5 +1,6 @@
 # evaluation.py - Sample evaluation with semantic entropy
 
+import math
 import re
 from typing import Dict, Optional
 
@@ -164,6 +165,22 @@ def evaluate_sample(
         verbalized_conf = single_pass_conf
     if more_likely is None:
         more_likely = single_pass_correct
+
+    # Hard-failure policy for rows where the model never produced a parseable
+    # answer letter (typically: math questions where the CoT exhausts the
+    # token budget mid-derivation, or where the final value doesn't map to
+    # any MCQ option). The row is automatically incorrect — no Gen 2/Gen 3
+    # was run (gated above by `if model_answer:`), and we explicitly NaN out
+    # every verbalized-confidence field so partial signals don't pollute
+    # downstream calibration analysis. The `answer_extraction_failed` column
+    # makes these rows trivially filterable.
+    answer_extraction_failed = (model_answer is None) or (model_answer == "")
+    if answer_extraction_failed:
+        is_correct = False
+        verbalized_conf = math.nan
+        more_likely = None
+        single_pass_conf = math.nan
+        single_pass_correct = None
     
     # Build result dictionary
     result = {
@@ -172,6 +189,12 @@ def evaluate_sample(
         "ground_truth": ground_truth,
         "model_answer": model_answer,
         "is_correct": is_correct,
+        # True when the model failed to produce a parseable answer letter
+        # (typically math CoT that ran out of tokens). Rows with this flag
+        # have NaN verbalized_confidence/single_pass_confidence and should
+        # be excluded from calibration analyses, not treated as low-confidence
+        # data points.
+        "answer_extraction_failed": answer_extraction_failed,
         
         # Logit-based metrics
         "seq_confidence_mean": confidence_metrics["log_prob_sum"],
