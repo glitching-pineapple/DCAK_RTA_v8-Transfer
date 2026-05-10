@@ -38,6 +38,14 @@ def load_triviaqa():
     return ds
 
 
+def load_legalbench():
+    """Load LegalBench dataset (Yes/No legal-reasoning subtask selected via LEGALBENCH_TASK)."""
+    from config import LEGALBENCH_TASK
+    ds = load_dataset("nguha/legalbench", LEGALBENCH_TASK, split="test")
+    print(f"Loaded LegalBench[{LEGALBENCH_TASK}]: {len(ds)} test examples")
+    return ds
+
+
 def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
     """Extract ground truth based on dataset type."""
     if dataset == "gsm8k":
@@ -76,7 +84,20 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
                 return answers[0]
             return str(answers)
         return None
-    
+
+    elif dataset == "legalbench":
+        # LegalBench Yes/No subtasks store the label in `answer` as a string.
+        # Normalize to "Yes"/"No" capitalization; pass other values through.
+        ans = sample.get('answer')
+        if ans is None:
+            return None
+        s = str(ans).strip()
+        if s.lower() == 'yes':
+            return 'Yes'
+        if s.lower() == 'no':
+            return 'No'
+        return s
+
     return None
 
 
@@ -208,14 +229,14 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
     elif dataset == "triviaqa":
         # Priority 1: "Answer:" line - take everything up to newline or Confidence/Correct
         answer_match = re.search(
-            r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect|$)', 
+            r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect|$)',
             response
         )
         if answer_match:
             answer = answer_match.group(1).strip().rstrip('.')
             if answer:
                 return answer
-        
+
         # Priority 2: Common phrasing
         patterns = [
             r'[Tt]he answer is:?\s*(.+?)(?:\n|$)',
@@ -226,7 +247,34 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
             if match:
                 return match.group(1).strip().rstrip('.')
         return None
-    
+
+    elif dataset == "legalbench":
+        # Priority 1: "Answer:" line
+        answer_match = re.search(r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
+        if answer_match:
+            answer_text = answer_match.group(1)
+            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+            if yn_match:
+                return yn_match.group(1).capitalize()
+
+        # Priority 2: Common phrasing
+        patterns = [
+            r'[Tt]he answer is:?\s*(Yes|No)',
+            r'[Ff]inal answer:?\s*(Yes|No)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                return match.group(1).capitalize()
+
+        # Priority 3: Last 3 lines fallback
+        last_lines = "\n".join(response.strip().split("\n")[-3:]).lower()
+        if re.search(r'\byes\b', last_lines):
+            return "Yes"
+        if re.search(r'\bno\b', last_lines):
+            return "No"
+        return None
+
     return None
 
 
@@ -307,7 +355,16 @@ def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
             if answer:
                 return answer
         return None
-    
+
+    elif dataset == "legalbench":
+        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+?)(?:\n|$)', cleaned, re.IGNORECASE)
+        if answer_match:
+            answer_text = answer_match.group(1)
+            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+            if yn_match:
+                return yn_match.group(1).capitalize()
+        return None
+
     return None
 
 
@@ -418,7 +475,7 @@ def answers_match(
         _LETTER_TRIM = "()*. \t\n"
         return ma.upper().strip(_LETTER_TRIM) == gt.upper().strip(_LETTER_TRIM)
 
-    if dataset == "strategyqa":
+    if dataset in ("strategyqa", "legalbench"):
         _YESNO_TRIM = ".!?,;: \t\n"
         return ma.lower().strip(_YESNO_TRIM) == gt.lower().strip(_YESNO_TRIM)
 

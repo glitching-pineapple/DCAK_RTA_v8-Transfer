@@ -12,7 +12,7 @@ from config import (
     COMPUTE_SEMANTIC_ENTROPY, COMPUTE_ANSWER_TOKEN_ENTROPY, NLI_MODEL, print_config
 )
 from model_utils import get_device, load_model_and_tokenizer
-from data_utils import load_gsm8k, load_mmlupro, load_strategyqa, load_medqa, load_triviaqa
+from data_utils import load_gsm8k, load_mmlupro, load_strategyqa, load_medqa, load_triviaqa, load_legalbench
 from evaluation import evaluate_sample, evaluate_sample_quick
 from visualization import (
     print_results_summary, plot_confidence_analysis, 
@@ -34,6 +34,8 @@ def load_dataset_by_name():
         return load_medqa()
     elif DATASET == "triviaqa":
         return load_triviaqa()
+    elif DATASET == "legalbench":
+        return load_legalbench()
     else:
         raise ValueError(f"Unknown dataset: {DATASET}")
 

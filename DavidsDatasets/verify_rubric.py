@@ -86,6 +86,7 @@ DATASET_FIXTURES = {
     "medqa": ("A patient presents with chest pain. Diagnosis?",
               ["Angina", "MI", "PE", "Pericarditis", "Aortic dissection"]),
     "triviaqa": ("What is the capital of France?", None),
+    "legalbench": ("Is hearsay admissible in this scenario?", None),
 }
 
 
@@ -197,6 +198,7 @@ def check_forced_answer_paths() -> None:
             "strategyqa": "Answer: Yes",
             "medqa": "Answer: C",
             "triviaqa": "Answer: Paris",
+            "legalbench": "Answer: Yes",
         }[ds]
 
     # Monkey-patch the model_utils.generate_simple_response import inside
@@ -213,6 +215,7 @@ def check_forced_answer_paths() -> None:
             "strategyqa": ("Is water wet?", None, "Yes"),
             "medqa": ("Diagnosis?", ["A.foo", "B.bar", "C.baz", "D.qux", "E.zap"], "C"),
             "triviaqa": ("Capital of France?", None, "Paris"),
+            "legalbench": ("Is this statement hearsay?", None, "Yes"),
         }
         for ds, (q, choices, expected) in cases.items():
             captured["dataset"] = ds

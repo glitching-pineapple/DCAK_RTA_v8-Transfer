@@ -513,6 +513,34 @@ Let me work through this step by step.
 
 
 
+    elif DATASET == "legalbench":
+        if include_confidence:
+            base_prompt = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer and confidence.
+
+Question: {question}
+
+First, consider the relevant legal rules and facts, and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with Yes or No):
+Answer: <YOUR_ANSWER>
+Confidence: <1-10>
+Correct: Yes or No
+
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
+
+Solution:
+Let me think through this step by step.
+"""
+        else:
+            base_prompt = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer.
+
+Question: {question}
+
+Consider the relevant legal rules and facts, and explain your reasoning step by step. You MUST end with EXACTLY this format:
+Answer: Yes or No
+
+Solution:
+Let me think through this step by step.
+"""
+
     elif DATASET == "triviaqa":
         if include_confidence:
             base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer and confidence.
@@ -599,6 +627,12 @@ Solution:"""
         base_prompt = f"""Question: {question}
 
 Think step by step, then write JUST the answer after "Answer:".
+Solution:"""
+
+    elif DATASET == "legalbench":
+        base_prompt = f"""Question: {question}
+
+Think through the legal reasoning step by step, then write JUST Yes or No after "Answer:".
 Solution:"""
     
     else:
@@ -954,6 +988,19 @@ Your reasoning so far (likely incomplete):
 Based on your reasoning above, commit to your best-guess answer NOW. Output ONLY a single line in this exact format and nothing else:
 Answer: <the answer, no extra words>"""
         max_tokens = 32
+    elif dataset == "legalbench":
+        prompt = f"""You were answering this legal-reasoning yes/no question but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+
+Your reasoning so far (likely incomplete):
+{reasoning_clip}
+
+Based on your reasoning above, commit to a final answer NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: Yes
+or
+Answer: No"""
+        max_tokens = 8
     else:
         return None, ""
 

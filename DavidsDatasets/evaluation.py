@@ -62,6 +62,11 @@ def evaluate_sample(
     elif DATASET == "triviaqa":
         question = sample['question']
         choices = None
+    elif DATASET == "legalbench":
+        # LegalBench subtasks store the prompt in `text`; some variants may
+        # also expose `question`. Fall back so different subtasks still load.
+        question = sample.get('text', sample.get('question', str(sample)))
+        choices = None
     else:
         question = sample.get('question', str(sample))
         choices = sample.get('options', None)

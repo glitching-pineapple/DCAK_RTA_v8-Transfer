@@ -7,8 +7,16 @@ MODEL_FAMILY = "qwen"
 # Choose variant: "instruct" or "base"
 MODEL_VARIANT = "instruct"
 
-# Dataset: "gsm8k", "mmlupro", "strategyqa", "medqa", "triviaqa"
+# Dataset: "gsm8k", "mmlupro", "strategyqa", "medqa", "triviaqa", "legalbench"
 DATASET = "medqa"
+
+# LegalBench subtask name (only used when DATASET == "legalbench").
+# LegalBench is a suite of legal-reasoning tasks; each subtask is a separate
+# HuggingFace config under `nguha/legalbench`. The default `hearsay` is a
+# Yes/No binary-classification task — switch to e.g. "contract_qa",
+# "consumer_contracts_qa", or "definition_classification" for other Yes/No
+# subtasks. Non-binary subtasks are not currently wired up.
+LEGALBENCH_TASK = "hearsay"
 
 # Model name mappings
 MODEL_NAMES = {
@@ -112,7 +120,10 @@ def print_config():
     print("CONFIGURATION")
     print("=" * 50)
     print(f"Model: {get_model_name()}")
-    print(f"Dataset: {DATASET}")
+    if DATASET == "legalbench":
+        print(f"Dataset: {DATASET} ({LEGALBENCH_TASK})")
+    else:
+        print(f"Dataset: {DATASET}")
     if SPECIFIC_INDICES:
         print(f"Indices: {list(SPECIFIC_INDICES)} (override; N_SAMPLES ignored)")
     else:
