@@ -1,7 +1,7 @@
 # Session Handoff — DCAK RTA v8 Transfer (DavidsDatasets)
-**Last updated:** 2026-04-24  
-**Model evaluated this session:** Qwen3.6-35B-A3B (`qwen3` family)  
-**Primary dataset:** MMLU-Pro (`mmlu35b.csv`)  
+**Last updated:** 2026-05-10  
+**Most recent model evaluated:** Qwen3.6-35B-A3B (`qwen3` family)  
+**Primary dataset:** MMLU-Pro (`mmlu35b.csv`, `21mmlupro_confidencewithnewSE_*.csv`)  
 **Working directory:** `/Users/davidzhu/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/`
 
 ---
@@ -243,3 +243,133 @@ With `SKIP_NLI_CLUSTERING = True`, the SE computation block in `evaluate_sample(
 | `main.py` | Entry point — loops over N_SAMPLES, aggregates results, saves CSV |
 | `save_utils.py` | CSV + JSON save; filename: `{DATASET}_confidence_{label}.csv` |
 | `visualization.py` | AUROC, calibration curves, plots |
+
+---
+
+# Session 2026-05-10 — Rubric Harmonization, Truncation Handling, Merge Resolution
+
+This session addressed three things: (1) the verbalized-confidence rubric was inconsistent across datasets (MMLU Pro had no rubric at all; StrategyQA/TriviaQA used a different scale than the others), (2) Qwen3 was truncating frequently on hard MMLU Pro math questions and producing garbage answers from `extract_model_answer`'s last-letter fallback, and (3) the working tree had unresolved Git merge conflicts blocking any run.
+
+## 1. Rubric harmonization across all 5 datasets
+
+**Before:** Different datasets showed different rubrics in their first-pass prompts:
+- GSM8K, MedQA: numbered `1 = "Almost no chance" (0-10% likely correct)` style (`_CONF_RUBRIC`)
+- StrategyQA, TriviaQA: bulleted `- "Almost no chance" (0.0–0.1)` ranges, then asked for `Confidence: <1-10>` output (scale mismatch)
+- **MMLU Pro: no rubric** — only said "Rate your confidence as an integer from 1 to 10"
+
+**After:** All 5 datasets share `_CONF_RUBRIC` (a single source of truth in `confidence.py`). Format chosen by the user (Option 3):
+
+```
+- 1 = "Almost no chance" (0-10% likely correct)
+- 2 = "Highly unlikely" (10-20% likely correct)
+…
+- 10 = "Almost certain" (90-100% likely correct)
+```
+
+Bulleted, leading 1-10 number, percentage descriptors kept. The same bulleted format was also propagated to:
+- `get_gen2_confidence` (qwen3 self-rating prompt)
+- `get_two_pass_confidence` (blinded critique prompt)
+
+So every confidence elicitation — first-pass, Gen 2, two-pass critique — now uses the same 10 verbal labels with the same percentage ranges.
+
+Each first-pass prompt also now ends with a strict format reminder:
+```
+The Confidence number MUST match the class you selected — for example, if you select
+"Better than even" you MUST write Confidence: 6, not any other number.
+```
+
+**Implication:** Any verbalized-confidence column from runs prior to this session reflects a different prompt and is not directly comparable. **All 5 datasets should be re-run** to get clean rubric-aligned scores. Logit metrics on GSM8K/MedQA shift only slightly (cosmetic format change); MMLU Pro/StrategyQA/TriviaQA shift more substantially because their first-pass prompt content actually changed.
+
+## 2. Truncation detection + forced-answer fallback
+
+**Problem:** Qwen3's `<think>` block on hard MMLU Pro math/physics problems regularly exceeds 8,192 tokens. The main pass would hit the token cap mid-reasoning, never emit `Answer: X`, and `extract_model_answer`'s Priority-3 fallback ("last standalone letter A-J in the response") would return whatever letter happened to appear in the chain of thought (e.g., "I" from "First, **I** need to recall..."). Example: `21mmlupro` row idx=11717 had `model_answer="I"` despite no commitment in the response.
+
+**Decision:** Force a final answer rather than dropping the row. Reasoning:
+- Calibration analysis needs paired (answer, confidence) on every sample
+- The dropout would be **non-random** — only hard math truncates — biasing calibration toward easy samples
+- A forced answer is itself a calibration signal: well-calibrated models should give *low* verbalized confidence on forced guesses
+
+**Implementation:**
+
+| Component | Change |
+|---|---|
+| `confidence.py::generate_with_logits` | Returns 5-tuple now, ending with `meta = {"finish_reason", "was_truncated"}`. Uses the existing `_detect_truncation` helper. |
+| `confidence.py::get_forced_answer` | New function. When the main pass truncates, it shows the model the (incomplete) reasoning + question + choices and asks for ONLY the answer in the dataset's expected format. Tight token budgets (8 for letters/Yes-No, 16 for GSM8K numbers, 32 for TriviaQA). Uses `extract_model_answer` to parse. |
+| `evaluation.py::evaluate_sample` | When `main_meta["was_truncated"]` is true, calls `get_forced_answer` and overwrites the unreliable Priority-3 fallback. Sets `was_forced=True`. |
+
+**New columns in the result CSV:**
+- `main_pass_finish_reason` — `"eos"` or `"length"`
+- `main_pass_was_truncated` — bool
+- `was_forced` — bool, true when `get_forced_answer` produced the model_answer
+- `forced_answer_response` — raw text of the forced-answer call (None if no truncation)
+
+These supplement the pre-existing `two_pass_finish_reason` / `two_pass_was_truncated` columns added by the parallel branch (which tracks truncation on the two-pass critique).
+
+**Filtering convention for analysis:** to compare {forced vs. organic}, partition rows on `was_forced`. To compute "honest" accuracy, you can exclude `was_forced=True` rows; for calibration analysis, keep them in.
+
+## 3. Merge conflict resolution
+
+The working tree had unresolved Git conflict markers in three files (HEAD vs commit `9a721c8`). Conflicts resolved as follows:
+
+**`evaluation.py` (4 conflicts):**
+- Variable init: kept BOTH `_empty_two_pass` template (parallel branch) AND `was_forced`/`forced_response` init (this session).
+- qwen3 generate: kept `main_meta` naming (more descriptive than `gen_info`) AND the parallel branch's `reasoning_for_critique` extraction. The latter is a real win — pulls `<think>` content out and feeds it to the critic instead of just the answer line. Without this, qwen3 critics confabulate ("the reasoning is sound") on easy questions and abdicate ("no detailed reasoning, confidence 1") on hard ones.
+- non-qwen3 generate: kept `main_meta` naming for consistency.
+- Result dict: merged both column sets (truncation + forced-answer columns from this session, two-pass-truncation columns from parallel branch).
+
+**`confidence.py` (1 latent bug after merge):**
+- The merge had left `generate_with_logits` returning **4 things** while `evaluation.py` was unpacking **5** — would have crashed on every sample at runtime. Fixed by making it return the `meta` dict via `_detect_truncation`.
+
+**`data_utils.py` (1 conflict):**
+- Used the parallel branch's for-loop refactor for the medqa branch (cleaner than the if/elif version).
+- Side fix: an indentation error from prior corruption was already preventing import.
+
+## 4. New verification script — `verify_rubric.py`
+
+Self-contained, runs without torch/numpy/transformers/datasets installed (stubs them). Checks:
+
+1. All 5 first-pass prompts contain the full 10-class rubric (labels, percentages, `- N = ` indices).
+2. All 5 prompts ask for `Confidence: <1-10>` output and include the class-matching reminder.
+3. `extract_verbalized_confidence` regex still parses canonical and edge-case formats.
+4. `_CONF_RUBRIC`, gen2, and two-pass critique all embed the same 10-class rubric.
+5. `generate_with_logits` returns a 5-tuple via `_detect_truncation`.
+6. `get_forced_answer` builds correct dataset-specific prompts and `extract_model_answer` recovers the forced answer (mocks `generate_simple_response`).
+7. `evaluate_sample` result dict exposes `main_pass_finish_reason`, `main_pass_was_truncated`, `was_forced`, `forced_answer_response`, `two_pass_finish_reason`, `two_pass_was_truncated`.
+
+Run: `python DavidsDatasets/verify_rubric.py` → `ALL CHECKS PASSED`.
+
+## 5. Files modified this session
+
+| File | Changes |
+|------|---------|
+| `confidence.py` | `_CONF_RUBRIC` rewritten in bulleted Option-3 format; gen2 + two-pass critique rubrics aligned to same format; `generate_with_logits` returns 5-tuple via `_detect_truncation`; new `get_forced_answer` function. |
+| `evaluation.py` | Imports `get_forced_answer`; both branches detect truncation and call forced-answer fallback; new columns in result dict; merge conflicts resolved keeping `main_meta` naming + `reasoning_for_critique` extraction + `_empty_two_pass` template. |
+| `data_utils.py` | Merge conflict resolved (medqa for-loop refactor); indentation error fixed. |
+| `verify_rubric.py` | New file — offline verification suite, no GPU/model needed. |
+
+## 6. What should be re-run
+
+| Dataset | Reason | Re-run? |
+|---|---|---|
+| **MMLU Pro** | First-pass prompt added rubric (was missing entirely) | **Yes — biggest delta** |
+| **StrategyQA, TriviaQA** | First-pass rubric scale changed (0.0–1.0 ranges → 1-10 indices); two-pass rubric reformatted | **Yes** |
+| **GSM8K, MedQA** | First-pass rubric format changed (numbered → bulleted); two-pass rubric reformatted; forced-answer + truncation tracking now active | **Yes** |
+
+For Qwen3 specifically, expect a non-trivial number of `was_forced=True` rows on MMLU Pro hard-science questions. Check `main_pass_was_truncated` rate per dataset; if it's >20% on any dataset, consider raising `MAX_NEW_TOKENS` further for that dataset.
+
+## 7. Open housekeeping items (not done this session)
+
+- **No `.gitignore`** in the repo. `__pycache__/` and `.ipynb_checkpoints/` are being tracked, which is why `git status` shows `.pyc` files as modified after every run. Suggested `.gitignore`:
+  ```
+  __pycache__/
+  *.pyc
+  .ipynb_checkpoints/
+  ```
+- The `.ipynb_checkpoints/` folder contains stale snapshots of `confidence.py`, `data_utils.py`, `evaluation.py` with old syntax errors. These are harmless (Jupyter regenerates them) but show up in compile sweeps.
+
+## 8. Known limitations carried forward
+
+All limitations from the prior session still apply (internal-state abstraction in Gen 2, 3× inference cost for qwen3, SE settings need restoration before analysis). New items:
+
+- **Forced-answer prompt design is heuristic.** The forced call shows up to 3,000 chars of truncated reasoning and asks for an answer in 8 tokens. If the truncated reasoning is so incomplete the model has no basis to commit, the forced answer is essentially a guess — but the verbalized confidence elicited *after* the forced answer should reflect that.
+- **Mocked vs. real verification.** `verify_rubric.py` confirms code shape and prompt content but does not run the model. Sanity-check `was_forced=True` rows in the first real run output.
