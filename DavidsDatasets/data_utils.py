@@ -54,15 +54,14 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
     elif dataset == "medqa":
         if 'answer_idx' in sample:
             ans = sample['answer_idx']
-        # Some versions return the letter directly ("A"), others return an int
             if isinstance(ans, int):
                 return chr(65 + ans)
-            return str(ans).upper()   # already a letter like "A"
-           elif 'answer' in sample:
-           ans = sample['answer']
-           if isinstance(ans, int):
-               return chr(65 + ans)
-            return str(ans).upper()  
+            return str(ans).upper()
+        elif 'answer' in sample:
+            ans = sample['answer']
+            if isinstance(ans, int):
+                return chr(65 + ans)
+            return str(ans).upper()
         return None
         
     elif dataset == "triviaqa":

@@ -13,18 +13,18 @@ def _format_choices(choices: list) -> str:
 
 
 _CONF_RUBRIC = """
-Then, evaluate how likely your answer is to be correct by selecting EXACTLY ONE of these confidence classes:
+Then, thoroughly assess your confidence in that answer by evaluating your thinking process so far. Finally, classify your confidence into one of the following classes based on how likely your answer is to be correct, by selecting EXACTLY ONE:
 
-1 = "Almost no chance" (0-10% likely correct)
-2 = "Highly unlikely" (10-20% likely correct)
-3 = "Chances are slight" (20-30% likely correct)
-4 = "Unlikely" (30-40% likely correct)
-5 = "Less than even" (40-50% likely correct)
-6 = "Better than even" (50-60% likely correct)
-7 = "Likely" (60-70% likely correct)
-8 = "Very good chance" (70-80% likely correct)
-9 = "Highly likely" (80-90% likely correct)
-10 = "Almost certain" (90-100% likely correct)
+- 1 = "Almost no chance" (0-10% likely correct)
+- 2 = "Highly unlikely" (10-20% likely correct)
+- 3 = "Chances are slight" (20-30% likely correct)
+- 4 = "Unlikely" (30-40% likely correct)
+- 5 = "Less than even" (40-50% likely correct)
+- 6 = "Better than even" (50-60% likely correct)
+- 7 = "Likely" (60-70% likely correct)
+- 8 = "Very good chance" (70-80% likely correct)
+- 9 = "Highly likely" (80-90% likely correct)
+- 10 = "Almost certain" (90-100% likely correct)
 
 """
 
@@ -36,7 +36,7 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
-) -> Tuple[str, List[float], List[str], list]:
+) -> Tuple[str, List[float], List[str], list, dict]:
     """
     Generate response and capture token-level probabilities.
 
@@ -45,6 +45,7 @@ def generate_with_logits(
         - token_probs: Probability of each generated token
         - tokens: The actual tokens generated
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
+        - info: dict with "finish_reason" ("eos"|"length") and "was_truncated" (bool)
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
@@ -63,7 +64,21 @@ def generate_with_logits(
     generated_ids = outputs.sequences[0, input_length:]
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-    # Keep raw per-step distributions for answer token entropy
+    # Detect truncation: hit max_new_tokens AND last token isn't an EOS variant.
+    eos_ids = set()
+    if tokenizer.eos_token_id is not None:
+        eos_ids.add(tokenizer.eos_token_id)
+    # Some chat templates declare additional terminators (e.g. <|im_end|>)
+    extra_eos = getattr(tokenizer, "additional_special_tokens_ids", None) or []
+    eos_ids.update(extra_eos)
+    last_token_id = generated_ids[-1].item() if len(generated_ids) > 0 else None
+    was_truncated = (
+        len(generated_ids) >= max_new_tokens
+        and last_token_id is not None
+        and last_token_id not in eos_ids
+    )
+    finish_reason = "length" if was_truncated else "eos"
+
     raw_scores = list(outputs.scores)
 
     token_probs = []
@@ -76,7 +91,8 @@ def generate_with_logits(
         token_probs.append(token_prob)
         tokens.append(tokenizer.decode([token_id]))
 
-    return generated_text, token_probs, tokens, raw_scores
+    info = {"finish_reason": finish_reason, "was_truncated": was_truncated}
+    return generated_text, token_probs, tokens, raw_scores, info
 
 
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
@@ -324,17 +340,12 @@ Question: {question}
 
 {choices_text}
 
-Instructions:
-1. Analyze each option carefully
-2. Explain your reasoning step by step
-3. State ONLY the answer letter after "Answer:" (just the letter, e.g., A)
-4. Rate your confidence as an integer from 1 to 10 (where 1 = very uncertain, 10 = very certain) after "Confidence:"
-5. State if you think your answer is more likely correct than not after "Correct:" (Yes or No)
+First, analyze each option carefully and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step analysis, you MUST end with EXACTLY this format (replace <YOUR_LETTER> with your chosen answer letter):
+Answer: <YOUR_LETTER>
+Confidence: <1-10>
+Correct: Yes or No
 
-Example format:
-Answer: B
-Confidence: 7
-Correct: Yes
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
 
 Solution:
 Let me analyze each option step by step.
@@ -364,24 +375,12 @@ Let me analyze each option step by step.
 
 Question: {question}
 
-First, consider relevant facts and reasoning, and explain your thinking step by step to arrive at an answer. Then, thoroughly assess your confidence in that answer by evaluating your thinking process so far. Finally, classify your confidence into one of the following classes based on how likely your answer is to be correct:
+First, consider relevant facts and reasoning, and explain your thinking step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with Yes or No):
+Answer: <YOUR_ANSWER>
+Confidence: <1-10>
+Correct: Yes or No
 
-- "Almost no chance" (0.0–0.1)
-- "Highly unlikely" (0.1–0.2)
-- "Chances are slight" (0.2–0.3)
-- "Unlikely" (0.3–0.4)
-- "Less than even" (0.4–0.5)
-- "Better than even" (0.5–0.6)
-- "Likely" (0.6–0.7)
-- "Very good chance" (0.7–0.8)
-- "Highly likely" (0.8–0.9)
-- "Almost certain" (0.9–1.0)
-
-Each category reflects the probability that your answer is correct. After your reasoning, you MUST end your response with EXACTLY these three lines and nothing after them:
-
-Answer: Yes
-Confidence: 6
-Correct: Yes
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
 
 Solution:
 Let me think through this step by step.
@@ -439,28 +438,12 @@ Let me work through this step by step.
 
 Question: {question}
 
-First, consider what you know about this topic and think through related facts that might help, step by step, to arrive at an answer. Then, thoroughly assess your confidence in that answer by evaluating your thinking process so far. Finally, classify your confidence into one of the following classes based on how likely your answer is to be correct:
+First, consider what you know about this topic and think through related facts that might help, step by step, to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with the answer, no extra words):
+Answer: <YOUR_ANSWER>
+Confidence: <1-10>
+Correct: Yes or No
 
-- "Almost no chance" (0.0–0.1)
-- "Highly unlikely" (0.1–0.2)
-- "Chances are slight" (0.2–0.3)
-- "Unlikely" (0.3–0.4)
-- "Less than even" (0.4–0.5)
-- "Better than even" (0.5–0.6)
-- "Likely" (0.6–0.7)
-- "Very good chance" (0.7–0.8)
-- "Highly likely" (0.8–0.9)
-- "Almost certain" (0.9–1.0)
-
-Each category reflects the probability that your answer is correct. You MUST end your response with EXACTLY this format (these three lines are required):
-Answer: [just the answer, no extra words]
-Confidence: [1-10]
-Correct: [Yes/No]
-
-Example format:
-Answer: Paris
-Confidence: 8
-Correct: Yes
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
 
 Solution:
 Let me think through this step by step.
@@ -631,16 +614,17 @@ YOUR final answer: {answer}
 Based on YOUR reasoning chain and thought process above, how confident are you that YOUR answer is correct?
 
 Select EXACTLY ONE confidence level:
-1 = "Almost no chance correct" (0-10%)
-2 = "Highly unlikely correct" (10-20%)
-3 = "Slight chance correct" (20-30%)
-4 = "Unlikely correct" (30-40%)
-5 = "Less than even" (40-50%)
-6 = "Better than even" (50-60%)
-7 = "Likely correct" (60-70%)
-8 = "Very good chance correct" (70-80%)
-9 = "Highly likely correct" (80-90%)
-10 = "Almost certain correct" (90-100%)
+
+- 1 = "Almost no chance" (0-10% likely correct)
+- 2 = "Highly unlikely" (10-20% likely correct)
+- 3 = "Chances are slight" (20-30% likely correct)
+- 4 = "Unlikely" (30-40% likely correct)
+- 5 = "Less than even" (40-50% likely correct)
+- 6 = "Better than even" (50-60% likely correct)
+- 7 = "Likely" (60-70% likely correct)
+- 8 = "Very good chance" (70-80% likely correct)
+- 9 = "Highly likely" (80-90% likely correct)
+- 10 = "Almost certain" (90-100% likely correct)
 
 Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
 Confidence: <1-10>
@@ -723,17 +707,19 @@ Instructions:
 1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
 2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
 3. If you find errors, explain them briefly.
-4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
-1 = "Almost no chance correct" (0-10%)
-2 = "Highly unlikely correct" (10-20%)
-3 = "Slight chance correct" (20-30%)
-4 = "Unlikely correct" (30-40%)
-5 = "Less than even" (40-50%)
-6 = "Better than even" (50-60%)
-7 = "Likely correct" (60-70%)
-8 = "Very good chance correct" (70-80%)
-9 = "Highly likely correct" (80-90%)
-10 = "Almost certain correct" (90-100%)
+4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct by selecting EXACTLY ONE of these classes:
+
+- 1 = "Almost no chance" (0-10% likely correct)
+- 2 = "Highly unlikely" (10-20% likely correct)
+- 3 = "Chances are slight" (20-30% likely correct)
+- 4 = "Unlikely" (30-40% likely correct)
+- 5 = "Less than even" (40-50% likely correct)
+- 6 = "Better than even" (50-60% likely correct)
+- 7 = "Likely" (60-70% likely correct)
+- 8 = "Very good chance" (70-80% likely correct)
+- 9 = "Highly likely" (80-90% likely correct)
+- 10 = "Almost certain" (90-100% likely correct)
+
 You MUST end your response with exactly:
 Confidence: <1-10>
 Correct: Yes or No"""
@@ -751,6 +737,112 @@ Correct: Yes or No"""
         "two_pass_correct": correct_judgment,
         "two_pass_critique": critique_response,
     }
+
+
+def get_forced_answer(
+    model,
+    tokenizer,
+    question: str,
+    reasoning: str,
+    dataset: str,
+    choices: list = None,
+) -> Tuple[Optional[str], str]:
+    """
+    Force a final answer when the main pass was truncated by the token budget.
+
+    Shows the model its (likely incomplete) reasoning and asks for ONLY the
+    answer in the dataset's expected format — no further reasoning. Used
+    instead of relying on extract_model_answer's Priority-3 fallback (last
+    standalone letter/number in response), which on a truncated qwen3
+    <think> block returns whatever letter happens to appear last in the
+    chain of thought, not a real commitment.
+
+    Returns:
+        (forced_answer, forced_response) — forced_answer parsed via the
+        same extract_model_answer used on the main pass; None if the
+        forced call still failed to produce one.
+    """
+    from data_utils import extract_model_answer
+    from model_utils import generate_simple_response
+
+    # 3000 chars: enough for the model to recall its train of thought without
+    # bloating a forced-answer prompt that should be quick.
+    reasoning_clip = reasoning[:3000] if len(reasoning) > 3000 else reasoning
+
+    if dataset == "mmlupro":
+        choices_text = _format_choices(choices)
+        prompt = f"""You were working on this multiple choice question but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+
+{choices_text}
+
+Your reasoning so far (likely incomplete):
+{reasoning_clip}
+
+Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: <single letter A through J>"""
+        max_tokens = 8
+    elif dataset == "medqa":
+        choices_text = _format_choices(choices)
+        prompt = f"""You were working on this medical question but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+{choices_text}
+
+Your reasoning so far (likely incomplete):
+{reasoning_clip}
+
+Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: <single letter A through E>"""
+        max_tokens = 8
+    elif dataset == "gsm8k":
+        prompt = f"""You were solving this math problem but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+
+Your work so far (likely incomplete):
+{reasoning_clip}
+
+Based on your work above, commit to your best-guess numerical answer NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: <number>"""
+        max_tokens = 16
+    elif dataset == "strategyqa":
+        prompt = f"""You were answering this yes/no question but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+
+Your reasoning so far (likely incomplete):
+{reasoning_clip}
+
+Based on your reasoning above, commit to a final answer NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: Yes
+or
+Answer: No"""
+        max_tokens = 8
+    elif dataset == "triviaqa":
+        prompt = f"""You were answering this trivia question but ran out of thinking time and did NOT commit to a final answer.
+
+Question: {question}
+
+Your reasoning so far (likely incomplete):
+{reasoning_clip}
+
+Based on your reasoning above, commit to your best-guess answer NOW. Output ONLY a single line in this exact format and nothing else:
+Answer: <the answer, no extra words>"""
+        max_tokens = 32
+    else:
+        return None, ""
+
+    forced_response = generate_simple_response(
+        model, tokenizer, prompt, max_new_tokens=max_tokens, base_suffix=""
+    )
+
+    # Strip qwen3 think blocks if the forced call also produced one
+    forced_response_clean = _re_think_block.sub('', forced_response).strip()
+
+    forced_answer = extract_model_answer(forced_response_clean, dataset)
+    return forced_answer, forced_response_clean
 
 
 if __name__ == "__main__":
@@ -794,7 +886,7 @@ if __name__ == "__main__":
     messages = [{"role": "user", "content": prompt_text}]
     formatted = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    response, token_probs, tokens, raw_scores = generate_with_logits(
+    response, token_probs, tokens, raw_scores, _info = generate_with_logits(
         mdl, tok, formatted, max_new_tokens=256, do_sample=False
     )
 

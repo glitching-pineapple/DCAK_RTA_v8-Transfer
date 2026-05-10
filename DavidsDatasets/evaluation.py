@@ -17,6 +17,7 @@ from confidence import (
     get_verbalized_confidence_separate,
     get_gen2_confidence,
     get_two_pass_confidence,
+    get_forced_answer,
 )
 
 
@@ -67,14 +68,34 @@ def evaluate_sample(
     ground_truth = extract_ground_truth(sample, DATASET)
 
     token_probs: list = []  # populated by whichever branch runs below
+    main_pass_was_truncated = False
+    main_pass_finish_reason = "eos"
+    was_forced = False
+    forced_response = None
     if MODEL_FAMILY == "qwen3":
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
-        response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+        response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
+            model, tokenizer, prompt
+        )
+        main_pass_was_truncated = gen_info["was_truncated"]
+        main_pass_finish_reason = gen_info["finish_reason"]
         response = _QWEN3_THINK_RE.sub('', response).strip()
 
         model_answer = extract_model_answer(response, DATASET)
+
+        # When the main pass ran out of tokens, extract_model_answer's Priority-3
+        # fallback (last standalone letter/number) returns whatever happened to
+        # appear in the truncated chain of thought, not a real commitment.
+        # Force a clean answer with a short focused call.
+        if main_pass_was_truncated:
+            forced_answer, forced_response = get_forced_answer(
+                model, tokenizer, question, response, DATASET, choices
+            )
+            if forced_answer is not None:
+                model_answer = forced_answer
+                was_forced = True
 
         # Gen 2: model told it's its own work; returns verbalized confidence + MLN
         single_pass_conf = None
@@ -97,9 +118,24 @@ def evaluate_sample(
     else:
         # --- standard single-pass flow for all other model families ---
         prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
-        response, token_probs, tokens, raw_scores = generate_with_logits(model, tokenizer, prompt)
+        response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
+            model, tokenizer, prompt
+        )
+        main_pass_was_truncated = gen_info["was_truncated"]
+        main_pass_finish_reason = gen_info["finish_reason"]
 
         model_answer = extract_model_answer(response, DATASET)
+
+        # Same forced-answer fallback for non-qwen3: if the main pass hit the
+        # token cap before producing a clean Answer line, the Priority-3
+        # extractor is unreliable. Force a final answer.
+        if main_pass_was_truncated:
+            forced_answer, forced_response = get_forced_answer(
+                model, tokenizer, question, response, DATASET, choices
+            )
+            if forced_answer is not None:
+                model_answer = forced_answer
+                was_forced = True
 
         single_pass_conf = extract_verbalized_confidence(response, DATASET)
         single_pass_correct = extract_more_likely_than_not(response)
@@ -167,7 +203,13 @@ def evaluate_sample(
         
         # Two-pass critique (for inspection)
         "two_pass_critique": two_pass_results["two_pass_critique"],
-        
+
+        # Truncation tracking on the main reasoning pass
+        "main_pass_finish_reason": main_pass_finish_reason,
+        "main_pass_was_truncated": main_pass_was_truncated,
+        "was_forced": was_forced,
+        "forced_answer_response": forced_response,
+
         # Full response for inspection
         "full_response": response,
 
