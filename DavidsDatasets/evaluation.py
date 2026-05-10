@@ -69,12 +69,6 @@ def evaluate_sample(
     ground_truth = extract_ground_truth(sample, DATASET)
 
     token_probs: list = []  # populated by whichever branch runs below
-<<<<<<< HEAD
-    main_pass_was_truncated = False
-    main_pass_finish_reason = "eos"
-    was_forced = False
-    forced_response = None
-=======
     _empty_two_pass = {
         "two_pass_confidence": None,
         "two_pass_correct": None,
@@ -82,19 +76,12 @@ def evaluate_sample(
         "two_pass_finish_reason": None,
         "two_pass_was_truncated": None,
     }
->>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
+    was_forced = False
+    forced_response = None
     if MODEL_FAMILY == "qwen3":
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
-<<<<<<< HEAD
-        response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
-            model, tokenizer, prompt
-        )
-        main_pass_was_truncated = gen_info["was_truncated"]
-        main_pass_finish_reason = gen_info["finish_reason"]
-        response = _QWEN3_THINK_RE.sub('', response).strip()
-=======
         response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
         # Stripped form: <think>...</think> removed. Used for answer-letter
         # extraction so the regex doesn't match a draft answer the model
@@ -102,16 +89,13 @@ def evaluate_sample(
         response = _QWEN3_THINK_RE.sub('', response_raw).strip()
         # The actual chain of thought lives inside <think>...</think>. The
         # critic and self-rater need it — without it, critics confabulate
-        # ("the reasoning is sound") on easy questions and abdicate
-        # ("no detailed reasoning, confidence 1") on hard ones. Pull the
-        # think content out and pass that as the reasoning to evaluate.
-        # If the model emitted no think block (rare for qwen3), fall back
-        # to the stripped response so the critic at least sees the answer.
+        # on easy questions and abdicate on hard ones. Pull the think
+        # content out and pass that as the reasoning to evaluate. Fall back
+        # to the stripped response if no think block was emitted.
         _think_match = re.search(r'<think>(.*?)</think>', response_raw, re.DOTALL)
         reasoning_for_critique = (
             _think_match.group(1).strip() if _think_match else response
         )
->>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
 
         model_answer = extract_model_answer(response, DATASET)
 
@@ -119,7 +103,7 @@ def evaluate_sample(
         # fallback (last standalone letter/number) returns whatever happened to
         # appear in the truncated chain of thought, not a real commitment.
         # Force a clean answer with a short focused call.
-        if main_pass_was_truncated:
+        if main_meta["was_truncated"]:
             forced_answer, forced_response = get_forced_answer(
                 model, tokenizer, question, response, DATASET, choices
             )
@@ -148,22 +132,14 @@ def evaluate_sample(
     else:
         # --- standard single-pass flow for all other model families ---
         prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
-<<<<<<< HEAD
-        response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
-            model, tokenizer, prompt
-        )
-        main_pass_was_truncated = gen_info["was_truncated"]
-        main_pass_finish_reason = gen_info["finish_reason"]
-=======
         response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
->>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
 
         model_answer = extract_model_answer(response, DATASET)
 
         # Same forced-answer fallback for non-qwen3: if the main pass hit the
         # token cap before producing a clean Answer line, the Priority-3
         # extractor is unreliable. Force a final answer.
-        if main_pass_was_truncated:
+        if main_meta["was_truncated"]:
             forced_answer, forced_response = get_forced_answer(
                 model, tokenizer, question, response, DATASET, choices
             )
@@ -261,14 +237,6 @@ def evaluate_sample(
         
         # Two-pass critique (for inspection)
         "two_pass_critique": two_pass_results["two_pass_critique"],
-<<<<<<< HEAD
-
-        # Truncation tracking on the main reasoning pass
-        "main_pass_finish_reason": main_pass_finish_reason,
-        "main_pass_was_truncated": main_pass_was_truncated,
-        "was_forced": was_forced,
-        "forced_answer_response": forced_response,
-=======
         "two_pass_finish_reason": two_pass_results["two_pass_finish_reason"],
         "two_pass_was_truncated": two_pass_results["two_pass_was_truncated"],
 
@@ -276,7 +244,8 @@ def evaluate_sample(
         # itself was cut off, not just the critique)
         "main_pass_finish_reason": main_meta["finish_reason"],
         "main_pass_was_truncated": main_meta["was_truncated"],
->>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
+        "was_forced": was_forced,
+        "forced_answer_response": forced_response,
 
         # Full response for inspection
         "full_response": response,

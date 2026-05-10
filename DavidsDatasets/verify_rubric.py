@@ -159,17 +159,22 @@ def check_two_pass_rubric() -> None:
 
 
 def check_generate_with_logits_signature() -> None:
-    """generate_with_logits must return 5 things now (text, probs, tokens, scores, info)."""
+    """generate_with_logits must return 5 things (text, probs, tokens, scores, meta)
+    with meta carrying finish_reason + was_truncated."""
     import inspect
-    from confidence import generate_with_logits
+    from confidence import generate_with_logits, _detect_truncation
 
     src = inspect.getsource(generate_with_logits)
-    assert "info = {" in src, "generate_with_logits should build an `info` dict"
-    assert '"finish_reason"' in src, "info should carry 'finish_reason'"
-    assert '"was_truncated"' in src, "info should carry 'was_truncated'"
-    assert "return generated_text, token_probs, tokens, raw_scores, info" in src, \
-        "generate_with_logits should return a 5-tuple ending with info"
-    print("  generate_with_logits returns 5-tuple with truncation info OK")
+    assert "_detect_truncation(" in src, \
+        "generate_with_logits should call _detect_truncation"
+    assert "return generated_text, token_probs, tokens, raw_scores, meta" in src, \
+        "generate_with_logits should return a 5-tuple ending with the meta dict"
+
+    # _detect_truncation must produce the keys evaluation.py reads
+    helper_src = inspect.getsource(_detect_truncation)
+    assert '"finish_reason"' in helper_src, "_detect_truncation should set finish_reason"
+    assert '"was_truncated"' in helper_src, "_detect_truncation should set was_truncated"
+    print("  generate_with_logits returns 5-tuple with truncation meta OK")
 
 
 def check_forced_answer_paths() -> None:
@@ -233,11 +238,12 @@ def check_evaluate_sample_columns() -> None:
     with open(src_path) as f:
         src = f.read()
     for col in ("main_pass_finish_reason", "main_pass_was_truncated",
-                "was_forced", "forced_answer_response"):
+                "was_forced", "forced_answer_response",
+                "two_pass_finish_reason", "two_pass_was_truncated"):
         assert f'"{col}"' in src, f"evaluation.py result dict missing column: {col}"
-    # Both branches must consume the new 5-tuple from generate_with_logits
-    assert src.count("response, token_probs, tokens, raw_scores, gen_info") >= 2, \
-        "Both qwen3 and non-qwen3 branches should unpack the 5-tuple"
+    # Both branches must consume the 5-tuple from generate_with_logits
+    assert src.count("token_probs, tokens, raw_scores, main_meta = generate_with_logits") >= 2, \
+        "Both qwen3 and non-qwen3 branches should unpack the 5-tuple ending in main_meta"
     # Both branches must call get_forced_answer when truncated
     assert src.count("get_forced_answer(") >= 2, \
         "Both branches should call get_forced_answer on truncation"

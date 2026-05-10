@@ -71,7 +71,7 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
-) -> Tuple[str, List[float], List[str], list]:
+) -> Tuple[str, List[float], List[str], list, Dict]:
     """
     Generate response and capture token-level probabilities.
 
@@ -80,6 +80,7 @@ def generate_with_logits(
         - token_probs: Probability of each generated token
         - tokens: The actual tokens generated
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
+        - meta: dict with "finish_reason" ("eos"|"length") and "was_truncated" (bool)
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
@@ -98,20 +99,7 @@ def generate_with_logits(
     generated_ids = outputs.sequences[0, input_length:]
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-    # Detect truncation: hit max_new_tokens AND last token isn't an EOS variant.
-    eos_ids = set()
-    if tokenizer.eos_token_id is not None:
-        eos_ids.add(tokenizer.eos_token_id)
-    # Some chat templates declare additional terminators (e.g. <|im_end|>)
-    extra_eos = getattr(tokenizer, "additional_special_tokens_ids", None) or []
-    eos_ids.update(extra_eos)
-    last_token_id = generated_ids[-1].item() if len(generated_ids) > 0 else None
-    was_truncated = (
-        len(generated_ids) >= max_new_tokens
-        and last_token_id is not None
-        and last_token_id not in eos_ids
-    )
-    finish_reason = "length" if was_truncated else "eos"
+    meta = _detect_truncation(generated_text, generated_ids, tokenizer)
 
     raw_scores = list(outputs.scores)
 
@@ -125,7 +113,7 @@ def generate_with_logits(
         token_probs.append(token_prob)
         tokens.append(tokenizer.decode([token_id]))
 
-    return generated_text, token_probs, tokens, raw_scores
+    return generated_text, token_probs, tokens, raw_scores, meta
 
 
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
@@ -813,17 +801,19 @@ Instructions:
 1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
 2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
 3. If you find errors, explain them briefly.
-4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
-1 = "Almost no chance correct" (0-10%)
-2 = "Highly unlikely correct" (10-20%)
-3 = "Slight chance correct" (20-30%)
-4 = "Unlikely correct" (30-40%)
-5 = "Less than even" (40-50%)
-6 = "Better than even" (50-60%)
-7 = "Likely correct" (60-70%)
-8 = "Very good chance correct" (70-80%)
-9 = "Highly likely correct" (80-90%)
-10 = "Almost certain correct" (90-100%)
+4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct by selecting EXACTLY ONE of these classes:
+
+- 1 = "Almost no chance" (0-10% likely correct)
+- 2 = "Highly unlikely" (10-20% likely correct)
+- 3 = "Chances are slight" (20-30% likely correct)
+- 4 = "Unlikely" (30-40% likely correct)
+- 5 = "Less than even" (40-50% likely correct)
+- 6 = "Better than even" (50-60% likely correct)
+- 7 = "Likely" (60-70% likely correct)
+- 8 = "Very good chance" (70-80% likely correct)
+- 9 = "Highly likely" (80-90% likely correct)
+- 10 = "Almost certain" (90-100% likely correct)
+
 You MUST end your response with exactly:
 Confidence: <1-10>
 Correct: Yes or No"""
@@ -1019,7 +1009,7 @@ if __name__ == "__main__":
     messages = [{"role": "user", "content": prompt_text}]
     formatted = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    response, token_probs, tokens, raw_scores = generate_with_logits(
+    response, token_probs, tokens, raw_scores, _meta = generate_with_logits(
         mdl, tok, formatted, max_new_tokens=256, do_sample=False
     )
 
