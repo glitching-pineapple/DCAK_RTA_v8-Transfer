@@ -5,7 +5,42 @@ import re
 import torch
 import numpy as np
 from typing import Optional, Tuple, List, Dict
-from config import MODEL_VARIANT, MAX_NEW_TOKENS
+from config import (
+    MODEL_VARIANT,
+    MAX_NEW_TOKENS,
+    TWO_PASS_MAX_NEW_TOKENS,
+    TWO_PASS_DISABLE_THINKING,
+)
+
+
+def _detect_truncation(
+    generated_text: str,
+    generated_ids,
+    tokenizer,
+    expect_confidence_markers: bool = False,
+) -> Dict:
+    """Classify why generation stopped and whether the output is structurally complete.
+
+    finish_reason is 'eos' if the last generated token is the EOS token,
+    else 'length' (i.e. hit max_new_tokens). was_truncated is True if
+    finish_reason is 'length', or — when expect_confidence_markers is True —
+    if the text is missing </think> (when <think> was opened) or the
+    "Confidence:" / "Correct:" markers the two-pass prompt requires.
+    """
+    last_id = int(generated_ids[-1]) if len(generated_ids) > 0 else -1
+    eos_id = tokenizer.eos_token_id
+    finish_reason = "eos" if eos_id is not None and last_id == eos_id else "length"
+
+    was_truncated = (finish_reason == "length")
+    if expect_confidence_markers:
+        think_opened = "<think>" in generated_text
+        think_closed = (not think_opened) or ("</think>" in generated_text)
+        has_confidence = bool(re.search(r"[Cc]onfidence\s*:", generated_text))
+        has_correct = bool(re.search(r"[Cc]orrect\s*:", generated_text))
+        if not (think_closed and has_confidence and has_correct):
+            was_truncated = True
+
+    return {"finish_reason": finish_reason, "was_truncated": was_truncated}
 
 
 def _format_choices(choices: list) -> str:
@@ -36,7 +71,7 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
-) -> Tuple[str, List[float], List[str], list, dict]:
+) -> Tuple[str, List[float], List[str], list]:
     """
     Generate response and capture token-level probabilities.
 
@@ -45,7 +80,6 @@ def generate_with_logits(
         - token_probs: Probability of each generated token
         - tokens: The actual tokens generated
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
-        - info: dict with "finish_reason" ("eos"|"length") and "was_truncated" (bool)
     """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
@@ -91,8 +125,7 @@ def generate_with_logits(
         token_probs.append(token_prob)
         tokens.append(tokenizer.decode([token_id]))
 
-    info = {"finish_reason": finish_reason, "was_truncated": was_truncated}
-    return generated_text, token_probs, tokens, raw_scores, info
+    return generated_text, token_probs, tokens, raw_scores
 
 
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
@@ -140,6 +173,7 @@ def extract_answer_token_entropy(
         "answer_token_entropy": None,
         "answer_letter_probs": None,
         "top_answer_letter": None,
+        "chosen_letter": None,
         "chosen_answer_raw_prob": None,
     }
 
@@ -148,16 +182,9 @@ def extract_answer_token_entropy(
 
     valid_letters = list("ABCDEFGHIJ") if dataset == "mmlupro" else list("ABCDE")
 
-    # Build letter -> set of token IDs mapping.
-    # Some tokenizers encode "A" and " A" as different IDs; we collect both.
-    letter_to_token_ids: Dict[str, set] = {}
-    for letter in valid_letters:
-        ids: set = set()
-        for form in (letter, f" {letter}"):
-            encoded = tokenizer.encode(form, add_special_tokens=False)
-            if len(encoded) == 1:
-                ids.add(encoded[0])
-        letter_to_token_ids[letter] = ids
+    # Build letter -> set of token IDs mapping by scanning the vocab.
+    # Cached on the tokenizer so the O(vocab_size) decode loop runs once.
+    letter_to_token_ids = _get_letter_token_ids(tokenizer, valid_letters)
 
     # Locate the last "Answer:" marker in the token stream, then find the
     # first answer-letter token that follows it.
@@ -218,10 +245,25 @@ def extract_answer_token_entropy(
     entropy = float(max(0.0, -sum(p * np.log(p + 1e-10) for p in renorm.values())))
     top_letter = max(renorm, key=renorm.get)
 
+    # Sanity check: under greedy decoding, the letter the model actually emitted
+    # (chosen_letter, found by walking the decoded text) should match the argmax
+    # of the renormalized letter distribution (top_letter). When these disagree
+    # it usually means the letter→token-id map missed the actually-emitted token
+    # form — surface a warning rather than silently writing inconsistent CSV rows.
+    if chosen_letter is not None and top_letter != chosen_letter:
+        import warnings as _warnings
+        _warnings.warn(
+            f"extract_answer_token_entropy: emitted letter {chosen_letter!r} differs "
+            f"from prob-distribution top {top_letter!r} (renorm={dict((l, round(p, 4)) for l, p in renorm.items())}). "
+            f"Likely tokenizer/letter-id mismatch; the prob_X columns for this row may be unreliable.",
+            RuntimeWarning,
+        )
+
     return {
         "answer_token_entropy": entropy,
         "answer_letter_probs": {l: round(renorm[l], 4) for l in valid_letters},
         "top_answer_letter": top_letter,
+        "chosen_letter": chosen_letter,
         "chosen_answer_raw_prob": round(chosen_answer_raw_prob, 6),
     }
 
@@ -229,6 +271,57 @@ def extract_answer_token_entropy(
 # Pre-compiled patterns reused across calls
 _re_answer_marker = re.compile(r"[Aa]nswer\s*:", re.IGNORECASE)
 _re_think_block = re.compile(r'<think>.*?</think>', re.DOTALL)
+
+
+# Cache of letter -> {token_id, ...} mappings, keyed per (tokenizer instance, letter set).
+# Built once per tokenizer because vocab enumeration is O(vocab_size) decodes (~150k for Qwen).
+_LETTER_TOKEN_IDS_ATTR = "_dcak_letter_token_ids_cache"
+
+
+def _build_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]:
+    """Build a complete letter -> set-of-token-ids map by enumerating the vocab.
+
+    For each token in the vocabulary, decode it to a string and check whether
+    its stripped/uppercased form is exactly one of the valid letters. This
+    catches every form the model might actually emit at the answer position
+    ("E", " E", "E\\n", "E.", " E ", etc.) — including merged BPE tokens that
+    bare `tokenizer.encode("E")` would miss. Without this, when the model
+    emits a merged form like "E\\n" as a single token, that token's id falls
+    outside letter_to_token_ids["E"], and renormalization amplifies whatever
+    residual probability mass remains in the other letters' sets — typically
+    showing up as a +1 column shift in the prob_X CSV columns.
+    """
+    valid_set = set(valid_letters)
+    out: Dict[str, set] = {l: set() for l in valid_letters}
+    vocab_size = getattr(tokenizer, "vocab_size", None)
+    if not vocab_size:
+        try:
+            vocab_size = len(tokenizer.get_vocab())
+        except Exception:
+            return out
+    for tid in range(vocab_size):
+        try:
+            decoded = tokenizer.decode([tid])
+        except Exception:
+            continue
+        stripped = decoded.strip().upper()
+        if stripped in valid_set:
+            out[stripped].add(tid)
+    return out
+
+
+def _get_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]:
+    cache = getattr(tokenizer, _LETTER_TOKEN_IDS_ATTR, None)
+    if cache is None:
+        cache = {}
+        try:
+            setattr(tokenizer, _LETTER_TOKEN_IDS_ATTR, cache)
+        except (AttributeError, TypeError):
+            pass  # tokenizer doesn't allow attributes — just rebuild each time
+    cache_key = tuple(valid_letters)
+    if cache_key not in cache:
+        cache[cache_key] = _build_letter_token_ids(tokenizer, valid_letters)
+    return cache[cache_key]
 
 
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
@@ -631,8 +724,17 @@ Confidence: <1-10>
 Correct: Yes or No"""
 
     from model_utils import generate_simple_response
+    # Same fix as the two-pass critique: a Qwen3 thinking model spends its
+    # entire budget inside <think> on a 512-token call, so the Confidence:/
+    # Correct: lines never appear and extraction silently returns None.
+    # Use the bigger TWO_PASS_MAX_NEW_TOKENS budget and skip thinking on
+    # Qwen3 — Gen 2 is just a self-rating, it doesn't need extended reasoning.
+    enable_thinking = False if TWO_PASS_DISABLE_THINKING else None
     response = generate_simple_response(
-        model, tokenizer, prompt, max_new_tokens=512, base_suffix="\n\nAssessment:"
+        model, tokenizer, prompt,
+        max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
+        base_suffix="\n\nAssessment:",
+        enable_thinking=enable_thinking,
     )
 
     # Strip think blocks before extraction so internal reasoning doesn't interfere
@@ -697,6 +799,10 @@ The respondent also self-assessed their answer and assigned:
 
     critique_prompt = f"""You are reviewing a solution submitted by someone else to the following problem. Your job is to check the reasoning for errors and independently assess how likely the final answer is correct.
 
+REQUIRED OUTPUT FORMAT — your response MUST end with these two lines, exactly:
+Confidence: <integer 1-10>
+Correct: <Yes or No>
+
 Question: {question}
 {choices_text}
 Submitted solution:
@@ -707,28 +813,53 @@ Instructions:
 1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
 2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
 3. If you find errors, explain them briefly.
-4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct by selecting EXACTLY ONE of these classes:
-
-- 1 = "Almost no chance" (0-10% likely correct)
-- 2 = "Highly unlikely" (10-20% likely correct)
-- 3 = "Chances are slight" (20-30% likely correct)
-- 4 = "Unlikely" (30-40% likely correct)
-- 5 = "Less than even" (40-50% likely correct)
-- 6 = "Better than even" (50-60% likely correct)
-- 7 = "Likely" (60-70% likely correct)
-- 8 = "Very good chance" (70-80% likely correct)
-- 9 = "Highly likely" (80-90% likely correct)
-- 10 = "Almost certain" (90-100% likely correct)
-
+4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct using EXACTLY ONE of these levels:
+1 = "Almost no chance correct" (0-10%)
+2 = "Highly unlikely correct" (10-20%)
+3 = "Slight chance correct" (20-30%)
+4 = "Unlikely correct" (30-40%)
+5 = "Less than even" (40-50%)
+6 = "Better than even" (50-60%)
+7 = "Likely correct" (60-70%)
+8 = "Very good chance correct" (70-80%)
+9 = "Highly likely correct" (80-90%)
+10 = "Almost certain correct" (90-100%)
 You MUST end your response with exactly:
 Confidence: <1-10>
 Correct: Yes or No"""
-
-    from model_utils import generate_simple_response
-    critique_response = generate_simple_response(
-        model, tokenizer, critique_prompt, max_new_tokens=1024, base_suffix="\n\nReview:"
+    if MODEL_VARIANT == "instruct":
+        messages = [{"role": "user", "content": critique_prompt}]
+        # Qwen3 chat templates accept `enable_thinking`; pass it when we
+        # want to skip the <think> block so the critique budget is spent on
+        # the critique itself. Other tokenizers ignore unknown kwargs in
+        # most transformers versions, but guard with try/except to be safe.
+        template_kwargs = {"tokenize": False, "add_generation_prompt": True}
+        if TWO_PASS_DISABLE_THINKING:
+            template_kwargs["enable_thinking"] = False
+        try:
+            formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
+        except TypeError:
+            template_kwargs.pop("enable_thinking", None)
+            formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
+    else:
+        formatted_prompt = critique_prompt + "\n\nReview:"
+    inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
+            do_sample=False,
+            return_dict_in_generate=True,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    generated_ids = outputs.sequences[0, inputs.input_ids.shape[1]:]
+    critique_response = tokenizer.decode(
+        generated_ids, skip_special_tokens=True
+    ).strip()
+    meta = _detect_truncation(
+        critique_response, generated_ids, tokenizer, expect_confidence_markers=True
     )
-
+    # Extract confidence from critique
     conf = extract_verbalized_confidence(critique_response, DATASET)
     correct_judgment = extract_more_likely_than_not(critique_response)
 
@@ -736,6 +867,8 @@ Correct: Yes or No"""
         "two_pass_confidence": conf,
         "two_pass_correct": correct_judgment,
         "two_pass_critique": critique_response,
+        "two_pass_finish_reason": meta["finish_reason"],
+        "two_pass_was_truncated": meta["was_truncated"],
     }
 
 
@@ -886,7 +1019,7 @@ if __name__ == "__main__":
     messages = [{"role": "user", "content": prompt_text}]
     formatted = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
-    response, token_probs, tokens, raw_scores, _info = generate_with_logits(
+    response, token_probs, tokens, raw_scores = generate_with_logits(
         mdl, tok, formatted, max_new_tokens=256, do_sample=False
     )
 

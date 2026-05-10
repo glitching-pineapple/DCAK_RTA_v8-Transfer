@@ -1,11 +1,12 @@
 # evaluation.py - Sample evaluation with semantic entropy
 
+import math
 import re
 from typing import Dict, Optional
 
 _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
@@ -68,20 +69,49 @@ def evaluate_sample(
     ground_truth = extract_ground_truth(sample, DATASET)
 
     token_probs: list = []  # populated by whichever branch runs below
+<<<<<<< HEAD
     main_pass_was_truncated = False
     main_pass_finish_reason = "eos"
     was_forced = False
     forced_response = None
+=======
+    _empty_two_pass = {
+        "two_pass_confidence": None,
+        "two_pass_correct": None,
+        "two_pass_critique": "",
+        "two_pass_finish_reason": None,
+        "two_pass_was_truncated": None,
+    }
+>>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
     if MODEL_FAMILY == "qwen3":
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
+<<<<<<< HEAD
         response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
             model, tokenizer, prompt
         )
         main_pass_was_truncated = gen_info["was_truncated"]
         main_pass_finish_reason = gen_info["finish_reason"]
         response = _QWEN3_THINK_RE.sub('', response).strip()
+=======
+        response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
+        # Stripped form: <think>...</think> removed. Used for answer-letter
+        # extraction so the regex doesn't match a draft answer the model
+        # wrote inside its scratchpad.
+        response = _QWEN3_THINK_RE.sub('', response_raw).strip()
+        # The actual chain of thought lives inside <think>...</think>. The
+        # critic and self-rater need it — without it, critics confabulate
+        # ("the reasoning is sound") on easy questions and abdicate
+        # ("no detailed reasoning, confidence 1") on hard ones. Pull the
+        # think content out and pass that as the reasoning to evaluate.
+        # If the model emitted no think block (rare for qwen3), fall back
+        # to the stripped response so the critic at least sees the answer.
+        _think_match = re.search(r'<think>(.*?)</think>', response_raw, re.DOTALL)
+        reasoning_for_critique = (
+            _think_match.group(1).strip() if _think_match else response
+        )
+>>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
 
         model_answer = extract_model_answer(response, DATASET)
 
@@ -102,27 +132,31 @@ def evaluate_sample(
         single_pass_correct = None
         if model_answer:
             gen2 = get_gen2_confidence(
-                model, tokenizer, question, response, model_answer, choices
+                model, tokenizer, question, reasoning_for_critique, model_answer, choices
             )
             single_pass_conf = gen2["gen2_confidence"]
             single_pass_correct = gen2["gen2_correct"]
 
         # Gen 3: blinded two-pass critique; includes Gen 2 scores as context
-        two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
+        two_pass_results = dict(_empty_two_pass)
         if model_answer:
             two_pass_results = get_two_pass_confidence(
-                model, tokenizer, question, model_answer, response, choices,
+                model, tokenizer, question, model_answer, reasoning_for_critique, choices,
                 gen2_confidence=single_pass_conf,
                 gen2_correct=single_pass_correct,
             )
     else:
         # --- standard single-pass flow for all other model families ---
         prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
+<<<<<<< HEAD
         response, token_probs, tokens, raw_scores, gen_info = generate_with_logits(
             model, tokenizer, prompt
         )
         main_pass_was_truncated = gen_info["was_truncated"]
         main_pass_finish_reason = gen_info["finish_reason"]
+=======
+        response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
+>>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
 
         model_answer = extract_model_answer(response, DATASET)
 
@@ -145,17 +179,18 @@ def evaluate_sample(
                 model, tokenizer, question, model_answer
             )
 
-        two_pass_results = {"two_pass_confidence": None, "two_pass_correct": None, "two_pass_critique": ""}
+        two_pass_results = dict(_empty_two_pass)
         if model_answer:
             two_pass_results = get_two_pass_confidence(
                 model, tokenizer, question, model_answer, response, choices
             )
 
-    # Check correctness (TriviaQA uses fuzzy matching for multiple aliases)
-    if DATASET == "triviaqa":
-        is_correct = check_triviaqa_correct(model_answer, sample)
-    else:
-        is_correct = (model_answer == ground_truth) if model_answer else False
+    # Check correctness via the per-dataset comparator. answers_match handles:
+    # - gsm8k numeric equivalence ("6.00" == "6", "1,000" == "1000")
+    # - mmlupro/medqa case + wrapper normalization ("(A)" == "A", "a" == "A")
+    # - strategyqa case + trailing punctuation ("No." == "No")
+    # - triviaqa alias-aware fuzzy match (delegates to check_triviaqa_correct)
+    is_correct = answers_match(model_answer, ground_truth, DATASET, sample)
 
     # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
@@ -168,6 +203,7 @@ def evaluate_sample(
             "answer_token_entropy": None,
             "answer_letter_probs": None,
             "top_answer_letter": None,
+            "chosen_letter": None,
             "chosen_answer_raw_prob": None,
         }
 
@@ -178,6 +214,22 @@ def evaluate_sample(
         verbalized_conf = single_pass_conf
     if more_likely is None:
         more_likely = single_pass_correct
+
+    # Hard-failure policy for rows where the model never produced a parseable
+    # answer letter (typically: math questions where the CoT exhausts the
+    # token budget mid-derivation, or where the final value doesn't map to
+    # any MCQ option). The row is automatically incorrect — no Gen 2/Gen 3
+    # was run (gated above by `if model_answer:`), and we explicitly NaN out
+    # every verbalized-confidence field so partial signals don't pollute
+    # downstream calibration analysis. The `answer_extraction_failed` column
+    # makes these rows trivially filterable.
+    answer_extraction_failed = (model_answer is None) or (model_answer == "")
+    if answer_extraction_failed:
+        is_correct = False
+        verbalized_conf = math.nan
+        more_likely = None
+        single_pass_conf = math.nan
+        single_pass_correct = None
     
     # Build result dictionary
     result = {
@@ -186,6 +238,12 @@ def evaluate_sample(
         "ground_truth": ground_truth,
         "model_answer": model_answer,
         "is_correct": is_correct,
+        # True when the model failed to produce a parseable answer letter
+        # (typically math CoT that ran out of tokens). Rows with this flag
+        # have NaN verbalized_confidence/single_pass_confidence and should
+        # be excluded from calibration analyses, not treated as low-confidence
+        # data points.
+        "answer_extraction_failed": answer_extraction_failed,
         
         # Logit-based metrics
         "seq_confidence_mean": confidence_metrics["log_prob_sum"],
@@ -203,12 +261,22 @@ def evaluate_sample(
         
         # Two-pass critique (for inspection)
         "two_pass_critique": two_pass_results["two_pass_critique"],
+<<<<<<< HEAD
 
         # Truncation tracking on the main reasoning pass
         "main_pass_finish_reason": main_pass_finish_reason,
         "main_pass_was_truncated": main_pass_was_truncated,
         "was_forced": was_forced,
         "forced_answer_response": forced_response,
+=======
+        "two_pass_finish_reason": two_pass_results["two_pass_finish_reason"],
+        "two_pass_was_truncated": two_pass_results["two_pass_was_truncated"],
+
+        # Main-pass generation diagnostics (truncation here means the CoT
+        # itself was cut off, not just the critique)
+        "main_pass_finish_reason": main_meta["finish_reason"],
+        "main_pass_was_truncated": main_meta["was_truncated"],
+>>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
 
         # Full response for inspection
         "full_response": response,
@@ -217,6 +285,9 @@ def evaluate_sample(
         "answer_token_entropy": ate_results["answer_token_entropy"],
         "answer_letter_probs": ate_results["answer_letter_probs"],
         "top_answer_letter": ate_results["top_answer_letter"],
+        # The letter actually emitted in the response text. Disagreement with
+        # top_answer_letter signals a tokenizer/letter-id mapping issue.
+        "chosen_letter": ate_results["chosen_letter"],
         "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
     }
     

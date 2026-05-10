@@ -1,5 +1,6 @@
 # data_utils.py - Dataset loading and answer extraction
 
+import math
 import re
 from typing import Optional
 from datasets import load_dataset
@@ -52,6 +53,7 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
         return "Yes" if sample['answer'] else "No"
     
     elif dataset == "medqa":
+<<<<<<< HEAD
         if 'answer_idx' in sample:
             ans = sample['answer_idx']
             if isinstance(ans, int):
@@ -62,6 +64,17 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
             if isinstance(ans, int):
                 return chr(65 + ans)
             return str(ans).upper()
+=======
+        # Some versions of the dataset return the letter directly ("A"),
+        # others return an integer index. Try `answer_idx` first, then
+        # fall back to `answer`.
+        for key in ("answer_idx", "answer"):
+            if key in sample:
+                ans = sample[key]
+                if isinstance(ans, int):
+                    return chr(65 + ans)
+                return str(ans).upper()
+>>>>>>> 9a721c8caced605931a88e6bfe4e5e8266597792
         return None
         
     elif dataset == "triviaqa":
@@ -345,5 +358,81 @@ def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
     for acc in acceptable:
         if model_lower == acc or model_lower in acc or acc in model_lower:
             return True
-    
+
     return False
+
+
+def answers_match(
+    model_answer: Optional[str],
+    ground_truth: Optional[str],
+    dataset: str,
+    sample: Optional[dict] = None,
+) -> bool:
+    """Robust per-dataset answer comparison.
+
+    Purpose: callers should treat answers as semantically equal when they
+    represent the same value, even if the surface strings differ. The
+    inline `model_answer == ground_truth` check was treating "6.00" and
+    "6" as different on GSM8k, marking correct answers wrong.
+
+    Per-dataset rules:
+    - gsm8k: parse both as floats and compare with tolerance. Handles
+      "6.00" vs "6", "6.0" vs "6", "06" vs "6", " 6 " vs "6", "1,000" vs
+      "1000", "$6" vs "6", "6." vs "6", and small float-precision drift
+      from chained calculations.
+    - mmlupro / medqa: case-insensitive single-letter compare, after
+      stripping whitespace, parentheses, asterisks (markdown bold), and
+      trailing periods. Handles "(A)" vs "A", "**A**" vs "A", "a" vs "A".
+    - strategyqa: case-insensitive yes/no, with trailing punctuation
+      stripped. Handles "yes" vs "Yes", "No." vs "No".
+    - triviaqa: delegates to check_triviaqa_correct (alias-aware).
+    - any other dataset: stripped string equality.
+
+    Returns False on missing inputs (model_answer is None / "" / ground
+    truth is None) — failing closed is consistent with how missing
+    extraction is handled upstream.
+    """
+    if model_answer is None or model_answer == "":
+        return False
+
+    if dataset == "triviaqa":
+        return check_triviaqa_correct(model_answer, sample) if sample is not None else False
+
+    if ground_truth is None:
+        return False
+
+    ma = str(model_answer).strip()
+    gt = str(ground_truth).strip()
+
+    if dataset == "gsm8k":
+        # Strip currency symbols, comma thousands separators, and whitespace
+        # before parsing. extract_model_answer already strips most of these
+        # but ground_truth may not — and being defensive on both sides costs
+        # nothing.
+        def _to_float(s: str):
+            cleaned = s.replace(",", "").replace("$", "").strip()
+            return float(cleaned)
+        try:
+            ma_num = _to_float(ma)
+            gt_num = _to_float(gt)
+        except (ValueError, TypeError):
+            # If either side isn't parseable as a number, fall back to
+            # whitespace-stripped string equality rather than asserting wrong.
+            return ma == gt
+        # math.isclose handles "6.00" vs "6" exactly (1e-9 rel tol is plenty
+        # for typical GSM8K integer answers) and absorbs tiny float-precision
+        # drift like "6.0000000001" that can come out of chained calculations.
+        return math.isclose(ma_num, gt_num, rel_tol=1e-9, abs_tol=1e-6)
+
+    if dataset in ("mmlupro", "medqa"):
+        # Strip case + common letter wrappers. extract_model_answer already
+        # uppercases and unwraps for the primary path, but Priority 2/3
+        # fallbacks and ground_truth normalization are less consistent.
+        _LETTER_TRIM = "()*. \t\n"
+        return ma.upper().strip(_LETTER_TRIM) == gt.upper().strip(_LETTER_TRIM)
+
+    if dataset == "strategyqa":
+        _YESNO_TRIM = ".!?,;: \t\n"
+        return ma.lower().strip(_YESNO_TRIM) == gt.lower().strip(_YESNO_TRIM)
+
+    return ma == gt

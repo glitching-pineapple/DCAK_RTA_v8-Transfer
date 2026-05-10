@@ -32,6 +32,13 @@ MODEL_NAMES = {
 # ============== Experiment Parameters ==============
 N_SAMPLES = 10        # Number of evaluation samples
 RANDOM_SEED = 42        # Random seed for reproducibility
+
+# Override random sampling with explicit dataset row indices.
+# - None  → random sampling (uses N_SAMPLES + RANDOM_SEED, original behavior).
+# - list  → evaluate exactly these rows in order. N_SAMPLES is ignored.
+# Useful for re-running a single sample to inspect its CoT, or to repro a
+# specific failure: e.g. SPECIFIC_INDICES = [258] evaluates only row 258.
+SPECIFIC_INDICES = None
 # Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
 _MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
@@ -39,6 +46,16 @@ MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 # SE sampling budget — Qwen3 needs room for <think> block + Answer line
 _SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "gemma": 256}
 SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
+
+# Two-pass critique budget. Previously hard-coded to 512, which truncated
+# Qwen3's <think> block before it could emit the "Confidence:" / "Correct:"
+# lines on hard questions.
+_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024}
+TWO_PASS_MAX_NEW_TOKENS = _TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
+
+# For Qwen3 reasoning models, skip the <think> block on the critique pass so
+# the entire budget goes to the critique + Confidence/Correct lines.
+TWO_PASS_DISABLE_THINKING = (MODEL_FAMILY == "qwen3")
 
 # ============== Semantic Entropy Parameters ==============
 # Based on Kuhn et al. (2023) "Semantic Uncertainty" paper
@@ -96,11 +113,19 @@ def print_config():
     print("=" * 50)
     print(f"Model: {get_model_name()}")
     print(f"Dataset: {DATASET}")
-    print(f"Samples: {N_SAMPLES}")
+    if SPECIFIC_INDICES:
+        print(f"Indices: {list(SPECIFIC_INDICES)} (override; N_SAMPLES ignored)")
+    else:
+        print(f"Samples: {N_SAMPLES} (random, seed={RANDOM_SEED})")
     print(f"Random Seed: {RANDOM_SEED}")
     print(f"\nSemantic Entropy Settings:")
     print(f"  - Num samples: {SE_NUM_SAMPLES}")
     print(f"  - Temperature: {SE_TEMPERATURE}")
     print(f"  - NLI Model: {NLI_MODEL}")
     print(f"  - Enabled: {COMPUTE_SEMANTIC_ENTROPY}")
+    print(f"\nToken budgets:")
+    print(f"  - Main generation: {MAX_NEW_TOKENS}")
+    print(f"  - SE sampling:     {SE_MAX_NEW_TOKENS}")
+    print(f"  - Two-pass:        {TWO_PASS_MAX_NEW_TOKENS}"
+          f" (thinking disabled: {TWO_PASS_DISABLE_THINKING})")
     print("=" * 50)

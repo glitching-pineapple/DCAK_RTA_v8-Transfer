@@ -8,7 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from config import (
-    DATASET, N_SAMPLES, RANDOM_SEED, get_model_label,
+    DATASET, N_SAMPLES, RANDOM_SEED, SPECIFIC_INDICES, get_model_label,
     COMPUTE_SEMANTIC_ENTROPY, COMPUTE_ANSWER_TOKEN_ENTROPY, NLI_MODEL, print_config
 )
 from model_utils import get_device, load_model_and_tokenizer
@@ -62,13 +62,16 @@ def main():
             device=device,
         )
     
-    # Test on a single example first
+    # Test on a single example first. When SPECIFIC_INDICES is set, use
+    # the first one so the smoke-test exercises the same row(s) the main
+    # loop will. Otherwise default to row 0 as before.
+    test_idx = int(SPECIFIC_INDICES[0]) if SPECIFIC_INDICES else 0
     print("\n" + "=" * 50)
-    print("TESTING ON SINGLE EXAMPLE")
+    print(f"TESTING ON SINGLE EXAMPLE (idx={test_idx})")
     print("=" * 50)
-    
+
     result = evaluate_sample(
-        model, tokenizer, dataset, 0,
+        model, tokenizer, dataset, test_idx,
         semantic_calculator=semantic_calculator,
         compute_semantic_entropy=COMPUTE_SEMANTIC_ENTROPY,
     )
@@ -109,13 +112,28 @@ def main():
     print(f"\n--- Full Response Preview ---")
     print(result['full_response'][:500] + "..." if len(result['full_response']) > 500 else result['full_response'])
     
-    # Run on sample of dataset
-    print(f"\n" + "=" * 50)
-    print(f"RUNNING EVALUATION ON {N_SAMPLES} SAMPLES")
-    print("=" * 50)
-    
-    np.random.seed(RANDOM_SEED)
-    sample_indices = np.random.choice(len(dataset), min(N_SAMPLES, len(dataset)), replace=False)
+    # Run on the chosen subset of the dataset. SPECIFIC_INDICES (if set in
+    # config) wins over random sampling; otherwise pick N_SAMPLES rows at
+    # random with the configured seed.
+    if SPECIFIC_INDICES:
+        sample_indices = [int(i) for i in SPECIFIC_INDICES]
+        # Bounds check up front so a typo'd index fails loudly instead of
+        # blowing up partway through the loop.
+        out_of_range = [i for i in sample_indices if i < 0 or i >= len(dataset)]
+        if out_of_range:
+            raise IndexError(
+                f"SPECIFIC_INDICES contains rows outside dataset range "
+                f"[0, {len(dataset)}): {out_of_range}"
+            )
+        print(f"\n" + "=" * 50)
+        print(f"RUNNING EVALUATION ON {len(sample_indices)} SPECIFIED INDICES: {sample_indices}")
+        print("=" * 50)
+    else:
+        np.random.seed(RANDOM_SEED)
+        sample_indices = np.random.choice(len(dataset), min(N_SAMPLES, len(dataset)), replace=False)
+        print(f"\n" + "=" * 50)
+        print(f"RUNNING EVALUATION ON {len(sample_indices)} RANDOM SAMPLES (seed={RANDOM_SEED})")
+        print("=" * 50)
     
     results = []
     for idx in tqdm(sample_indices, desc="Evaluating"):
