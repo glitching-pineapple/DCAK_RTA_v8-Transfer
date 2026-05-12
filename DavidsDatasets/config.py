@@ -1,7 +1,7 @@
 # config.py - Model and experiment configuration
 
 # ============== Model Configuration ==============
-# Choose model family: "qwen", "qwen3", "llama", or "gemma"
+# Choose model family: "qwen", "qwen3", "llama", "gemma", or "gemma4"
 MODEL_FAMILY = "qwen"
 
 # Choose variant: "instruct" or "base"
@@ -16,7 +16,7 @@ DATASET = "medqa"
 # Yes/No binary-classification task — switch to e.g. "contract_qa",
 # "consumer_contracts_qa", or "definition_classification" for other Yes/No
 # subtasks. Non-binary subtasks are not currently wired up.
-LEGALBENCH_TASK = "hearsay"
+LEGALBENCH_TASK = "consumer_contracts_qa"
 
 # Model name mappings
 MODEL_NAMES = {
@@ -34,6 +34,9 @@ MODEL_NAMES = {
     },
     "qwen3": {
         "instruct": "Qwen/Qwen3-30B-A3B",
+    },
+    "gemma4": {
+        "instruct": "google/gemma-4-31b-it",
     }
 }
 
@@ -48,22 +51,22 @@ RANDOM_SEED = 42        # Random seed for reproducibility
 # specific failure: e.g. SPECIFIC_INDICES = [258] evaluates only row 258.
 SPECIFIC_INDICES = None
 # Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
-_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024}
+_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024, "gemma4": 8192}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
 # SE sampling budget — Qwen3 needs room for <think> block + Answer line
-_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "gemma": 256}
+_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "gemma": 256, "gemma4": 4096}
 SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 
 # Two-pass critique budget. Previously hard-coded to 512, which truncated
 # Qwen3's <think> block before it could emit the "Confidence:" / "Correct:"
 # lines on hard questions.
-_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024}
+_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024, "gemma4": 4096}
 TWO_PASS_MAX_NEW_TOKENS = _TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
 # For Qwen3 reasoning models, skip the <think> block on the critique pass so
 # the entire budget goes to the critique + Confidence/Correct lines.
-TWO_PASS_DISABLE_THINKING = (MODEL_FAMILY == "qwen3")
+TWO_PASS_DISABLE_THINKING = MODEL_FAMILY in ("qwen3", "gemma4")
 
 # ============== Semantic Entropy Parameters ==============
 # Based on Kuhn et al. (2023) "Semantic Uncertainty" paper
@@ -109,7 +112,8 @@ def get_model_label():
         "qwen": "Qwen2.5-7B",
         "qwen3": "Qwen3.6-35B-A3B",
         "llama": "Llama3.1-8B",
-        "gemma": "Gemma2-9B"
+        "gemma": "Gemma2-9B",
+        "gemma4": "Gemma4-31B"
     }
     return f"{labels[MODEL_FAMILY]}-{MODEL_VARIANT}"
 
