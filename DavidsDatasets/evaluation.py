@@ -5,7 +5,7 @@ import re
 from typing import Dict, Optional
 
 _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match
 from confidence import (
     generate_with_logits,
@@ -83,7 +83,7 @@ def evaluate_sample(
     }
     was_forced = False
     forced_response = None
-    if MODEL_FAMILY in ("qwen3", "gemma4", "gptoss"):
+    if USE_REASONING_FLOW:
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
@@ -320,7 +320,7 @@ def compute_semantic_entropy_for_question(
     )
 
     # Strip Qwen3 <think>...</think> blocks before extraction
-    if MODEL_FAMILY in ("qwen3", "gemma4", "gptoss"):
+    if USE_REASONING_FLOW:
         answers = [_QWEN3_THINK_RE.sub('', a).strip() for a in answers]
 
     # Extract just the answer portion from each response.

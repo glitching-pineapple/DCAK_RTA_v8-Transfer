@@ -37,6 +37,7 @@ MODEL_NAMES = {
     },
     "gemma4": {
         "instruct": "google/gemma-4-31b-it",
+        "base": "google/gemma-4-31b",
     },
     "gptoss": {
         "instruct": "openai/gpt-oss-20b",
@@ -53,6 +54,17 @@ RANDOM_SEED = 42        # Random seed for reproducibility
 # Useful for re-running a single sample to inspect its CoT, or to repro a
 # specific failure: e.g. SPECIFIC_INDICES = [258] evaluates only row 258.
 SPECIFIC_INDICES = None
+
+# Reasoning flow = three-generation pipeline (<think>-aware Gen 1 + Gen 2
+# self-rating + Gen 3 blinded critique) used for instruct-tuned reasoning
+# models. The gemma4 *base* model has no chat template and no <think>
+# scaffolding, so it bypasses the reasoning flow and runs the standard
+# single-pass flow used by qwen/llama/gemma base+instruct.
+USE_REASONING_FLOW = (
+    MODEL_FAMILY in ("qwen3", "gptoss")
+    or (MODEL_FAMILY == "gemma4" and MODEL_VARIANT == "instruct")
+)
+
 # Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
 _MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024, "gemma4": 8192, "gptoss": 8192}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
@@ -67,9 +79,16 @@ SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 _TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024, "gemma4": 4096, "gptoss": 4096}
 TWO_PASS_MAX_NEW_TOKENS = _TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
-# For Qwen3 reasoning models, skip the <think> block on the critique pass so
+# gemma4 base doesn't emit <think> blocks — use the smaller non-reasoning
+# budgets to avoid wasting compute on tokens the base model will never use.
+if MODEL_FAMILY == "gemma4" and not USE_REASONING_FLOW:
+    MAX_NEW_TOKENS = 1024
+    SE_MAX_NEW_TOKENS = 256
+    TWO_PASS_MAX_NEW_TOKENS = 1024
+
+# For reasoning-flow models, skip the <think> block on the critique pass so
 # the entire budget goes to the critique + Confidence/Correct lines.
-TWO_PASS_DISABLE_THINKING = MODEL_FAMILY in ("qwen3", "gemma4", "gptoss")
+TWO_PASS_DISABLE_THINKING = USE_REASONING_FLOW
 
 # ============== Semantic Entropy Parameters ==============
 # Based on Kuhn et al. (2023) "Semantic Uncertainty" paper
