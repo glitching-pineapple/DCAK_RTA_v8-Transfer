@@ -1,7 +1,7 @@
 # Session Handoff — DCAK RTA v8 Transfer (DavidsDatasets)
-**Last updated:** 2026-05-12  
-**Most recent model evaluated:** Qwen3.6-35B-A3B (`qwen3` family)  
-**Newest model configured (not yet run):** Gemma 4 31B IT (`gemma4` family, `google/gemma-4-31b-it`)  
+**Last updated:** 2026-05-13  
+**Most recent model evaluated:** Gemma 4 31B IT (`gemma4` family, instruct) — see `mmlupro_confidencewithnewSE_Gemma4-31B-instruct.csv`  
+**Newest models configured (not yet run):** GPT-OSS-20B (`gptoss` family, `openai/gpt-oss-20b`); Gemma 4 31B base (`gemma4` family, base variant, `google/gemma-4-31b`)  
 **Primary dataset:** MMLU-Pro (`mmlu35b.csv`, `21mmlupro_confidencewithnewSE_*.csv`)  
 **Working directory:** `/Users/davidzhu/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/`
 
@@ -434,3 +434,119 @@ Then run `main.py` as usual. The output CSV label will be `Gemma4-31B-instruct`.
 |------|---------|
 | `config.py` | New `gemma4` entry in `MODEL_NAMES`; three token-budget dicts extended; `TWO_PASS_DISABLE_THINKING` widened; label added |
 | `evaluation.py` | Two `MODEL_FAMILY == "qwen3"` gates widened to include `"gemma4"` |
+
+---
+
+# Session 2026-05-13 — Add `gptoss`, fix `was_forced` inversion, split `gemma4` instruct vs. base
+
+Three changes this session:
+
+1. Added a new reasoning-model family `gptoss` pointing at `openai/gpt-oss-20b`.
+2. Fixed a real bug in `was_forced` semantics — the flag was essentially inverted from intent.
+3. Added the `gemma4` base variant (`google/gemma-4-31b`) and introduced `USE_REASONING_FLOW` so gemma4 *instruct* keeps the three-gen reasoning flow while gemma4 *base* falls through to the standard single-pass flow.
+
+## 1. New family: `gptoss` (`openai/gpt-oss-20b`)
+
+Verified `google/gemma-4-31B` (base) and `google/gemma-4-31B-it` exist on HuggingFace via WebFetch before wiring base in (the prior session's handoff noted "no base variant" — that was stale, the base model is published).
+
+Wired `gptoss` like a large reasoning model (parallel to `qwen3`/`gemma4`):
+
+| File | Change |
+|---|---|
+| `config.py` | `MODEL_NAMES["gptoss"] = {"instruct": "openai/gpt-oss-20b"}`; budgets 8192 / 4096 / 4096 (matches qwen3/gemma4 reasoning budgets); added `"gptoss": "GPT-OSS-20B"` to label dict. |
+| `model_utils.py` | `large_model_families = {"qwen3", "gemma4", "gptoss"}` → uses `device_map="auto"`. Added `gptoss` to the `bfloat16` dtype branch (gpt-oss-20b is bfloat16 native). |
+| `evaluation.py` | Both reasoning-flow gates now include `gptoss` (later switched to `USE_REASONING_FLOW`, see §3). |
+
+**Caveat re harmony / channel format:** gpt-oss models use OpenAI's harmony format (analysis/commentary/final channels). If the HF chat template doesn't wrap the analysis channel in a `<think>...</think>`-shaped block, the `_QWEN3_THINK_RE` regex won't catch it, and `reasoning_for_critique` will fall back to the stripped response. Worth eyeballing `full_response` on the first run.
+
+## 2. `was_forced` was inverted — root cause + fix
+
+**User-reported symptom:** in `mmlupro_confidencewithnewSE_Gemma4-31B-instruct.csv`, rows whose `full_response` ended with a clean `Answer: X` line were marked `was_forced=True`, and rows where the response was a chaotic loop with no `Answer:` line were marked `was_forced=False`. Essentially inverted from what the column name suggests.
+
+**Root cause:** the trigger for the forced-answer call was `main_meta["was_truncated"]`, which only checks whether the last generated token equals EOS. On Gemma4 with an 8192 budget, most responses don't emit EOS in time — even when they contain a clean `Answer: I` line near the end. So:
+- Clean responses → flag fired → forced call ran → forced call usually returned the same letter → `model_answer` got overwritten with the same value → `was_forced=True` (looked wrong to user).
+- Chaotic responses → flag fired → forced call ran with its own ~8-token budget → forced call ALSO got truncated mid-thought → `forced_answer=None` → kept Priority-3 garbage → `was_forced` stayed `False` (looked wrong to user).
+
+**Fix** (in both reasoning-flow and standard branches of `evaluation.py::evaluate_sample`):
+- Use `extract_model_answer_strict` (already available at [data_utils.py:281](DavidsDatasets/data_utils.py#L281)) on the main response — Priority-1 only, requires an explicit `Answer:` line.
+- If strict extraction succeeds → trust it, `was_forced=False`, skip the forced call entirely (saves a generation when the response was already clean).
+- If strict extraction fails → set `was_forced=True` *first* (the row is unreliable regardless of what happens next), then attempt the forced call; if forced succeeds use its answer, else fall back to the lax `extract_model_answer` but keep `was_forced=True`.
+
+**New semantics:** `was_forced=True` ⇔ the main response did not produce a clean `Answer:` line. Matches user intuition.
+
+**Verification:** simulated the three example rows from the disputed CSV:
+
+| idx | response shape | old was_forced | new was_forced |
+|---|---|---|---|
+| 8592 | ends `Answer: I` | True | **False** ✓ |
+| 628 | infinite-loop ramble, no Answer line | False | **True** ✓ |
+| 9205 | rambles, no Answer line | False | **True** ✓ |
+
+**Existing CSVs:** the `was_forced` column on every CSV written before this session is unreliable — re-run rather than trust it. `forced_answer_response` text remains useful (non-empty means a forced call was attempted).
+
+## 3. `gemma4` base variant + `USE_REASONING_FLOW` flag
+
+The prior session's note "no base variant" was wrong — `google/gemma-4-31b` exists. Added it with a routing decision: gemma4-instruct keeps the three-gen reasoning flow, gemma4-base does NOT (no chat template, no `<think>` scaffolding — pushing base through the reasoning flow would produce garbage).
+
+`config.py` changes:
+- `MODEL_NAMES["gemma4"]` gains `"base": "google/gemma-4-31b"`.
+- New derived flag:
+  ```python
+  USE_REASONING_FLOW = (
+      MODEL_FAMILY in ("qwen3", "gptoss")
+      or (MODEL_FAMILY == "gemma4" and MODEL_VARIANT == "instruct")
+  )
+  ```
+- `TWO_PASS_DISABLE_THINKING = USE_REASONING_FLOW` (was a family-set check).
+- Budget override for `gemma4` base: when `not USE_REASONING_FLOW`, drops `MAX_NEW_TOKENS` 8192→1024, `SE_MAX_NEW_TOKENS` 4096→256, `TWO_PASS_MAX_NEW_TOKENS` 4096→1024. Base completion doesn't emit `<think>` blocks, so the reasoning-model budgets just waste compute.
+
+`evaluation.py` changes:
+- Imports `USE_REASONING_FLOW`.
+- Both `MODEL_FAMILY in ("qwen3", "gemma4", "gptoss"):` branch gates replaced with `if USE_REASONING_FLOW:`.
+
+`model_utils.py` — **unchanged for gemma4 base**: stays in `large_model_families` (both gemma4 variants are 31B and need `device_map="auto"`). Dtype handling for gemma4 unchanged (float16, same as prior session — note: Gemma family historically prefers bfloat16, flip to `MODEL_FAMILY in ("qwen3", "gptoss", "gemma4")` if you see numerical-stability issues).
+
+Routing summary now:
+
+| Family | Variant | Reasoning flow? | Notes |
+|---|---|---|---|
+| qwen3 | instruct | Yes | unchanged |
+| gptoss | instruct | Yes | new this session |
+| gemma4 | instruct | Yes | unchanged from 2026-05-12 |
+| gemma4 | base | **No** | new this session — standard single-pass flow |
+| qwen, llama, gemma | either | No | unchanged |
+
+## 4. Stale handoff note corrected
+
+The 2026-05-12 session said `model_utils.py` was intentionally NOT changed for gemma4. By the time this session started, the working tree had already added `gemma4` to `large_model_families` and the bfloat16 dtype branch — that pending diff was either reverted or never committed. After this session, the final state is:
+
+```python
+large_model_families = {"qwen3", "gemma4", "gptoss"}
+dtype = torch.bfloat16 if MODEL_FAMILY in ("qwen3", "gptoss") else torch.float16
+```
+
+i.e. gemma4 (both variants) uses auto device_map but float16 dtype. If gemma4 OOMs or shows NaN losses, the dtype line is the lever — extend to `("qwen3", "gptoss", "gemma4")`.
+
+## 5. Files modified this session
+
+| File | Changes |
+|------|---------|
+| `config.py` | `gptoss` entry in MODEL_NAMES + budgets + label; `gemma4` base entry in MODEL_NAMES; new `USE_REASONING_FLOW` derived flag; variant-aware budget override for gemma4 base; `TWO_PASS_DISABLE_THINKING` keyed to the flag. |
+| `model_utils.py` | `gptoss` added to `large_model_families` and to the bfloat16 dtype branch. |
+| `evaluation.py` | Both reasoning-flow gates switched from `MODEL_FAMILY in (...)` to `USE_REASONING_FLOW`; both branches now gate the forced-answer call on `extract_model_answer_strict` failure (not `main_meta["was_truncated"]`); `was_forced=True` now means "main response had no clean Answer line", and the forced call is skipped entirely when strict extraction succeeds. |
+
+## 6. Files NOT modified this session
+
+| File | Status |
+|------|--------|
+| `data_utils.py` | Unchanged — pre-existing `extract_model_answer_strict` is the helper the fix relies on. |
+| `confidence.py` | Unchanged — `get_forced_answer` interface unchanged. |
+| `verify_rubric.py` | Unchanged — its `check_evaluate_sample_columns` assertion (both branches call `get_forced_answer` at least once each) still holds. |
+| `save_utils.py`, `main.py`, `semantic_entropy.py`, `visualization.py` | Unchanged. |
+
+## 7. Open items / things to watch on next run
+
+- **Re-run any dataset where `was_forced` matters for analysis.** Old CSVs have the inverted flag. Logit/SE metrics, model_answer values, and is_correct are unaffected by this fix; only `was_forced` (and now skipping unneeded forced calls) changes.
+- **Inspect `full_response` from a `gptoss` run** for whether the harmony analysis channel comes through as `<think>...</think>` or some other delimiter. If different, `_QWEN3_THINK_RE` will need extending (or generalize to a per-family regex).
+- **Gemma4 base correctness gate is now `extract_model_answer_strict`.** Base models rarely write `Answer: X` unprompted, so expect a high `was_forced` rate on the first gemma4-base run. That's not a bug — it's the flag doing its new job.
+- **Memory: gptoss-20B at bfloat16 + 256k-ish context.** 20B × 2 bytes ≈ 40 GB weights before KV cache. Single H100/H200 should be fine; multi-shard kicks in via `device_map="auto"` if needed.
