@@ -102,19 +102,24 @@ def evaluate_sample(
             _think_match.group(1).strip() if _think_match else response
         )
 
-        model_answer = extract_model_answer(response, DATASET)
-
-        # When the main pass ran out of tokens, extract_model_answer's Priority-3
-        # fallback (last standalone letter/number) returns whatever happened to
-        # appear in the truncated chain of thought, not a real commitment.
-        # Force a clean answer with a short focused call.
-        if main_meta["was_truncated"]:
+        # Prefer the strict "Answer:" line extractor. If the main response
+        # committed via a clean Answer line, trust it — even when the EOS
+        # token wasn't emitted before max_new_tokens (very common for Gemma4
+        # at 8192-token budgets). Only fall back to forcing when the model
+        # never produced a clean Answer line. was_forced reflects "did the
+        # main response fail to commit?", not "did EOS happen?".
+        strict_answer = extract_model_answer_strict(response, DATASET)
+        if strict_answer is not None:
+            model_answer = strict_answer
+        else:
+            was_forced = True
             forced_answer, forced_response = get_forced_answer(
                 model, tokenizer, question, response, DATASET, choices
             )
             if forced_answer is not None:
                 model_answer = forced_answer
-                was_forced = True
+            else:
+                model_answer = extract_model_answer(response, DATASET)
 
         # Gen 2: model told it's its own work; returns verbalized confidence + MLN
         single_pass_conf = None
@@ -139,18 +144,22 @@ def evaluate_sample(
         prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
         response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
 
-        model_answer = extract_model_answer(response, DATASET)
-
-        # Same forced-answer fallback for non-qwen3: if the main pass hit the
-        # token cap before producing a clean Answer line, the Priority-3
-        # extractor is unreliable. Force a final answer.
-        if main_meta["was_truncated"]:
+        # Same Priority-1-driven gate as the reasoning-model branch: trust
+        # the main response only when it produced a clean Answer line; else
+        # force. was_forced flags rows where the main response failed to
+        # commit, regardless of whether the forced call itself succeeded.
+        strict_answer = extract_model_answer_strict(response, DATASET)
+        if strict_answer is not None:
+            model_answer = strict_answer
+        else:
+            was_forced = True
             forced_answer, forced_response = get_forced_answer(
                 model, tokenizer, question, response, DATASET, choices
             )
             if forced_answer is not None:
                 model_answer = forced_answer
-                was_forced = True
+            else:
+                model_answer = extract_model_answer(response, DATASET)
 
         single_pass_conf = extract_verbalized_confidence(response, DATASET)
         single_pass_correct = extract_more_likely_than_not(response)
