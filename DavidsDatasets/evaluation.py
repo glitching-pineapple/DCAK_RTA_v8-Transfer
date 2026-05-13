@@ -83,7 +83,7 @@ def evaluate_sample(
     }
     was_forced = False
     forced_response = None
-    if MODEL_FAMILY in ("qwen3", "gemma4"):
+    if MODEL_FAMILY in ("qwen3", "gemma4", "gptoss"):
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
@@ -311,7 +311,7 @@ def compute_semantic_entropy_for_question(
     )
 
     # Strip Qwen3 <think>...</think> blocks before extraction
-    if MODEL_FAMILY in ("qwen3", "gemma4"):
+    if MODEL_FAMILY in ("qwen3", "gemma4", "gptoss"):
         answers = [_QWEN3_THINK_RE.sub('', a).strip() for a in answers]
 
     # Extract just the answer portion from each response.
