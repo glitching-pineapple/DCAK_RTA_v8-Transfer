@@ -1,6 +1,7 @@
 # Session Handoff — DCAK RTA v8 Transfer (DavidsDatasets)
-**Last updated:** 2026-05-10  
+**Last updated:** 2026-05-12  
 **Most recent model evaluated:** Qwen3.6-35B-A3B (`qwen3` family)  
+**Newest model configured (not yet run):** Gemma 4 31B IT (`gemma4` family, `google/gemma-4-31b-it`)  
 **Primary dataset:** MMLU-Pro (`mmlu35b.csv`, `21mmlupro_confidencewithnewSE_*.csv`)  
 **Working directory:** `/Users/davidzhu/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/`
 
@@ -373,3 +374,63 @@ All limitations from the prior session still apply (internal-state abstraction i
 
 - **Forced-answer prompt design is heuristic.** The forced call shows up to 3,000 chars of truncated reasoning and asks for an answer in 8 tokens. If the truncated reasoning is so incomplete the model has no basis to commit, the forced answer is essentially a guess — but the verbalized confidence elicited *after* the forced answer should reflect that.
 - **Mocked vs. real verification.** `verify_rubric.py` confirms code shape and prompt content but does not run the model. Sanity-check `was_forced=True` rows in the first real run output.
+
+---
+
+# Session 2026-05-12 — Add Gemma 4 31B IT (`gemma4` family)
+
+Added a new model family `gemma4` pointing at `google/gemma-4-31b-it`. The model is configured but not yet evaluated. Treated as a reasoning model with `<think>` blocks (like `qwen3`).
+
+## 1. config.py changes
+
+| Setting | Change |
+|---|---|
+| `MODEL_FAMILY` docstring | Now lists `"qwen", "qwen3", "llama", "gemma", or "gemma4"` |
+| `MODEL_NAMES["gemma4"]` | New entry, instruct-only: `"instruct": "google/gemma-4-31b-it"` (mirrors `qwen3` shape — no `base` variant) |
+| `_MAX_NEW_TOKENS_BY_FAMILY["gemma4"]` | 8,192 (qwen3-equivalent — thinking-model budget) |
+| `_SE_MAX_NEW_TOKENS_BY_FAMILY["gemma4"]` | 4,096 |
+| `_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY["gemma4"]` | 4,096 |
+| `TWO_PASS_DISABLE_THINKING` | Now `MODEL_FAMILY in ("qwen3", "gemma4")` (was `== "qwen3"`) |
+| `get_model_label` labels dict | Added `"gemma4": "Gemma4-31B"` |
+
+## 2. evaluation.py changes
+
+Two `MODEL_FAMILY == "qwen3"` gates widened to `MODEL_FAMILY in ("qwen3", "gemma4")`:
+- Line 86: three-generation flow entry (Gen 1 reasoning + Gen 2 own-work confidence + Gen 3 blinded critique)
+- Line 314: `<think>...</think>` stripping on SE-sampled answers before extraction
+
+The qwen3 path was reused wholesale on the assumption that Gemma 4 31B IT also emits `<think>...</think>` tags. **If Gemma 4 IT uses a different reasoning-block convention (or no tag at all), the regex `_QWEN3_THINK_RE` will not match and `reasoning_for_critique` will fall back to the stripped response.** Verify on the first real run by inspecting `full_response` for `<think>` markers.
+
+## 3. model_utils.py — intentionally NOT changed
+
+The user opted to keep gemma4 on the small-model loading path:
+- `large_model_families = {"qwen3"}` — gemma4 **not** added → single-GPU loading (no `device_map="auto"`)
+- `dtype = torch.bfloat16 if MODEL_FAMILY == "qwen3" else torch.float16` — gemma4 stays at fp16
+
+**Memory implication:** 31B params × 2 bytes (fp16) ≈ 62 GB VRAM just for weights, before KV cache. This will OOM on anything smaller than an H100/H200 or A100-80GB. If loading fails, the first thing to flip is `large_model_families = {"qwen3", "gemma4"}` (multi-GPU shard) and the dtype check to `MODEL_FAMILY in ("qwen3", "gemma4")` (bfloat16 — Gemma family historically required bf16 for numerical stability).
+
+## 4. What was *not* updated and may need attention
+
+- `verify_rubric.py` — does not currently exercise the gemma4 path; if you want gemma4 covered, the family-gate widening in evaluation.py is the only logic change to assert.
+- Confidence-rubric prompts (`_CONF_RUBRIC`, gen2, two-pass critique) — unchanged. Gemma 4 inherits the same 10-class bulleted rubric standardized in the 2026-05-10 session.
+- Forced-answer fallback (`get_forced_answer`) — runs for gemma4 automatically via `main_meta["was_truncated"]` regardless of family.
+
+## 5. To run gemma4
+
+```python
+# config.py
+MODEL_FAMILY = "gemma4"
+MODEL_VARIANT = "instruct"
+```
+
+Then run `main.py` as usual. The output CSV label will be `Gemma4-31B-instruct`. Expect:
+- 3× inference cost per question (three-generation flow, same as qwen3)
+- High VRAM usage; monitor for OOM
+- Non-zero `was_forced=True` rate if `<think>` blocks blow past 8,192 tokens (same failure mode as qwen3 on hard math)
+
+## 6. Files modified this session
+
+| File | Changes |
+|------|---------|
+| `config.py` | New `gemma4` entry in `MODEL_NAMES`; three token-budget dicts extended; `TWO_PASS_DISABLE_THINKING` widened; label added |
+| `evaluation.py` | Two `MODEL_FAMILY == "qwen3"` gates widened to include `"gemma4"` |
