@@ -1,7 +1,7 @@
 # config.py - Model and experiment configuration
 
 # ============== Model Configuration ==============
-# Choose model family: "qwen", "qwen3", "llama", "gemma", "gemma4", or "gptoss"
+# Choose model family: "qwen", "qwen3", "llama", "llama4scout", "gemma", "gemma4", or "gptoss"
 MODEL_FAMILY = "qwen"
 
 # Choose variant: "instruct" or "base"
@@ -27,6 +27,10 @@ MODEL_NAMES = {
     "llama": {
         "instruct": "meta-llama/Llama-3.1-8B-Instruct",
         "base": "meta-llama/Llama-3.1-8B"
+    },
+    "llama4scout": {
+        "instruct": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+        "base": "meta-llama/Llama-4-Scout-17B-16E"
     },
     "gemma": {
         "instruct": "google/gemma-2-9b-it",
@@ -63,20 +67,21 @@ SPECIFIC_INDICES = None
 USE_REASONING_FLOW = (
     MODEL_FAMILY in ("qwen3", "gptoss")
     or (MODEL_FAMILY == "gemma4" and MODEL_VARIANT == "instruct")
+    or (MODEL_FAMILY == "llama4scout" and MODEL_VARIANT == "instruct")
 )
 
 # Qwen3 Gen 1 (reasoning-only) needs generous budget — thinking chain alone can exceed 4096 tokens
-_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "gemma": 1024, "gemma4": 8192, "gptoss": 8192}
+_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 8192, "llama": 1024, "llama4scout": 8192, "gemma": 1024, "gemma4": 8192, "gptoss": 8192}
 MAX_NEW_TOKENS = _MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
 # SE sampling budget — Qwen3 needs room for <think> block + Answer line
-_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "gemma": 256, "gemma4": 4096, "gptoss": 4096}
+_SE_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 256, "qwen3": 4096, "llama": 256, "llama4scout": 4096, "gemma": 256, "gemma4": 4096, "gptoss": 4096}
 SE_MAX_NEW_TOKENS = _SE_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 256)
 
 # Two-pass critique budget. Previously hard-coded to 512, which truncated
 # Qwen3's <think> block before it could emit the "Confidence:" / "Correct:"
 # lines on hard questions.
-_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "gemma": 1024, "gemma4": 4096, "gptoss": 4096}
+_TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY = {"qwen": 1024, "qwen3": 4096, "llama": 1024, "llama4scout": 4096, "gemma": 1024, "gemma4": 4096, "gptoss": 4096}
 TWO_PASS_MAX_NEW_TOKENS = _TWO_PASS_MAX_NEW_TOKENS_BY_FAMILY.get(MODEL_FAMILY, 1024)
 
 # gemma4 base doesn't emit <think> blocks — use the smaller non-reasoning
@@ -134,6 +139,7 @@ def get_model_label():
         "qwen": "Qwen2.5-7B",
         "qwen3": "Qwen3.6-35B-A3B",
         "llama": "Llama3.1-8B",
+        "llama4scout": "Llama4-Scout-17B-16E",
         "gemma": "Gemma2-9B",
         "gemma4": "Gemma4-31B",
         "gptoss": "GPT-OSS-20B"

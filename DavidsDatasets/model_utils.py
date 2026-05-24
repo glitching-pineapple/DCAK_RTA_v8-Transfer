@@ -29,7 +29,7 @@ def load_model_and_tokenizer(model_device: str = "cuda:0"):
     from config import MODEL_FAMILY
     model_name = get_model_name()
 
-    large_model_families = {"qwen3", "gemma4", "gptoss"}
+    large_model_families = {"qwen3", "gemma4", "gptoss", "llama4scout"}
     use_auto_device_map = MODEL_FAMILY in large_model_families
     device = "auto" if use_auto_device_map else model_device
     print(f"Loading: {model_name} → device_map={device}")
@@ -38,7 +38,7 @@ def load_model_and_tokenizer(model_device: str = "cuda:0"):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    dtype = torch.bfloat16 if MODEL_FAMILY in ("qwen3", "gptoss") else torch.float16
+    dtype = torch.bfloat16 if MODEL_FAMILY in ("qwen3", "gptoss", "llama4scout") else torch.float16
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=dtype,
