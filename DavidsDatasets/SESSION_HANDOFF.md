@@ -550,3 +550,108 @@ i.e. gemma4 (both variants) uses auto device_map but float16 dtype. If gemma4 OO
 - **Inspect `full_response` from a `gptoss` run** for whether the harmony analysis channel comes through as `<think>...</think>` or some other delimiter. If different, `_QWEN3_THINK_RE` will need extending (or generalize to a per-family regex).
 - **Gemma4 base correctness gate is now `extract_model_answer_strict`.** Base models rarely write `Answer: X` unprompted, so expect a high `was_forced` rate on the first gemma4-base run. That's not a bug — it's the flag doing its new job.
 - **Memory: gptoss-20B at bfloat16 + 256k-ish context.** 20B × 2 bytes ≈ 40 GB weights before KV cache. Single H100/H200 should be fine; multi-shard kicks in via `device_map="auto"` if needed.
+
+---
+
+# Session 2026-06-02 — Four compounding extraction & prompt bugs surfaced from Gemma4-base GSM8K and GPT-OSS CSVs
+
+This session was triggered by the user sharing three CSVs and asking why specific rows had wrong or missing `model_answer` values: `95seed100gsm8k_confidencewithnewSE_Gemma4-31B-base.csv`, `50seed20legalbench_confidence_GPT-OSS-20B-instruct.csv`, and `40seed99triviaqa_confidence_GPT-OSS-20B-instruct.csv`. Investigation surfaced four distinct bugs that had compounded across prior sessions. They are independent — each one masked or was masked by the others — which is why the chain of effects had been hard to see from any single CSV.
+
+## 1. Bug 1 — `extract_model_answer_strict` matched the FIRST `Answer:` line instead of the last
+
+`extract_model_answer_strict` in `data_utils.py` used `re.search` with a case-insensitive `[Aa]nswer\s*:` pattern. `re.search` returns the first match. Gemma4 base routinely writes mid-reasoning phrases like "Now let me assess my confidence in this answer:" followed by a bullet list. The case-insensitive `[Aa]nswer` matched `answer:` inside that phrase, the capture grabbed the next non-empty line (e.g., `- I carefully calculated... reach the $90 threshold.`), the number regex pulled `$90` out, and the extractor returned `"90"`. The actual `Answer: 12` line at the end of the response was ignored.
+
+Concretely visible in the Gemma4-base GSM8K CSV at row 12 (Carlos lemon tree) where `model_answer=90` instead of `12`. Same root cause hit rows 1173, 1247, 101, 993, 671, and 863 — where strict returned None, the forced-answer fallback ran on a base model, and the lax extractor's Priority-3 fallback grabbed digits from template placeholders.
+
+## 2. Bug 2 — Lax extractor's Priority-3 fallback grabbed digits from template placeholders
+
+`extract_model_answer` had a Priority-3 fallback that returned the last digit-only token anywhere in the response. When the forced-answer call ran on a base model and the base model echoed back template fragments like `Confidence: <0-10>\nCorrect: <Yes/No`, Priority-3 grabbed `"10"` from `<0-10>` and stored that as `model_answer`. The row then had `model_answer="10"`, `is_correct=False`, `answer_extraction_failed=False` — looks like the model answered wrong, but the model never actually committed to anything. Row 863 (Gretchen coins, ground_truth=110) is the canonical example.
+
+## 3. Bug 3 — Prompt template put `Solution:` *after* `Answer:` in the format example
+
+`create_prompt` in `confidence.py` built every dataset's prompt ending with both an `Answer: <X>` format example AND a trailing `Solution:\nLet me think through this step by step.` line. The trailing line was originally intended as a continuation primer for *base* models (which don't follow instructions and need to be primed mid-sentence to keep generating). But the same string was being sent to instruct/reasoning models inside the chat template, where it appeared *after* a phrase like "you MUST end with EXACTLY this format: Answer: X". The model received two contradictory end-of-response instructions and tried to reconcile them.
+
+For Qwen3 and Gemma4-instruct, the resulting confusion happened inside `<think>...</think>` and got stripped before extraction — mostly looked like wasted tokens. For GPT-OSS-20B, which uses OpenAI's harmony channel format (analysis + final, no `<think>` tags), the confusion poured into the analysis channel directly. Row 261 of the LegalBench CSV (and many others) shows the model writing the same paragraph dozens of times trying to figure out whether to put `Answer:` first or `Solution:` first. Token budgets get eaten, the model frequently never reaches a clean commit, `main_pass_finish_reason="length"` rows are common, and the `seq_confidence_mean` distribution gets dragged to extreme negatives (–400 to –1400 for GPT-OSS vs. –30 to –90 for Gemma4 base on the same dataset).
+
+## 4. Bug 4 — GPT-OSS harmony envelope wasn't stripped before extraction
+
+GPT-OSS-20B outputs its response in OpenAI's harmony channel format: `analysis<reasoning>assistantfinal<final answer>`. The literal token `assistantfinal` delimits the channels, and crucially there is no newline between `assistantfinal` and the start of the final answer. So a typical GPT-OSS response ends with `assistantfinalAnswer: money`.
+
+The extractors had no concept of this delimiter. Two failure modes:
+- **Strict (anchored regex, after the Bug 1 fix)**: `(?m)^[^a-zA-Z\n]*[Aa]nswer:` would not match `assistantfinalAnswer:` because `assistantfinal` contains letters before `Answer`. Strict returned None.
+- **Lax (unanchored regex, pre-Bug 1 fix)**: matched the first `answer:` in the response, which was often inside mid-CoT phrases like "We need to answer:" in the analysis channel. Non-greedy capture sometimes ran to end-of-response, returning the entire blob as `model_answer`.
+
+For TriviaQA specifically, `check_triviaqa_correct` does substring matching against ground-truth aliases. Returning the entire reasoning blob accidentally produced `is_correct=True` whenever the right answer phrase happened to appear anywhere in the looping text — so this bug was largely invisible from accuracy numbers alone. Row 5588 (Thursday Next) showed `is_correct=True` because `model_answer` was thousands of characters containing "Jasper Fforde" somewhere; same masking pattern for rows 9254 (caballo→horse), 12734 (Pennsylvania→Harrisburg), etc.
+
+## 5. Fixes applied
+
+### `data_utils.py`
+
+- `extract_model_answer_strict` and `extract_model_answer` Priority-1 regex rewritten to use `re.findall` with start-of-line anchor `(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:` and take the LAST match. The `[^a-zA-Z\n]*` prefix accepts markdown decorations (`**`, `###`, `-`, numbered lists, indentation) but rejects letters, so phrases like `in this answer:`, `my answer:`, `the answer:` no longer match.
+- Dropped the lax Priority-3 last-number-in-response fallback for GSM8K. Rows where the model never produced a clean Answer line now correctly receive `model_answer=None` and `answer_extraction_failed=True` instead of a confident-looking fabricated number.
+- New `_strip_harmony_envelope(response)` helper called at the top of both extractors. If `assistantfinal` is in the response, returns everything after the last occurrence; otherwise pass-through. No-op for any model that doesn't use harmony format.
+
+### `confidence.py`
+
+- `create_prompt` rewritten to build `instruction_body` + `base_primer` separately. Instruct models receive only `instruction_body` (clean prompt ending with "End your response with a single line: Answer: X" or the three-line confidence variant). Base models receive `instruction_body + base_primer`, where `base_primer` is `\n\nSolution:\nLet me {primer_verb} this step by step.\n\n`. Per-dataset `primer_verb` ("work through", "think through", "analyze each option") preserved from the old prompts.
+- `get_forced_answer` body no longer contains the template line `Answer: <number>`. Instead it passes `base_suffix="\n\nAnswer: "` so base models complete the answer slot via next-token continuation rather than echoing prompt fragments. For instruct models the chat template ignores `base_suffix`, so no change there. Includes a retry that prepends `Answer: ` if direct extraction fails on a bare completion.
+
+### `evaluation.py`
+
+- Module-level constant `_HARMONY_FINAL_DELIM = "assistantfinal"` added next to the existing `_QWEN3_THINK_RE`.
+- Reasoning-flow path now strips the harmony envelope from `response` (everything before the last `assistantfinal`) and pulls the *pre*-`assistantfinal` content as `reasoning_for_critique` (with the leading `analysis` channel marker trimmed). Falls back to `<think>...</think>` extraction for Qwen3, and to the stripped response if neither envelope is present.
+- SE sampling path applies the same harmony strip to each of the 5 sampled answers before extraction.
+
+### `verify_rubric.py`
+
+- Forced-answer assertion text updated to match the new prompt body (`Output only` instead of `Output ONLY`) and to assert that the call passes `base_suffix == "\n\nAnswer: "`. Otherwise unchanged. Still passes end-to-end with `ALL CHECKS PASSED`.
+
+## 6. Implications for existing CSVs by model
+
+| Model | Re-run? | Why |
+|---|---|---|
+| **Gemma4 base** | Optional, but worth it on GSM8K | Bug 1 affected ~6 visible GSM8K rows that wrote "in this answer:" mid-reasoning. Full_response and logit metrics are unaffected. Can re-parse the saved `full_response` offline rather than re-run inference for an exact diff. |
+| **Qwen3 instruct** | Probably no | Qwen3's confusion (Bug 3) happened inside `<think>...</think>` and got stripped before extraction. Final `Answer:` line was usually clean. The only loss is some token-budget waste on hard rows that may have caused unnecessary truncations. |
+| **Gemma4 instruct** | Check first | Depends on whether the model actually emits `<think>` blocks (prior handoff assumed yes, never verified). Run a one-liner against your CSV: if `<think>` appears in 80%+ of `full_response` rows, treat like Qwen3. If `assistantfinal` appears instead or neither marker appears, treat like GPT-OSS. |
+| **GPT-OSS instruct** | Yes, fully | All four bugs hit GPT-OSS together. EVERY column in the CSV is meaningfully affected — see §7. |
+| **Older base/instruct (Gemma2, Llama, Qwen2.5)** | No | Different output format (`The answer is: X` rather than `Answer:` lines), routes through Priority-2 patterns which I didn't touch. |
+
+## 7. What changes downstream when GPT-OSS is re-run
+
+Beyond `model_answer` itself, re-running GPT-OSS will substantially shift these other columns:
+
+- **Logit confidence** (`seq_confidence_mean`, `logit_confidence_min/geom/mean_prob`): `seq_confidence_mean` was at −400 to −1400 because the model was generating thousands of low-probability repetition tokens trying to resolve the prompt contradiction. After the fix, GPT-OSS finishes in normal token counts and these metrics move into a range comparable to Gemma4 (−30 to −90). The "GPT-OSS has terrible logit calibration" pattern in the old data is an artifact.
+- **Verbalized confidence + two-pass critique** (`verbalized_confidence`, `single_pass_confidence`, `more_likely_than_not`, `two_pass_critique`): the critic was being fed the looping confusion as the "reasoning." It either confabulated a score or judged the confusion harshly. With harmony stripping, the critic now reads the actual analysis channel.
+- **Truncation / forcing** (`main_pass_finish_reason`, `main_pass_was_truncated`, `was_forced`): many rows that were `length` (truncated) and `was_forced=True` will flip to `eos` and `was_forced=False` after the fix because the loop isn't eating the budget.
+- **MCQ answer-token entropy** (`answer_token_entropy`, `answer_letter_probs`, `chosen_answer_raw_prob` for MMLU-Pro / MedQA): the answer token in a clean post-`assistantfinal` context has much sharper letter probability concentration than one buried in confusion. Distributions will look qualitatively different.
+- **Semantic entropy** (if `SKIP_NLI_CLUSTERING` is re-enabled): SE was inflated because each of the 5 sampled answers was a different chunk of confused harmony output that the strict extractor couldn't normalize.
+- **Calibration / AUROC analysis**: relative comparisons drawn from this data ("Gemma4 vs GPT-OSS" on calibration) shouldn't be trusted on the GPT-OSS side.
+
+## 8. Re-extraction vs. re-inference
+
+Bugs 1, 2, and 4 are *extraction-only* bugs. The full_response column is unchanged; only the parsing of it changes. For any existing CSV that you want to update without re-running inference, the saved `full_response` column can be re-parsed with the new extractors and the result diffed against the stored `model_answer`. This works for Gemma4 base and any other run that wasn't affected by Bug 3.
+
+Bug 3 is a *generation-level* bug. The model's actual output is different under the new prompt. Re-extraction can't recover the unconfused response — only re-running inference can. This is why GPT-OSS requires a full re-run.
+
+## 9. Files modified this session
+
+| File | Changes |
+|------|---------|
+| `data_utils.py` | Anchored Priority-1 regex (start-of-line, non-letter prefix) + `findall[-1]` in both extractors; dropped GSM8K Priority-3 last-number fallback; new `_strip_harmony_envelope` helper called at top of both extractors. |
+| `confidence.py` | `create_prompt` restructured to separate `instruction_body` from `base_primer`; `get_forced_answer` prompts no longer contain template `Answer:` line, pass `base_suffix="\n\nAnswer: "` instead. |
+| `evaluation.py` | `_HARMONY_FINAL_DELIM` constant added; reasoning-flow path strips harmony from `response` and uses pre-`assistantfinal` content for `reasoning_for_critique`; SE sampling path strips harmony per sample. |
+| `verify_rubric.py` | Updated forced-answer assertions to match new prompt body and `base_suffix` value. |
+
+## 10. Open items / things to watch on next run
+
+- **Verify the Gemma4-instruct envelope assumption.** Run the diagnostic (`<think>` vs `assistantfinal` vs neither in `full_response`) against an existing Gemma4-instruct CSV. The prior handoff assumed `<think>` but never confirmed. If the assumption is wrong, those CSVs need re-running too.
+- **Inspect GPT-OSS `full_response` after re-run** to confirm `assistantfinal` is appearing in the expected place and the stripping is doing what it should. The harmony format may have edge cases (multiple `assistantfinal` tokens, missing delimiter on truncation, etc.) — `_strip_harmony_envelope` uses `rsplit(..., 1)` so it takes the LAST occurrence, but if `assistantfinal` doesn't appear at all in a truncated response, the strip is a no-op and extraction falls through to the anchored regex.
+- **Re-extraction script for Gemma4 base CSVs**: if you want exact deltas without re-running inference, a small offline script can re-parse `full_response` with the new extractors and diff against the stored `model_answer`. Ask and I'll write it.
+- **Forced-answer prompt design is heuristic.** Bug 2 fix removes the worst Priority-3 victims (`<0-10>` → `"10"`), but base models still can produce garbage in the forced-answer slot when their reasoning was too incomplete to support a commit. The `was_forced=True` flag remains the correct way to identify those rows.
+
+## 11. Smoke tests performed this session
+
+- 17-case extractor smoke test covering: row 12 (Carlos lemon tree), row 1173 (dishwasher), plain `Answer:`, markdown bold `**Answer:**`, header `### Answer:`, bullet `- Answer:`, numbered `1. Answer:`, multi-`Answer:` (last wins), Gemma2-style `The answer is: 47.25`, MMLU-Pro plain + bold, `in this answer:` negative, `my answer:` negative, forced-call garbage (`<0-10>`), strict-fallback numeric-only line, triviaqa with rubric, strategyqa plain. All pass.
+- 8-case GPT-OSS harmony smoke test covering rows 5539, 5588, 9254, 12734 from the TriviaQA CSV plus harmony-format LegalBench and GSM8K cases plus two non-harmony sanity checks. All pass — harmony extraction now returns the actual answer instead of the whole reasoning blob.
+- 6-dataset × 2-variant × 2-confidence `create_prompt` smoke test confirming instruct models get clean prompts (no `Solution:` primer) and base models get the body plus the trailing continuation primer. All pass.
+- `verify_rubric.py` end-to-end: `ALL CHECKS PASSED`.

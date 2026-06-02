@@ -32,8 +32,21 @@ def load_medqa():
 
 
 def load_triviaqa():
-    """Load TriviaQA dataset (questions + answers only, skip large document files)."""
-    ds = load_dataset("trivia_qa", "rc.nocontext", split="validation")
+    """Load TriviaQA dataset (questions + answers only, skip large document files).
+
+    Uses the canonical namespaced repo `mandarjoshi/trivia_qa`. Newer
+    huggingface_hub versions reject the bare-name form `trivia_qa`, so we no
+    longer fall back to it — that fallback used to mask the real loader error
+    with an HfUriError about repo-id format.
+    """
+    try:
+        ds = load_dataset(
+            "mandarjoshi/trivia_qa", "rc.nocontext",
+            split="validation", trust_remote_code=True,
+        )
+    except TypeError:
+        # Older `datasets` versions don't accept trust_remote_code kwarg
+        ds = load_dataset("mandarjoshi/trivia_qa", "rc.nocontext", split="validation")
     print(f"Loaded TriviaQA: {len(ds)} validation examples")
     return ds
 
