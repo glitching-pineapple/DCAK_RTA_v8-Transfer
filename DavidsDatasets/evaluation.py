@@ -5,6 +5,10 @@ import re
 from typing import Dict, Optional
 
 _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
+# GPT-OSS harmony delimiter — see _strip_harmony_envelope in data_utils.py.
+# Everything BEFORE the last "assistantfinal" is the model's analysis (reasoning)
+# channel; everything AFTER is the committed final response.
+_HARMONY_FINAL_DELIM = "assistantfinal"
 from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match
 from confidence import (
@@ -88,19 +92,29 @@ def evaluate_sample(
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
         prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
         response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
-        # Stripped form: <think>...</think> removed. Used for answer-letter
+        # Stripped form: reasoning envelopes removed. Used for answer-letter
         # extraction so the regex doesn't match a draft answer the model
         # wrote inside its scratchpad.
         response = _QWEN3_THINK_RE.sub('', response_raw).strip()
-        # The actual chain of thought lives inside <think>...</think>. The
-        # critic and self-rater need it — without it, critics confabulate
-        # on easy questions and abdicate on hard ones. Pull the think
-        # content out and pass that as the reasoning to evaluate. Fall back
-        # to the stripped response if no think block was emitted.
+        # GPT-OSS harmony format: anything before the last "assistantfinal"
+        # is the analysis channel; keep only the committed final response.
+        if _HARMONY_FINAL_DELIM in response:
+            response = response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+        # The actual chain of thought lives inside <think>...</think> for
+        # Qwen3-style models, or in the pre-`assistantfinal` analysis channel
+        # for GPT-OSS. The critic and self-rater need it — without it, critics
+        # confabulate on easy questions and abdicate on hard ones. Fall back
+        # to the stripped response if neither envelope is present.
         _think_match = re.search(r'<think>(.*?)</think>', response_raw, re.DOTALL)
-        reasoning_for_critique = (
-            _think_match.group(1).strip() if _think_match else response
-        )
+        if _think_match:
+            reasoning_for_critique = _think_match.group(1).strip()
+        elif _HARMONY_FINAL_DELIM in response_raw:
+            # Take the analysis channel: everything BEFORE the last "assistantfinal".
+            # Strip a leading "analysis" channel marker if present.
+            _analysis = response_raw.rsplit(_HARMONY_FINAL_DELIM, 1)[0]
+            reasoning_for_critique = re.sub(r'^analysis', '', _analysis, flags=re.IGNORECASE).strip()
+        else:
+            reasoning_for_critique = response
 
         # Prefer the strict "Answer:" line extractor. If the main response
         # committed via a clean Answer line, trust it — even when the EOS
@@ -319,9 +333,16 @@ def compute_semantic_entropy_for_question(
         temperature=SE_TEMPERATURE,
     )
 
-    # Strip Qwen3 <think>...</think> blocks before extraction
+    # Strip reasoning envelopes (Qwen3 <think>...</think>, GPT-OSS harmony)
+    # before extraction so the answer parser sees only the committed answer
+    # text, not the analysis channel.
     if USE_REASONING_FLOW:
-        answers = [_QWEN3_THINK_RE.sub('', a).strip() for a in answers]
+        def _strip_envelopes(a: str) -> str:
+            a = _QWEN3_THINK_RE.sub('', a).strip()
+            if _HARMONY_FINAL_DELIM in a:
+                a = a.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+            return a
+        answers = [_strip_envelopes(a) for a in answers]
 
     # Extract just the answer portion from each response.
     # STRICT mode: only accept answers found via the "Answer:" line (Priority 1).

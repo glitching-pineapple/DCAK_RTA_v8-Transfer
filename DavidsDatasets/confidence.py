@@ -375,207 +375,177 @@ def create_prompt(tokenizer, question: str, choices: list = None, include_confid
     reasoning and a final answer — no confidence rubric or Confidence/Correct output.
     Confidence is elicited separately in Gen 2 to avoid token-limit truncation.
 
-    The prompt structure asks the model to:
-    1. Think through the problem step by step
-    2. Provide a final answer (JUST the value, no sentence)
-    3. (if include_confidence) Rate confidence 1-10 and state Correct: Yes/No
+    The prompt is built in two parts:
+      - instruction_body: clean instructions + format example that explicitly says
+        "end your response with…" so the Answer line is the LAST thing the model
+        emits. Sent as-is to instruct/reasoning models via the chat template.
+      - base_primer: a trailing "Solution:\\nLet me … step by step." line that acts
+        as a next-token continuation primer for BASE models (which don't follow
+        instructions and need to be primed mid-sentence). Appended ONLY for base
+        models. Instruct models would otherwise interpret the primer as part of
+        the user instruction and get stuck in a loop trying to reconcile
+        "end with Answer:" vs. "end with Solution: Let me think…".
     """
     from config import MODEL_VARIANT, DATASET
 
     if DATASET == "gsm8k":
+        primer_verb = "work through"
         if include_confidence:
-            base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
+            instruction_body = f"""Solve the following math problem. Think through it step by step, then provide your final answer and confidence.
 
 Question: {question}
 
-First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_NUMBER> with your computed answer):
+First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, end your response with EXACTLY these three lines (replace <YOUR_NUMBER> with your computed answer):
 Answer: <YOUR_NUMBER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me work through this step by step.
-
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Solve the following math problem. Think through it step by step, then provide your final answer.
+            instruction_body = f"""Solve the following math problem. Think through it step by step, then provide your final answer.
 
 Question: {question}
 
-Reason through the problem step by step. You MUST end with EXACTLY this format:
-Answer: <YOUR_NUMBER>
-
-Solution:
-Let me work through this step by step.
-
-"""
+Reason through the problem step by step. End your response with a single line in this format:
+Answer: <YOUR_NUMBER>"""
 
     elif DATASET == "mmlupro":
+        primer_verb = "analyze each option"
         choices_text = _format_choices(choices)
         if include_confidence:
-            base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer and confidence.
+            instruction_body = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
 {choices_text}
 
-First, analyze each option carefully and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step analysis, you MUST end with EXACTLY this format (replace <YOUR_LETTER> with your chosen answer letter):
+First, analyze each option carefully and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step analysis, end your response with EXACTLY these three lines (replace <YOUR_LETTER> with your chosen answer letter):
 Answer: <YOUR_LETTER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me analyze each option step by step.
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer.
+            instruction_body = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer.
 
 Question: {question}
 
 {choices_text}
 
-Instructions:
-1. Analyze each option carefully
-2. Explain your reasoning step by step
-3. State ONLY the answer letter after "Answer:" (just the letter, e.g., A)
-
-Example format:
-Answer: B
-
-Solution:
-Let me analyze each option step by step.
-"""
+Analyze each option carefully and explain your reasoning step by step. End your response with a single line in this format (just the letter, e.g. B):
+Answer: <YOUR_LETTER>"""
 
     elif DATASET == "strategyqa":
+        primer_verb = "think through"
         if include_confidence:
-            base_prompt = f"""Answer the following yes/no question. Think through it step by step, then provide your answer and confidence.
+            instruction_body = f"""Answer the following yes/no question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
-First, consider relevant facts and reasoning, and explain your thinking step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with Yes or No):
+First, consider relevant facts and reasoning, and explain your thinking step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, end your response with EXACTLY these three lines (replace <YOUR_ANSWER> with Yes or No):
 Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me think through this step by step.
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Answer the following yes/no question. Think through it step by step, then provide your answer.
+            instruction_body = f"""Answer the following yes/no question. Think through it step by step, then provide your answer.
 
 Question: {question}
 
-Consider relevant facts and reasoning, and explain your thinking step by step. You MUST end with EXACTLY this format:
-Answer: Yes or No
-
-Solution:
-Let me think through this step by step.
-"""
+Consider relevant facts and reasoning, and explain your thinking step by step. End your response with a single line in this format:
+Answer: Yes
+or
+Answer: No"""
 
     elif DATASET == "medqa":
+        primer_verb = "work through"
         choices_text = _format_choices(choices)
         if include_confidence:
-            base_prompt = f"""Solve the following medical question. Think through it step by step, then provide your final answer and confidence.
+            instruction_body = f"""Solve the following medical question. Think through it step by step, then provide your final answer and confidence.
 
 Question: {question}
 {choices_text}
 
-First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, you MUST end with EXACTLY this format (replace <YOUR_FINAL_ANSWER> with your answer letter):
+First, explicitly reason through the question step by step to arrive at an answer.{_CONF_RUBRIC}After your step-by-step solution, end your response with EXACTLY these three lines (replace <YOUR_FINAL_ANSWER> with your answer letter):
 Answer: <YOUR_FINAL_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me work through this step by step.
-
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Solve the following medical question. Think through it step by step, then provide your final answer.
+            instruction_body = f"""Solve the following medical question. Think through it step by step, then provide your final answer.
 
 Question: {question}
 {choices_text}
 
-Reason through the clinical presentation step by step. You MUST end with EXACTLY this format:
-Answer: <YOUR_FINAL_ANSWER>
-
-Solution:
-Let me work through this step by step.
-
-"""
-
-
+Reason through the clinical presentation step by step. End your response with a single line in this format:
+Answer: <YOUR_FINAL_ANSWER>"""
 
     elif DATASET == "legalbench":
+        primer_verb = "think through"
         if include_confidence:
-            base_prompt = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer and confidence.
+            instruction_body = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
-First, consider the relevant legal rules and facts, and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with Yes or No):
+First, consider the relevant legal rules and facts, and explain your reasoning step by step to arrive at an answer.{_CONF_RUBRIC}After your reasoning, end your response with EXACTLY these three lines (replace <YOUR_ANSWER> with Yes or No):
 Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me think through this step by step.
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer.
+            instruction_body = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer.
 
 Question: {question}
 
-Consider the relevant legal rules and facts, and explain your reasoning step by step. You MUST end with EXACTLY this format:
-Answer: Yes or No
-
-Solution:
-Let me think through this step by step.
-"""
+Consider the relevant legal rules and facts, and explain your reasoning step by step. End your response with a single line in this format:
+Answer: Yes
+or
+Answer: No"""
 
     elif DATASET == "triviaqa":
+        primer_verb = "think through"
         if include_confidence:
-            base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer and confidence.
+            instruction_body = f"""Answer the following trivia question. Think through it step by step, then provide your answer and confidence.
 
 Question: {question}
 
-First, consider what you know about this topic and think through related facts that might help, step by step, to arrive at an answer.{_CONF_RUBRIC}After your reasoning, you MUST end with EXACTLY this format (replace <YOUR_ANSWER> with the answer, no extra words):
+First, consider what you know about this topic and think through related facts that might help, step by step, to arrive at an answer.{_CONF_RUBRIC}After your reasoning, end your response with EXACTLY these three lines (replace <YOUR_ANSWER> with the answer, no extra words):
 Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
-The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number.
-
-Solution:
-Let me think through this step by step.
-"""
+The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
-            base_prompt = f"""Answer the following trivia question. Think through it step by step, then provide your answer.
+            instruction_body = f"""Answer the following trivia question. Think through it step by step, then provide your answer.
 
 Question: {question}
 
-Consider what you know and reason through related facts step by step. You MUST end with EXACTLY this format:
-Answer: [just the answer, no extra words]
+Consider what you know and reason through related facts step by step. End your response with a single line in this format (just the answer, no extra words):
+Answer: <YOUR_ANSWER>"""
 
-Solution:
-Let me think through this step by step.
-"""
-    
+    else:
+        # Fallback for unknown datasets — keep behavior generic
+        primer_verb = "think through"
+        instruction_body = f"""Answer the following question. Think through it step by step.
+
+Question: {question}
+
+End your response with a single line in this format:
+Answer: <YOUR_ANSWER>"""
+
     if MODEL_VARIANT == "instruct":
-        messages = [{"role": "user", "content": base_prompt}]
+        messages = [{"role": "user", "content": instruction_body}]
         return tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
         )
     else:
-        return base_prompt
+        # Base models don't follow instructions; prime them mid-sentence so they
+        # continue naturally into the reasoning and eventually emit "Answer: X".
+        base_primer = f"\n\nSolution:\nLet me {primer_verb} this step by step.\n\n"
+        return instruction_body + base_primer
 
 
 def create_simple_prompt(tokenizer, question: str, choices: list = None) -> str:
@@ -926,6 +896,10 @@ def get_forced_answer(
     # bloating a forced-answer prompt that should be quick.
     reasoning_clip = reasoning[:3000] if len(reasoning) > 3000 else reasoning
 
+    # Each branch builds the *body* of the prompt — no trailing template line.
+    # The literal "Answer: " is appended via base_suffix below so that BASE
+    # models complete from that point with just the answer value rather than
+    # regurgitating template placeholders like "<number>" or "<0-10>".
     if dataset == "mmlupro":
         choices_text = _format_choices(choices)
         prompt = f"""You were working on this multiple choice question but ran out of thinking time and did NOT commit to a final answer.
@@ -937,8 +911,7 @@ Question: {question}
 Your reasoning so far (likely incomplete):
 {reasoning_clip}
 
-Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: <single letter A through J>"""
+Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output only the single letter (A through J)."""
         max_tokens = 8
     elif dataset == "medqa":
         choices_text = _format_choices(choices)
@@ -950,8 +923,7 @@ Question: {question}
 Your reasoning so far (likely incomplete):
 {reasoning_clip}
 
-Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: <single letter A through E>"""
+Based on your reasoning above — even if it is incomplete or inconclusive — commit to your best-guess answer letter NOW. Output only the single letter (A through E)."""
         max_tokens = 8
     elif dataset == "gsm8k":
         prompt = f"""You were solving this math problem but ran out of thinking time and did NOT commit to a final answer.
@@ -961,8 +933,7 @@ Question: {question}
 Your work so far (likely incomplete):
 {reasoning_clip}
 
-Based on your work above, commit to your best-guess numerical answer NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: <number>"""
+Based on your work above, commit to your best-guess numerical answer NOW. Output only the number."""
         max_tokens = 16
     elif dataset == "strategyqa":
         prompt = f"""You were answering this yes/no question but ran out of thinking time and did NOT commit to a final answer.
@@ -972,10 +943,7 @@ Question: {question}
 Your reasoning so far (likely incomplete):
 {reasoning_clip}
 
-Based on your reasoning above, commit to a final answer NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: Yes
-or
-Answer: No"""
+Based on your reasoning above, commit to a final answer NOW. Output only the word Yes or No."""
         max_tokens = 8
     elif dataset == "triviaqa":
         prompt = f"""You were answering this trivia question but ran out of thinking time and did NOT commit to a final answer.
@@ -985,8 +953,7 @@ Question: {question}
 Your reasoning so far (likely incomplete):
 {reasoning_clip}
 
-Based on your reasoning above, commit to your best-guess answer NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: <the answer, no extra words>"""
+Based on your reasoning above, commit to your best-guess answer NOW. Output only the answer, no extra words."""
         max_tokens = 32
     elif dataset == "legalbench":
         prompt = f"""You were answering this legal-reasoning yes/no question but ran out of thinking time and did NOT commit to a final answer.
@@ -996,22 +963,38 @@ Question: {question}
 Your reasoning so far (likely incomplete):
 {reasoning_clip}
 
-Based on your reasoning above, commit to a final answer NOW. Output ONLY a single line in this exact format and nothing else:
-Answer: Yes
-or
-Answer: No"""
+Based on your reasoning above, commit to a final answer NOW. Output only the word Yes or No."""
         max_tokens = 8
     else:
         return None, ""
 
+    # base_suffix is only used by base models (instruct path uses chat template
+    # and ignores it). "Answer: " forces the base model into the answer slot via
+    # next-token completion — far more reliable than asking a base model to
+    # follow "output only" instructions, which it tends to ignore in favor of
+    # echoing whatever template fragments appear in the prompt.
     forced_response = generate_simple_response(
-        model, tokenizer, prompt, max_new_tokens=max_tokens, base_suffix=""
+        model, tokenizer, prompt,
+        max_new_tokens=max_tokens,
+        base_suffix="\n\nAnswer: ",
     )
 
     # Strip qwen3 think blocks if the forced call also produced one
     forced_response_clean = _re_think_block.sub('', forced_response).strip()
 
+    # For base models the response is just the completion AFTER "Answer: " —
+    # i.e. it starts with the answer value directly, no "Answer:" prefix. Try
+    # extract_model_answer first; if that fails (no anchored "Answer:" line),
+    # treat the cleaned response as the bare answer and re-parse.
     forced_answer = extract_model_answer(forced_response_clean, dataset)
+    if forced_answer is None and forced_response_clean:
+        # Prepend "Answer: " so the same extractor that handles instruct-path
+        # responses can find it. This works because the base completion is just
+        # the answer value on the first line.
+        forced_answer = extract_model_answer(
+            f"Answer: {forced_response_clean}", dataset
+        )
+
     return forced_answer, forced_response_clean
 
 

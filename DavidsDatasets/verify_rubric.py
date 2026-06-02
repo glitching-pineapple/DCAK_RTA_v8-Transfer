@@ -190,6 +190,7 @@ def check_forced_answer_paths() -> None:
     def fake_generate_simple_response(model, tokenizer, prompt, max_new_tokens=512, base_suffix=""):
         captured["prompt"] = prompt
         captured["max_new_tokens"] = max_new_tokens
+        captured["base_suffix"] = base_suffix
         # Return a canned valid Answer line so extract_model_answer succeeds
         ds = captured["dataset"]
         return {
@@ -224,8 +225,12 @@ def check_forced_answer_paths() -> None:
             )
             prompt = captured["prompt"]
             assert "ran out of thinking time" in prompt, f"[{ds}] forced prompt missing truncation framing"
-            assert "Output ONLY" in prompt, f"[{ds}] forced prompt missing 'Output ONLY' instruction"
-            assert "Answer:" in prompt, f"[{ds}] forced prompt missing 'Answer:' format"
+            # New design: prompt body no longer contains a template "Answer:" line —
+            # that's appended via base_suffix so base models complete it directly.
+            # The body must still tell the model to output only the answer value.
+            assert "Output only" in prompt, f"[{ds}] forced prompt missing 'Output only' instruction"
+            assert captured["base_suffix"] == "\n\nAnswer: ", \
+                f"[{ds}] forced call should pass base_suffix='\\n\\nAnswer: ' (got {captured['base_suffix']!r})"
             assert q in prompt, f"[{ds}] forced prompt missing original question"
             assert forced_answer == expected, \
                 f"[{ds}] forced extraction got {forced_answer!r}, want {expected!r}"

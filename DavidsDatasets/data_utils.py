@@ -101,33 +101,55 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
     return None
 
 
+# GPT-OSS uses OpenAI's "harmony" response format, which interleaves an
+# analysis channel and a final-response channel without using <think>...</think>
+# tags. The literal token "assistantfinal" delimits the start of the
+# committed final response. If we run extraction over the full text, we end up
+# matching "Answer:" patterns inside the analysis channel (or eating the whole
+# blob), so we strip everything before the LAST "assistantfinal" first. No-op
+# for any response that doesn't contain the delimiter.
+_HARMONY_FINAL_DELIM = "assistantfinal"
+
+
+def _strip_harmony_envelope(response: str) -> str:
+    """Return only the post-`assistantfinal` portion if present; else pass through."""
+    if not response or _HARMONY_FINAL_DELIM not in response:
+        return response
+    return response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1]
+
+
 def extract_model_answer(response: str, dataset: str) -> Optional[str]:
     """
     Extract model answer based on dataset type.
-    
+
     Handles common model output patterns including:
     - Clean answers: "Answer: 42"
     - Sentence answers: "Answer: The total is 42 dollars."
     - Markdown bold: "**Answer:** 42"
     - Dollar signs and commas: "Answer: $65,960"
+    - GPT-OSS harmony format: "<analysis>...assistantfinalAnswer: 42"
     """
+    response = _strip_harmony_envelope(response)
     
     if dataset == "gsm8k":
-        # Step 1: Find "Answer:" and capture the rest of that line (up to newline)
-        answer_matches = re.findall(r'\*{0,2}[Aa]nswer\*{0,2}:\s*([^\n]+)', response)
+        # Priority 1: "Answer:" anchored at start of line (so "in this answer:"
+        # mid-CoT doesn't hijack the match); take the LAST match (final commit).
+        answer_matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*([^\n]+)', response
+        )
         if answer_matches:
-            answer_text = answer_matches[-1]  # Take the LAST one
-            # Step 2: Remove anything after rubric phrases
+            answer_text = answer_matches[-1]
+            # Remove anything after rubric phrases
             answer_text = re.split(
-                r'[Cc]onfidence|Almost|Highly|Very good|Likely|Unlikely|Better than|Less than|Chances', 
+                r'[Cc]onfidence|Almost|Highly|Very good|Likely|Unlikely|Better than|Less than|Chances',
                 answer_text
             )[0]
-            # Step 3: Extract the number
+            # Extract the number
             num_match = re.search(r'\$?([\d,]+(?:\.\d+)?)', answer_text)
             if num_match:
                 return num_match.group(1).replace(',', '')
 
-        # Priority 2: Common phrasing patterns
+        # Priority 2: Common phrasing patterns (kept — legitimate alt commitments)
         patterns = [
             r'[Tt]he answer is:?\s*\$?([\d,]+(?:\.\d+)?)',
             r'[Ff]inal answer:?\s*\$?([\d,]+(?:\.\d+)?)',
@@ -139,19 +161,21 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
             if match:
                 return match.group(1).replace(',', '')
 
-        # Priority 3: Last number in response (fallback)
-        numbers = re.findall(r'\b(\d+(?:\.\d+)?)\b', response)
-        if numbers:
-            return numbers[-1]
+        # NOTE: the previous Priority-3 "last number in response" fallback was
+        # removed. On base-model forced calls that echo template fragments like
+        # "Confidence: <0-10>", it returned "10" — a confident-looking but
+        # fabricated answer. Returning None instead correctly routes the row to
+        # answer_extraction_failed=True so it drops out of calibration analysis.
         return None
     
     elif dataset == "mmlupro":
-        # Priority 1: "Answer:" line - extract letter
+        # Priority 1: "Answer:" line (anchored to start of line; last match wins).
         # Handles: "Answer: B", "Answer: The answer is B.", "**Answer:** B"
-        answer_match = re.search(r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            letter_match = re.search(r'\(?([A-J])\)?', answer_text)
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', response
+        )
+        if matches:
+            letter_match = re.search(r'\(?([A-J])\)?', matches[-1])
             if letter_match:
                 return letter_match.group(1).upper()
         
@@ -174,11 +198,12 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         return None
     
     elif dataset == "strategyqa":
-        # Priority 1: "Answer:" line
-        answer_match = re.search(r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+        # Priority 1: "Answer:" line (anchored to start of line; last match wins).
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', response
+        )
+        if matches:
+            yn_match = re.search(r'\b(Yes|No)\b', matches[-1], re.IGNORECASE)
             if yn_match:
                 return yn_match.group(1).capitalize()
         
@@ -201,11 +226,12 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         return None
     
     elif dataset == "medqa":
-        # Priority 1: "Answer:" line
-        answer_match = re.search(r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            letter_match = re.search(r'\(?([A-E])\)?', answer_text)
+        # Priority 1: "Answer:" line (anchored to start of line; last match wins).
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', response
+        )
+        if matches:
+            letter_match = re.search(r'\(?([A-E])\)?', matches[-1])
             if letter_match:
                 return letter_match.group(1).upper()
         
@@ -227,13 +253,15 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         return None
     
     elif dataset == "triviaqa":
-        # Priority 1: "Answer:" line - take everything up to newline or Confidence/Correct
-        answer_match = re.search(
-            r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect|$)',
-            response
+        # Priority 1: "Answer:" anchored at start of line, last match wins. Also
+        # trim trailing rubric markers in case the answer line is followed by
+        # them on the same line (rare but possible).
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', response
         )
-        if answer_match:
-            answer = answer_match.group(1).strip().rstrip('.')
+        if matches:
+            answer = re.split(r'\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect', matches[-1])[0]
+            answer = answer.strip().rstrip('.')
             if answer:
                 return answer
 
@@ -249,11 +277,12 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         return None
 
     elif dataset == "legalbench":
-        # Priority 1: "Answer:" line
-        answer_match = re.search(r'\*{0,2}[Aa]nswer\*{0,2}:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+        # Priority 1: "Answer:" line (anchored to start of line; last match wins).
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', response
+        )
+        if matches:
+            yn_match = re.search(r'\b(Yes|No)\b', matches[-1], re.IGNORECASE)
             if yn_match:
                 return yn_match.group(1).capitalize()
 
@@ -290,13 +319,22 @@ def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
 
     Returns None if no clean answer can be found.
     """
+    # See note above _strip_harmony_envelope — GPT-OSS responses can hide the
+    # committed answer behind an "assistantfinal" delimiter that must be
+    # peeled off before any "Answer:" pattern is reliably anchorable.
+    response = _strip_harmony_envelope(response)
     cleaned = response.replace('*', '')
 
     if dataset == "gsm8k":
-        # Priority 1: explicit "Answer:" line
-        answer_match = re.search(r'[Aa]nswer\s*:\s*([^\n]+)', cleaned)
-        if answer_match:
-            answer_text = answer_match.group(1)
+        # Priority 1: explicit "Answer:" line — anchored to start of line so
+        # mid-CoT phrases like "in this answer:" don't hijack the match, and
+        # findall + [-1] so the model's FINAL commit wins over earlier draft
+        # answers it may have written.
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*([^\n]+)', cleaned
+        )
+        if matches:
+            answer_text = matches[-1]
             answer_text = re.split(
                 r'[Cc]onfidence|Almost|Highly|Very good|Likely|Unlikely|Better than|Less than|Chances',
                 answer_text
@@ -314,53 +352,54 @@ def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
         return None
     
     elif dataset == "mmlupro":
-        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+?)(?:\n|$)', cleaned, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            letter_match = re.search(r'\(?([A-J])\)?', answer_text)
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', cleaned
+        )
+        if matches:
+            letter_match = re.search(r'\(?([A-J])\)?', matches[-1])
             if letter_match:
                 return letter_match.group(1).upper()
         return None
-    
+
     elif dataset == "strategyqa":
-        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+?)(?:\n|$)', cleaned, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', cleaned
+        )
+        if matches:
+            yn_match = re.search(r'\b(Yes|No)\b', matches[-1], re.IGNORECASE)
             if yn_match:
                 return yn_match.group(1).capitalize()
         return None
-    
+
     elif dataset == "medqa":
-        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+?)(?:\n|$)', cleaned, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            letter_match = re.search(r'\(?([A-E])\)?', answer_text)
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', cleaned
+        )
+        if matches:
+            letter_match = re.search(r'\(?([A-E])\)?', matches[-1])
             if letter_match:
                 return letter_match.group(1).upper()
         return None
-    
+
     elif dataset == "triviaqa":
-        # Try explicit terminators first
-        answer_match = re.search(
-            r'[Aa]nswer\s*:\s*(.+?)(?:\n|[Cc]onfidence|[Cc]orrect)', cleaned)
-        if answer_match:
-            answer = answer_match.group(1).strip().rstrip('.')
-            if answer:
-                return answer
-        # Greedy match for answer at end of string
-        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+)$', cleaned, re.MULTILINE)
-        if answer_match:
-            answer = answer_match.group(1).strip().rstrip('.')
+        # Anchored, last-match wins, then trim trailing rubric markers if the
+        # response continued past the answer.
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', cleaned
+        )
+        if matches:
+            answer = re.split(r'[Cc]onfidence|[Cc]orrect', matches[-1])[0]
+            answer = answer.strip().rstrip('.')
             if answer:
                 return answer
         return None
 
     elif dataset == "legalbench":
-        answer_match = re.search(r'[Aa]nswer\s*:\s*(.+?)(?:\n|$)', cleaned, re.IGNORECASE)
-        if answer_match:
-            answer_text = answer_match.group(1)
-            yn_match = re.search(r'\b(Yes|No)\b', answer_text, re.IGNORECASE)
+        matches = re.findall(
+            r'(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*(.+?)\s*$', cleaned
+        )
+        if matches:
+            yn_match = re.search(r'\b(Yes|No)\b', matches[-1], re.IGNORECASE)
             if yn_match:
                 return yn_match.group(1).capitalize()
         return None
