@@ -654,4 +654,54 @@ Bug 3 is a *generation-level* bug. The model's actual output is different under 
 - 17-case extractor smoke test covering: row 12 (Carlos lemon tree), row 1173 (dishwasher), plain `Answer:`, markdown bold `**Answer:**`, header `### Answer:`, bullet `- Answer:`, numbered `1. Answer:`, multi-`Answer:` (last wins), Gemma2-style `The answer is: 47.25`, MMLU-Pro plain + bold, `in this answer:` negative, `my answer:` negative, forced-call garbage (`<0-10>`), strict-fallback numeric-only line, triviaqa with rubric, strategyqa plain. All pass.
 - 8-case GPT-OSS harmony smoke test covering rows 5539, 5588, 9254, 12734 from the TriviaQA CSV plus harmony-format LegalBench and GSM8K cases plus two non-harmony sanity checks. All pass — harmony extraction now returns the actual answer instead of the whole reasoning blob.
 - 6-dataset × 2-variant × 2-confidence `create_prompt` smoke test confirming instruct models get clean prompts (no `Solution:` primer) and base models get the body plus the trailing continuation primer. All pass.
+
+## 12. Follow-up patch — TriviaQA loader hid real errors behind a broken fallback
+
+On the lambda H100 box, `DATASET = "triviaqa"` started failing with:
+
+```
+huggingface_hub.errors.HfUriError: Invalid HF URI
+'hf://datasets/trivia_qa@<sha>/.huggingface.yaml'.
+Repository id must be 'namespace/name', got 'trivia_qa'.
+```
+
+### What was actually happening
+
+`load_triviaqa()` in `data_utils.py` had two attempts:
+
+1. Primary: `load_dataset("mandarjoshi/trivia_qa", "rc.nocontext", split="validation")`
+2. Fallback (bare name): `load_dataset("trivia_qa", "rc.nocontext", split="validation")`
+
+The primary failed silently (caught by a bare `except Exception:`), and execution fell through to the fallback. Newer `huggingface_hub` versions reject the bare repo id `trivia_qa` outright at URI-parse time, producing the `HfUriError` above. So every TriviaQA load failure on a current HF stack surfaced as the same misleading URI error regardless of what the primary loader actually complained about.
+
+### Fix
+
+- Removed the bare-name fallback entirely — it cannot succeed on current `huggingface_hub` and only served to mask the real error.
+- Added `trust_remote_code=True` to the primary call (some `datasets` builds need it for `mandarjoshi/trivia_qa`'s loader script).
+- Wrapped that with a `TypeError` guard so older `datasets` versions that don't accept the kwarg still work.
+
+The function now lets any genuine loader error from `mandarjoshi/trivia_qa` propagate cleanly so it can be diagnosed.
+
+### Implications for existing TriviaQA CSVs
+
+**None — same dataset, same rows.** The primary call (`mandarjoshi/trivia_qa`, config `rc.nocontext`, split `validation`) is byte-identical to what previous runs used. The only changes are:
+
+- `trust_remote_code=True` is a permission flag for HF to execute the dataset's loader script; it doesn't change which dataset, which split, or which rows are returned.
+- Removing the dead fallback path has no effect on any run that actually produced data, since that path was never reached on a successful load (and now crashes on any current HF stack rather than silently corrupting state).
+
+Row order, indices used by seeds, ground-truth aliases, and `check_triviaqa_correct` behavior are unchanged. Previous TriviaQA CSVs remain directly comparable to anything run after this patch.
+
+### Files modified
+
+| File | Change |
+| --- | --- |
+| `data_utils.py` (`load_triviaqa`) | Dropped bare-name fallback; added `trust_remote_code=True` to primary call with `TypeError` guard for older `datasets` versions. |
+
+### If TriviaQA still fails after this patch
+
+The error you see now is the real one. Most likely fixes, in order:
+
+1. `pip install -U datasets huggingface_hub` on the affected machine (lambda stack is older than what `mandarjoshi/trivia_qa` currently expects).
+2. `huggingface-cli login` if the error mentions auth (rare for this public dataset, but possible behind certain proxies).
+3. Network reachability to `huggingface.co` — check from the lambda box directly.
 - `verify_rubric.py` end-to-end: `ALL CHECKS PASSED`.
