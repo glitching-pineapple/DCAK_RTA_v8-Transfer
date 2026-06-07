@@ -757,7 +757,7 @@ The Gemma StrategyQA `is_correct=False` rows are mostly a THIRD thing: **genuine
 wrong answers** (clean reasoning to the wrong yes/no). Real calibration findings —
 not a bug, not fixable by re-running (greedy is deterministic) or by few-shot.
 
-### 18.3 The fixes (DONE — applied in the repo `DavidsDatasets/`, working tree, not yet committed)
+### 18.3 The fixes (DONE — committed, see §19.1)
 
 All four landed in `~/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/`.
 Both files compile; structural rubric checks pass; the parser fix was verified on
@@ -851,80 +851,56 @@ calibration study a mis-parsed label is worse than a dropped row.
 
 ## 19. Where things stand + next steps (ready to execute)
 
-### 19.1 Immediate: commit & push (nothing is committed yet)
+### 19.1 Source changes — commit status (updated)
 
-The four fixes in §18.3 are in the working tree of
-`~/Documents/GitHub/DCAK_RTA_v8-Transfer` but **not committed**. Source changes:
-`DavidsDatasets/confidence.py`, `DavidsDatasets/data_utils.py`.
+All pipeline source files are committed on `main` as of the end of the 2026-06-07
+session. Summary of what landed where:
+
+| File | What changed | Commit |
+|---|---|---|
+| `confidence.py` | GPT-OSS ngram guard; base repetition_penalty + stop_strings; clean forward-pass logit re-derivation | earlier session commit |
+| `evaluation.py` | `is_refusal` column wiring | earlier session commit |
+| `reextract.py` | new re-extraction tool (CPU, conservative) | earlier session commit |
+| `data_utils.py` | 4 extractor/refusal fixes (see §21) | `cb0ada1` |
+
+`git status` will show `DavidsDatasets/__pycache__/*.pyc` as modified — those are
+byte-compiled caches that are tracked in this repo (see §19.2). Do **not** stage
+them. If new edits are made, stage source files explicitly by name.
+
+### 19.2 Repo hygiene — stop the `.pyc` churn (STILL PENDING)
+
+**No `.gitignore` file exists in this repo.** `*.pyc` files under
+`DavidsDatasets/__pycache__/` are tracked and appear in `git status` after every
+import. Untrack the caches and ignore them going forward:
 
 ```
 cd ~/Documents/GitHub/DCAK_RTA_v8-Transfer
-git add DavidsDatasets/confidence.py DavidsDatasets/data_utils.py
-git commit -m "base-model decoding guards + first-block answer extraction"
-git push
-```
-
-`git status` will ALSO show `DavidsDatasets/__pycache__/*.pyc` as modified — those
-are byte-compiled caches that are (unusually) tracked in this repo; any
-compile/import regenerates them. Do **not** stage them (the `git add` above lists
-source files explicitly, so they're excluded).
-
-### 19.2 Repo hygiene — stop the `.pyc` churn (user already greenlit asking)
-
-The user is ready to do this. Untrack the caches and ignore them going forward:
-
-```
-cd ~/Documents/GitHub/DCAK_RTA_v8-Transfer
-printf '\n__pycache__/\n*.pyc\n' >> .gitignore     # create .gitignore if absent
+printf '__pycache__/\n*.pyc\n' > .gitignore
 git rm -r --cached DavidsDatasets/__pycache__
 git add .gitignore
 git commit -m "stop tracking __pycache__ / *.pyc"
 ```
 After this, `*.pyc` modifications stop appearing in `git status`.
 
-### 19.3 NEXT FEATURE — refusal detection (the "before we do that" item)
+### 19.3 Refusal detection — DONE (see §20.5 for implementation, §21.2 Bug 4 for the tail-scan fix)
 
-**The finding that motivates it (idx 138, LegalBench, Gemma2-9B-instruct).**
-This was the lone empty `model_answer` in that file. It is NOT a loop and NOT
-over-generation — it is a **refusal/abstention**, a *third* failure category:
-- The question ("Do the terms imply that NYT makes no assurances…") expects a
-  Yes/No, but the model replied *"Please provide the terms you would like me to
-  analyze…"* — `main_pass_finish_reason=eos`, not truncated, no `Answer:` line.
-- Extraction failed → the forcing fallback fired (`was_forced=TRUE`), but the
-  forced text was `"Answer: I need the terms to answer"` — **no Yes/No to parse**
-  → `model_answer` empty, `answer_extraction_failed=TRUE`.
-- It's the ONLY empty one because other "please provide the terms" refusals in
-  that file happened to get forced to `"Answer: No"` (which parsed). idx 138 is
-  the case where even the forced pass refused.
+**The finding that motivated it (idx 138, LegalBench, Gemma2-9B-instruct).**
+This was the lone empty `model_answer` in that file — a genuine abstention, not a
+loop. The model replied "Please provide the terms you would like me to analyze…"
+and even the forced pass refused to emit a Yes/No. See §20.5 for the full
+implementation.
 
-**Why none of the §18 fixes touch it:** repetition guards, stop sequences, and
-first-block truncation all assume an answer exists somewhere in the text. Here
-there genuinely isn't one. The lever for refusals is the prompt or explicit
-labeling — not decoding/parsing.
+**Current status:** `is_refusal` is implemented in `data_utils.py` and wired in
+`evaluation.py` (both committed). The implementation uses a tight 10-pattern regex
+(`_REFUSAL_RE`) scanned against the tail of each response (character-based, last
+350 chars for responses >400 chars — see §21.2 Bug 4 for why line-based didn't
+work). `reextract.py` back-fills the column for existing CSVs.
 
-**Spec to implement (conservative — never invent a label):**
-1. Add a boolean result field, e.g. `is_refusal`, set True when extraction
-   yields no answer (main AND forced both fail to produce a parseable
-   Yes/No / number / letter) AND the response matches a refusal pattern such as
-   `please provide`, `I need the (text|terms|document)`, `cannot (determine|answer)
-   .* without`, `provide the terms`. Keep the pattern tight; prefer undercounting
-   refusals to mislabeling a real answer.
-2. Wire it in `evaluation.py` at the spot where `model_answer` is computed and the
-   forcing fallback runs (search both branches that unpack
-   `… = generate_with_logits(...)`). Add `is_refusal` to the result dict; make
-   sure `save_utils.py` persists the new column.
-3. **Analysis treatment:** exclude refusals from accuracy/calibration, or report
-   them as their own bucket. Do NOT force a coin-flip Yes/No — that injects noise
-   into the very calibration signal the study measures.
-4. Optional, discuss with user first: a stronger forcing prompt that demands a
-   Yes/No even under uncertainty. For a calibration study, flagging refusals is
-   usually cleaner than suppressing them — confirm which they want.
-5. Keep the `verify_rubric.py` contract intact (5-tuple, `_detect_truncation`); add
-   a rubric check for the new column if you extend that file.
-
-This was explicitly deferred by the user ("before we do that…") until the
-repo-location and git-hygiene issues were sorted — which §19.1–19.2 now cover. So
-the next session can go straight to building 19.3.
+**The one remaining behavioral decision:** should a stronger forcing prompt be used
+to squeeze a Yes/No out of models that refuse? For a calibration study, flagging
+refusals is cleaner than suppressing them — the current approach (exclude from
+accuracy/calibration, report as own bucket) is correct. Raise with user only if
+they request higher recall on binary benchmarks.
 
 ---
 
@@ -1044,6 +1020,15 @@ demonstrably loops* — do not blanket-enable for "instruct".
   pattern ("I can't determine … without", "please provide the terms",
   "I don't have access", "struggling to pinpoint", …). Conservative by design:
   if any answer parsed, never a refusal. Prefer undercounting to mislabeling.
+- **Tail scan is character-based, not line-based (updated in §21).** For responses
+  >400 characters the function only scans the final 350 characters (`text[-350:]`).
+  This prevents casual mid-reasoning phrases like "I don't remember who scored" or
+  "I can't recall exactly which…" — which appear in the opening sentence of a
+  long rambling paragraph — from firing the refusal regex. Genuine abstentions
+  always close the response ("So I can't determine … without more context"). Short
+  responses (<= 400 chars, e.g. "Please provide the terms…") are scanned in full.
+  Line-splitting is NOT used because a single long-paragraph response appears as
+  2-3 "lines" by `\n`, giving the entire text regardless of window size.
 - `evaluation.py` computes `is_refusal` right after `answer_extraction_failed`
   (a refusal is a SUBSET of it, so the confidence fields are already NaN-ed) and
   adds it to the result dict. `save_utils.py` needs nothing
@@ -1074,14 +1059,172 @@ would only ADD the column — they have 0 bug rows.
 |---|---|---|
 | GPT-OSS, loop rows (TriviaQA/SQA/LegalBench) | **Selective re-run** (GPU) | answer never generated; ngram-only keeps clean rows valid |
 | GPT-OSS, GSM8K + all non-loop rows | nothing | 0 loops / clean |
-| Llama base, Gemma base (all benchmarks) | **Full re-run** (GPU) | unrecoverable loops + `repetition_penalty` warps every row |
+| Llama base, Gemma base (all benchmarks) | **Full re-run** (GPU) — **PENDING** | unrecoverable loops + `repetition_penalty` warps every row |
 | Gemma2-9B-instruct (all benchmarks) | **Re-extracted (done)** | stale parse; answer present in text; CPU only |
 | Gemma4-instruct, Qwen instruct | nothing (optional re-extract for `is_refusal` column) | 0 bug rows; clean, reproducible |
 
-Uncommitted source from this work: `confidence.py` (GPT-OSS guard),
-`data_utils.py` + `evaluation.py` (refusal), `reextract.py` (new tool). Commit
-per §19.1; never stage `*.pyc`. Blow-by-blow log lives in
-`SESSION_HANDOFF.md` → "Session 2026-06-07" parts 1 and 2.
+All source from this work is committed (see §19.1). Never stage `*.pyc`.
+Blow-by-blow log lives in `SESSION_HANDOFF.md` → "Session 2026-06-07" parts 1 and
+2, and the follow-up session documented in §21.
+
+---
+
+## 21. Llama-3.1-8B-base TriviaQA session — extractor refinements (2026-06-07 follow-up)
+
+### 21.1 What was examined
+
+`triviaqa_confidencewithnewSE_Llama3.1-8B-base.csv` — 40 rows, Llama-3.1-8B-base
+on TriviaQA. Pre-fix state: **1/40 correct (~2.5%)**, 34 `answer_extraction_failed`,
+4 `is_refusal=True`.
+
+The ~2% accuracy turned out to be ~40% pipeline failures (extraction bugs, refusal
+false-positives) masking genuinely attempted answers. After data-level fixes
+(re-extraction where the answer was recoverable from `full_response`): **2/40
+correct**, 35 `aef=True`, **0 `is_refusal`**. The remaining 35 extraction-failed
+rows are genuine loop/truncation with no recoverable answer — they need the full
+GPU re-run per §20.6 (Llama base, all benchmarks).
+
+### 21.2 The four extractor bugs found + code changes made
+
+All four are in `data_utils.py`, committed as `cb0ada1`. They affect **triviaqa**
+extraction and the shared `is_refusal_response` function.
+
+---
+
+**Bug 1 — Missed mid-line base-model commit phrases (triviaqa Priority-1.5)**
+
+Cause: Priority-1 uses a line-start anchor (`(?m)^[^a-zA-Z\n]*[Aa]nswer\s*:`) to
+block mid-sentence "in this answer:" matches. This correctly blocked one class of
+false-positives but also blocked the pattern Llama base actually uses when it
+commits to an answer: it writes a long reasoning paragraph and then closes with
+`"So overall, Answer: Henry II"` or `"...my reasoning... Answer: Isle of skye"` —
+mid-line after a comma/period/ellipsis, NOT at a line start.
+
+Real affected rows:
+- idx 6025: `full_response` ends with `"So overall, Answer: Henry II"`. Ground
+  truth: Henry II. Was `aef=True`, `is_correct=False`. Should have been correct.
+- idx 562: `full_response` ends with `"...Answer: Isle of skye"`. Was
+  `aef=True`. Correct answer.
+
+Fix: added Priority-1.5, which fires **after** Priority-1 (so the line-start path
+still has priority for clean lines) but catches `Answer:` mid-line when preceded
+by `,`, `;`, `.`, or `…`:
+
+```python
+matches_15 = re.findall(r'[,;.…]\s*[Aa]nswer\s*:\s*(.+?)(?:\n|$)', response)
+if matches_15:
+    answer = re.split(r'\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect', matches_15[-1])[0]
+    answer = answer.strip().rstrip('.')
+    _PROSE_OPENERS = r'^(?:we |i |it |if |so |but |and |or |that |which |when |there |is |are |was |were )'
+    if (answer
+            and len(answer) <= 120
+            and not re.match(r'^\d+\.?\d*$', answer)
+            and not re.match(_PROSE_OPENERS, answer, re.IGNORECASE)):
+        return answer
+```
+
+Guards: (a) separator requirement prevents "in this answer: we see that..." false
+matches (no preceding comma/period); (b) 120-char cap prevents capturing a full
+trailing clause; (c) prose-opener filter rejects continuations starting with "we",
+"i", "it", etc.; (d) bare-number rejection (see Bug 2).
+
+---
+
+**Bug 2 — Bare numbers leaked as answers via `get_forced_answer` (triviaqa Priority-1 & -2)**
+
+Cause: `get_forced_answer` appends `"\n\nAnswer: "` and lets the base model
+complete it. Sometimes the model completes with just `"8"` or `"0"` (a confidence
+score, or a nonsense digit). The first extraction call returns None (Priority-1
+sees "Answer: 8" but the bare `8` would have passed the then-loose guard). The
+fallback path then calls `extract_model_answer(f"Answer: {forced_response_clean}",
+dataset)` — wrapping the bare `"8"` with `"Answer: "` — which passed Priority-1
+and returned `"8"` as a valid TriviaQA answer.
+
+Real affected rows:
+- idx 12085: `model_answer="8"`, `verbalized_confidence=10.0` (the digit was a
+  confidence score, not an answer). `is_correct=False` was technically right but
+  `aef` should have been `True`, `vc` should be `NaN`.
+- idx 6186: Same pattern, `model_answer="0"` for "Puff the Magic Dragon" question.
+
+Fix: added `not re.match(r'^\d+\.?\d*$', answer)` rejection at both Priority-1
+and Priority-2. TriviaQA answers are never bare integers or decimals.
+
+---
+
+**Bug 3 — Priority-2 over-capture via optional colon (triviaqa Priority-2)**
+
+Cause: the pattern was `r'[Ff]inal answer:?\s*(.+?)(?:\n|$)'` (colon optional).
+This matched "my final answer would be..." mid-sentence (no colon), capturing the
+entire trailing clause `"would be... Answer: Isle of skye"` instead of the
+committed answer `"Isle of skye"`. The Priority-1.5 fix addresses the capture, but
+the Priority-2 pattern would over-capture any "final answer would be" phrase.
+
+Fix: colon is now required — `r'[Ff]inal [Aa]nswer:\s*(.+?)(?:\n|$)'`. Also added
+bare-number rejection (see Bug 2). The colon prevents the loose open-ended match.
+
+---
+
+**Bug 4 — `is_refusal_response` false-positives on long rambling responses**
+
+Cause: `_REFUSAL_RE` was scanned against the full response text (or a line-based
+tail of 8 lines). But responses where Llama base attempts an answer often open with
+casual uncertainty: `"I don't remember who they played against but I do recall..."`
+or `"I can't recall exactly who they were talking about. So let's see..."`. These
+are 2-3 line responses (long paragraph + blank line + long paragraph), so the 8-line
+window covered the entire text.
+
+Real affected rows:
+- idx 8936: `"don't remember who"` matched Pattern 9
+  (`(?:don't|do not|can't|cannot) (?:recall|remember|know) (?:the|which|what|who|any)`)
+  even though the model was actively reasoning about FA Cup finals and never stopped.
+- idx 13039: `"I can't recall"` matched Pattern 4
+  (`i (?:can't|...) (?:determine|...|recall|...)`)
+- idx 15103, idx 3101: matched via different patterns in earlier paragraph text.
+
+Fix: switched to character-based tail for long responses. If `len(text) > 400`,
+scan only `text[-350:]`. Genuine abstentions always appear in the closing sentence;
+mid-reasoning uncertainty phrases appear in the opening. Short responses (true
+refusals like "Please provide the terms...") are scanned in full. See §20.5 for
+the full rationale.
+
+### 21.3 CSV triage summary — what is and isn't fixable without GPU
+
+| Row category | Count | Fix |
+|---|---|---|
+| Data-level fix (re-extraction recoverable) | 5 rows | Done in-place |
+| False-positive `is_refusal` cleared | 4 rows | Done in-place |
+| Genuine loop/truncation (`aef=True`, no answer in `full_response`) | 35 rows | **GPU re-run required** |
+| Correct rows | 2/40 | Kept |
+
+The 35 remaining `aef=True` rows have no recoverable answer in `full_response` —
+the model looped into repetition before producing any coherent response. Per §20.2
+rule 1, these require a full GPU re-run (and since Llama base uses
+`repetition_penalty=1.2` which warps every row, rule 2 also applies). The re-run
+infrastructure is in place (decoding guards committed); the re-run itself is pending.
+
+### 21.4 Important extractor invariants to preserve
+
+1. **Priority ordering matters.** Priority-1 (line-start anchor) must fire before
+   Priority-1.5 (mid-line separator). If 1.5 fires first, it could capture answers
+   that were properly anchored at line start, returning the same result but bypassing
+   the cleaner code path. Keep the order: 1 → 1.5 → 2.
+
+2. **The line-start anchor in Priority-1 is intentional.** It blocks "in this answer:
+   we see that horses are equines" (no preceding separator). Do not weaken it to a
+   mid-line match — that's what Priority-1.5 is for.
+
+3. **Bare-number rejection is triviaqa-only.** GSM8K answers ARE bare numbers ("42",
+   "15"). The `not re.match(r'^\d+\.?\d*$', answer)` guard is inside the
+   `if dataset == "triviaqa":` branch. Do not apply it globally.
+
+4. **`get_forced_answer` still wraps the forced completion with "Answer: " before
+   re-parsing.** This is correct behavior — the guard in the extractor (not in the
+   forced-call path) is what rejects the garbage. Don't "fix" the forced call by
+   changing how it constructs the prompt; fix the extractor to reject invalid extracts.
+
+5. **`verify_rubric.py` must pass after any extractor change.** Run it before
+   committing. It checks: prompt integrity, extractor regex contract, 5-tuple
+   return from `generate_with_logits`, forced-answer paths per dataset.
 
 ---
 
