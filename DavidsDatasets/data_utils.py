@@ -401,6 +401,13 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
                 # rstrip('.') before strip quotes so "answer".'s trailing " is
                 # exposed and removed (e.g. My answer is: "strong winds".)
                 ans = match.group(1).strip().rstrip('.').strip('"\'')
+                # Cut before sentence-level self-commentary after the answer
+                # (e.g. "Jasper Fforde. I am 70% confident..." → "Jasper Fforde").
+                ans = re.split(r'\.\s+(?:I[\s\']|My\s|So\s|This\s|It\s|In\s)', ans)[0].strip().rstrip('.')
+                # "my answer is correct/right" — the match captured a meta-word,
+                # not the actual trivia answer; skip and keep trying patterns.
+                if re.match(r'^(?:correct|incorrect|right|wrong|true|false|unknown|unsure)$', ans, re.I):
+                    continue
                 if ans and not re.match(r'^\d+\.?\d*$', ans):
                     return ans
         return None
