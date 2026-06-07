@@ -989,13 +989,14 @@ GPT-OSS gets **only `no_repeat_ngram_size=3`**. Reasoning:
   fires when a 3-gram would repeat). GPT-OSS's loops *are* repeated 3-grams, so
   it kills them while leaving clean rows byte-identical → enables the selective
   re-run.
-- `repetition_penalty=1.2` is applied at **every** step to all prior tokens, so
-  it perturbs the token-probability distribution on every row — and those
-  probabilities are the confidence signal the study measures. It is
-  **load-bearing for base** (whose degeneration is mixed: over-generation +
-  loose rambles a 3-gram ban misses) but **redundant for GPT-OSS** (pure
-  verbatim loops). So apply it to base only; dropping it for GPT-OSS keeps its
-  confidence telemetry "natural."
+- `repetition_penalty` is **disabled for all models** (`_needs_rep_penalty =
+  False`). Although originally applied to base only, empirical comparison of
+  pre- and post-fix CSVs showed it penalizes the evaluation format tokens
+  (`Answer:`, `Confidence:`, `Correct:`) that appear in the prompt, causing the
+  base model to avoid the structured output entirely and generate free-form prose
+  instead. Result: loop rows dropped from ~12 → ~0 but extractable answers
+  dropped from ~28 → ~5 — a net loss. The ngram ban + stop_strings cover the
+  actual loop patterns seen; `repetition_penalty` fills no remaining gap.
 - `stop_strings` (`\nQuestion:` etc.) target the *base* over-generation failure
   and don't fit GPT-OSS's reasoning loops → base only.
 
@@ -1005,7 +1006,7 @@ Resolved matrix (in `confidence.py::generate_with_logits`):
 |---|---|---|---|
 | Qwen/Gemma **instruct** | 0 | 1.0 | — |
 | **GPT-OSS** instruct | 3 | 1.0 | — |
-| **base** (Llama/Gemma) | 3 | 1.2 | ✓ |
+| **base** (Llama/Gemma) | 3 | 1.0 | ✓ |
 
 Principle to carry forward: *use the minimal decoding constraint that prevents
 non-termination; prefer constraints inert on well-behaved rows over
@@ -1198,9 +1199,9 @@ the full rationale.
 
 The 35 remaining `aef=True` rows have no recoverable answer in `full_response` —
 the model looped into repetition before producing any coherent response. Per §20.2
-rule 1, these require a full GPU re-run (and since Llama base uses
-`repetition_penalty=1.2` which warps every row, rule 2 also applies). The re-run
-infrastructure is in place (decoding guards committed); the re-run itself is pending.
+rule 1, these require a full GPU re-run. Rule 2 (repetition_penalty warps every
+row) no longer applies — `repetition_penalty` has been disabled (see §22). The
+re-run infrastructure is in place; the re-run itself is pending.
 
 ### 21.4 Important extractor invariants to preserve
 
@@ -1225,6 +1226,67 @@ infrastructure is in place (decoding guards committed); the re-run itself is pen
 5. **`verify_rubric.py` must pass after any extractor change.** Run it before
    committing. It checks: prompt integrity, extractor regex contract, 5-tuple
    return from `generate_with_logits`, forced-answer paths per dataset.
+
+---
+
+## 22. `repetition_penalty` disabled — empirical finding (2026-06-07)
+
+### 22.1 The finding
+
+After the `6bf1dde` commit added `repetition_penalty=1.2` for base models, a
+side-by-side comparison of two Llama-3.1-8B-base TriviaQA runs on the same 40
+items revealed the penalty made extraction dramatically worse:
+
+| Metric | Pre-penalty (seed99) | Post-penalty (withnewSE) |
+|---|---|---|
+| `aef=True` | ~12 | 35 |
+| `is_correct=True` | ~15 (37%) | 2 (5%) |
+| Response style | Structured "Answer: X / Confidence: Y / Correct: Z" | Free-form prose, no Answer: line |
+
+The loop problem was solved — but extractable answers dropped from 28 to 5.
+
+### 22.2 Root cause
+
+`repetition_penalty` applies to **every token in the full sequence including the
+prompt**. The evaluation prompt contains the exact output-format tokens the model
+needs to emit: `Answer:`, `Confidence:`, `Correct:`. The penalty fires on those
+tokens whenever the model tries to write them, making the structured format
+progressively less likely. The model routes around it and generates free-form
+prose instead — which the extractor cannot parse.
+
+This is a fundamental incompatibility between `repetition_penalty` and any
+structured-output eval prompt. It is not specific to Llama or TriviaQA.
+
+### 22.3 The fix (committed)
+
+`_needs_rep_penalty = False` in `confidence.py::generate_with_logits`. The
+auto-resolve sets `repetition_penalty = 1.0` (no-op) for all models. The
+parameter remains in the function signature for manual override if ever needed.
+
+The two actual base-model failure modes are already covered without it:
+- **Verbatim 3-gram loops** → `no_repeat_ngram_size=3`
+- **"Generate a new Q&A" over-generation** → `stop_strings`
+
+The theoretical third case `repetition_penalty` was meant to cover — *loose
+thematic loops* where sentences vary slightly but the model is stuck in a rut —
+has not been observed in practice and is addressed if/when it appears.
+
+Updated resolved matrix:
+
+| Config | ngram | rep_penalty | stop_strings |
+|---|---|---|---|
+| Qwen/Gemma instruct | 0 | 1.0 | — |
+| GPT-OSS instruct | 3 | 1.0 | — |
+| base (Llama/Gemma) | 3 | 1.0 | ✓ |
+
+### 22.4 Re-run implications
+
+Because `repetition_penalty=1.0` is inert (no distribution change vs. having
+it absent), the clean-forward-pass branch in `generate_with_logits` still
+activates for base models via the ngram guard. Logit metrics are still computed
+from unwarped scores. **A full re-run of all base (model × benchmark) pairs is
+still required** — the reason is now solely §20.2 rule 1 (loop rows have no
+recoverable answer), not rule 2 (penalty warped every row).
 
 ---
 
