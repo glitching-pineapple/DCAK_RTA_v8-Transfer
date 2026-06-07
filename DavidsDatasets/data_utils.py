@@ -2,6 +2,7 @@
 
 import math
 import re
+import unicodedata
 from typing import Optional
 from datasets import load_dataset
 
@@ -125,10 +126,17 @@ _HARMONY_FINAL_DELIM = "assistantfinal"
 
 
 def _strip_harmony_envelope(response: str) -> str:
-    """Return only the post-`assistantfinal` portion if present; else pass through."""
-    if not response or _HARMONY_FINAL_DELIM not in response:
+    """Return only the post-`assistantfinal` portion if present; else pass through.
+
+    Case-insensitive: handles assistantFinal, AssistantFinal, ASSISTANTFINAL, etc.
+    GPT-OSS occasionally capitalises the token differently across generation runs.
+    """
+    if not response:
         return response
-    return response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1]
+    idx = response.lower().rfind(_HARMONY_FINAL_DELIM)
+    if idx == -1:
+        return response
+    return response[idx + len(_HARMONY_FINAL_DELIM):]
 
 
 def _truncate_to_first_block(response: str) -> str:
@@ -553,15 +561,66 @@ def extract_reasoning(response: str) -> str:
     return parts[0].strip() if len(parts) > 1 else response.strip()
 
 
-def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
+def _trivia_norm_nfkd(text: str) -> str:
+    """NFKD + strip combining marks → ASCII.
+
+    Handles accented-letter artifacts produced by GPT-OSS, e.g. double-encoded
+    UTF-8/Latin-1: "JÃºpiter" → encode latin-1 → decode utf-8 → "Júpiter" →
+    NFKD → "Jupiter".
     """
-    Special correctness check for TriviaQA (multiple acceptable answers).
+    try:
+        text = text.encode('latin-1').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    out = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    return re.sub(r'\s+', ' ', out).strip().lower()
+
+
+def _trivia_norm_space(text: str) -> str:
+    """Treat every non-ASCII character cluster as a word separator.
+
+    Handles the narrow-no-break-space artifact: GPT-OSS emits U+202F between
+    word components (e.g. "USS Missouri"). The CSV stores/reads those bytes
+    mangled as â¯ (two non-ASCII chars). Replacing every non-ASCII cluster with
+    a regular space recovers "USS Missouri".
+    """
+    try:
+        text = text.encode('latin-1').decode('utf-8')
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    out = re.sub(r'[^\x00-\x7f]+', ' ', text)
+    return re.sub(r'\s+', ' ', out).strip().lower()
+
+
+def _trivia_compact(text: str) -> str:
+    """Strip every non-alphanumeric character — last-resort comparator.
+
+    Collapses "G Neisen Au" → "gneisenau" and "moby d ick" → "mobydick" so
+    that space-fragmented artifacts still match their aliases.
+    """
+    return re.sub(r'[^a-z0-9]', '', text.lower())
+
+
+def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
+    """Special correctness check for TriviaQA (multiple acceptable answers).
+
+    Three-tier comparison to handle GPT-OSS Unicode artifacts:
+
+    Tier 1 — raw lowercase: catches plain-ASCII matches.
+    Tier 2 — NFKD normalization (+ encoding-fix attempt): handles double-encoded
+             accented characters like "JÃºpiter" → "Jupiter".
+    Tier 3 — space normalization + compact: handles narrow-no-break-space artifacts
+             like "USSâ¯Missouri" (→ "USS Missouri") and letter-splitting artifacts
+             like "Gâ¯Neisenâ¯Au" (→ compact "gneisenau").
     """
     if model_answer is None:
         return False
-    
+
     model_lower = model_answer.lower().strip()
-    
+    model_nfkd = _trivia_norm_nfkd(model_answer)
+    model_spaced = _trivia_norm_space(model_answer)
+    model_compact = _trivia_compact(model_spaced)
+
     acceptable = []
     if 'answer' in sample:
         answers = sample['answer']
@@ -574,10 +633,28 @@ def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
                 acceptable.extend([a.lower() for a in answers['normalized_aliases']])
         elif isinstance(answers, list):
             acceptable.extend([a.lower() for a in answers])
-    
+
     for acc in acceptable:
+        acc_nfkd = _trivia_norm_nfkd(acc)
+        acc_spaced = _trivia_norm_space(acc)
+        acc_compact = _trivia_compact(acc_spaced)
+
+        # Tier 1: raw
         if model_lower == acc or model_lower in acc or acc in model_lower:
             return True
+        # Tier 2: NFKD (handles accented/double-encoded chars)
+        if model_nfkd == acc_nfkd or model_nfkd in acc_nfkd or acc_nfkd in model_nfkd:
+            return True
+        # Tier 3a: space-normalized (handles â¯ space artifacts)
+        if model_spaced == acc_spaced or model_spaced in acc_spaced or acc_spaced in model_spaced:
+            return True
+        # Tier 3b: compact (handles letter-splitting artifacts like "G Neisen Au")
+        # Guard: require at least 4 chars so single-letter fragments don't over-match.
+        if len(model_compact) >= 4 and len(acc_compact) >= 4:
+            if (model_compact == acc_compact
+                    or model_compact in acc_compact
+                    or acc_compact in model_compact):
+                return True
 
     return False
 

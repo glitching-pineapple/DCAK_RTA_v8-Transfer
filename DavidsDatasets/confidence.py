@@ -995,8 +995,10 @@ Correct: Yes or No"""
     # mid-sentence "Correct: Yes" in that channel and then
     # extract_more_likely_than_not (which requires a line-start ^) returns None.
     critique_for_extraction = critique_response
-    if _HARMONY_FINAL_DELIM in critique_response:
-        critique_for_extraction = critique_response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+    _crit_lower = critique_response.lower()
+    _crit_idx = _crit_lower.rfind(_HARMONY_FINAL_DELIM)
+    if _crit_idx != -1:
+        critique_for_extraction = critique_response[_crit_idx + len(_HARMONY_FINAL_DELIM):].strip()
     conf = extract_verbalized_confidence(critique_for_extraction, DATASET)
     correct_judgment = extract_more_likely_than_not(critique_for_extraction)
 
@@ -1163,8 +1165,10 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
     # Strip harmony envelope: GPT-OSS writes analysis before "assistantfinal";
     # without stripping, the analysis text leaks into the answer slot when the
     # forced call hits max_new_tokens before reaching the committed final section.
-    if _HARMONY_FINAL_DELIM in forced_response_clean:
-        forced_response_clean = forced_response_clean.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+    _forced_lower = forced_response_clean.lower()
+    _forced_idx = _forced_lower.rfind(_HARMONY_FINAL_DELIM)
+    if _forced_idx != -1:
+        forced_response_clean = forced_response_clean[_forced_idx + len(_HARMONY_FINAL_DELIM):].strip()
 
     # For base models the response is just the completion AFTER "Answer: " —
     # i.e. it starts with the answer value directly, no "Answer:" prefix. Try
