@@ -899,3 +899,150 @@ python3 verify_rubric.py   # ALL CHECKS PASSED
    forcing fallback can leak `analysis…` text into `model_answer` (17 such rows
    pre-fix). The guard removes most truncations; harden the extractor separately
    only if leaks persist after re-run.
+
+---
+
+# Session 2026-06-07 (part 2) — Gemma2-instruct "Confidence: N" mis-parse + refusal detection + re-extraction
+
+## 0. Current status (TL;DR)
+
+Gemma2-9B-instruct TriviaQA rows where the model abstained (empty `Answer:`
+line) had `model_answer` literally set to `"Confidence: 3"` and were silently
+scored as wrong. Diagnosed as a STALE-DATA artifact (an older extractor without
+the current per-branch rubric guards), NOT a live code bug — so the fix is
+**re-extraction (CPU), not re-inference (GPU)**. Added a conservative refusal
+detector (handoff §19.3), wired it into the live pipeline, built a targeted
+re-extraction script, and **applied it to all 19 Gemma2-9B-instruct CSVs**
+(`.bak` backups written). 13 rows fixed. Code in working tree, **not committed**.
+
+## 1. The problem (from a user-supplied Gemma2-9B-instruct TriviaQA CSV)
+
+Gemma sometimes abstains — "I can't determine … without", "I'd need to consult
+a reliable source" — and emits an empty `Answer:` line followed by
+`Confidence: N`. Symptom: `model_answer == "Confidence: 3"`,
+`answer_extraction_failed=False`, `was_forced=False` → a garbage answer scored
+as a wrong answer (not flagged, not excluded).
+
+Scope (scan for `model_answer` matching `^\*{0,2}\s*(Confidence|Correct)\b`
+across ALL csvs under `~/Desktop/AI Research`):
+- **Gemma2-9B-instruct: 13 rows, all TriviaQA** (GSM8K/SQA/LegalBench = 0).
+- **Llama3.1-8B-*base*: 1 row** (idx 11562, `was_forced=True`, `finish=length`).
+- **GPT-OSS / Gemma4-instruct / Qwen: 0** — confirms this is distinct from the
+  GPT-OSS loop issue (part 1).
+
+## 2. Root cause + the key correction
+
+The extractor regex `^...Answer...:\s*(.+?)\s*$` uses `\s*` after the colon, and
+`\s` matches newlines — so on an empty `Answer:` line it crosses the line break
+and `(.+?)` captures the NEXT line (`Confidence: 3`).
+
+**BUT the current repo already neutralizes this** via per-branch post-processing:
+the triviaqa/gsm8k branches `re.split` off `Confidence`/`Correct` (data_utils.py
+~line 302/331), and the letter/Yes-No branches reject non-answer text. So the
+current extractor returns `None` for these rows, not `"Confidence: 3"`. The
+stored garbage came from an OLDER extractor. → The data is stale; re-extraction
+with the current code fixes it.
+
+**Important reversal:** I first "fixed the root cause" by changing `:\s*` →
+`:[^\S\n]*` (no newline crossing) in all 12 branch regexes. A blanket dry-run
+showed this BROKE legitimate next-line answers (idx 2349:
+`Answer:\nIgnatius J. Donnelly` → captured correctly by the old newline-cross,
+lost by the fix). **So the regex change was reverted.** Lesson: the
+newline-crossing is load-bearing for "answer on the line after Answer:"; the
+per-branch guards already handle the abuse case.
+
+## 3. What changed (code — working tree, NOT committed)
+
+- **`data_utils.py`** — added `is_refusal_response(response, extracted_answer)`
+  + `_REFUSAL_PATTERNS`/`_REFUSAL_RE` (conservative; handoff §19.3). Returns True
+  only when the answer is empty AND the text matches an abstention pattern.
+  Regex extractors are UNCHANGED (reverted).
+- **`evaluation.py`** — imports `is_refusal_response`; computes `is_refusal`
+  right after `answer_extraction_failed` (it's a subset of it — confidence
+  fields are already NaN-ed there); adds `"is_refusal"` to the result dict.
+  `save_utils.py` needs no change (`df = pd.DataFrame(results)` in main.py picks
+  up the new key automatically).
+- **`reextract.py`** (NEW) — re-parses `full_response` in existing CSVs without
+  re-running the model. See §5 for the design + the two traps it avoids.
+
+## 4. What changed (data — APPLIED, with .bak backups)
+
+Ran `reextract.py --write` over all 19 `Gemma2-9B-instruct` CSVs
+(`~/Desktop/AI Research/GEMMA/Gemma2Instruct/*/*.csv`). Each original saved to
+`<name>.csv.bak`.
+- **13 bug rows fixed**: `model_answer` → empty, `answer_extraction_failed=True`,
+  `is_correct=False`, `verbalized_confidence`/`single_pass_confidence` → NaN,
+  `more_likely_than_not`/`single_pass_correct` → blank, `is_refusal` set.
+- `is_refusal` column ADDED to all 19 files (also flagged genuine non-bug
+  refusals, e.g. 2 in LegalBench).
+- Verified on `40seed99triviaqa…`: idx 15103/643/8936 now NaN answer +
+  refusal=True + excluded; normal row idx 5588 (`Jasper Fforde`) untouched.
+
+**Net for the paper:** those 13 TriviaQA items move from "wrong answers" to
+"abstentions excluded from accuracy/calibration" → Gemma2-instruct TriviaQA
+accuracy and calibration both shift, correctly.
+
+## 5. reextract.py — design + the traps a naive version hits
+
+Usage: `python3 reextract.py "<glob>" [--write] [--dataset X]`. Dry-run by
+default; `--write` renames original → `.bak` then writes the corrected CSV.
+Dataset inferred from filename.
+
+It is TARGETED and conservative — a blanket "re-parse every row" version is
+WRONG, as a full-dataset dry-run proved:
+- **GSM8K trap**: pandas reads the numeric `model_answer` column as float, so
+  `"15"` reads back as `15.0` → every row looks "changed" (`15.0`→`15`), and one
+  row genuinely mis-extracted (`'2.0'→'00'`, flipping correct→wrong).
+- **LegalBench/forced-answer trap**: `was_forced=True` rows hold their answer in
+  `forced_answer_response`, NOT `full_response`. Re-parsing `full_response`
+  destroyed correct forced answers (`'No'`→none, correct→wrong).
+
+So reextract.py ONLY rewrites rows whose stored `model_answer` matches the bug
+signature `^\*{0,2}\s*(Confidence|Correct)\b` (the unambiguous leaked-rubric
+case). Every other row is left exactly as generated; it only gains the
+`is_refusal` column (computed from the stored answer). Result: exactly the 13
+intended rows change, zero collateral.
+
+## 6. Key decisions
+
+- **No re-run for this fix.** Re-extraction (CPU) is correct and sufficient;
+  re-inference would change nothing (regex reverted) and break reproducibility.
+- **Refusal handling = flag + exclude** (not coin-flip forcing), per §19.3.
+  `is_refusal` is a subset of `answer_extraction_failed`, so exclusion is
+  automatic; the flag enables a separate refusal bucket if wanted.
+- **Llama base row left alone** — it's in a base file slated for a FULL re-run
+  (§18.6), so an in-place re-extraction is moot.
+- **Other instruct models (Gemma4-instruct, Qwen, GPT-OSS) NOT re-extracted** —
+  they have 0 bug rows; re-extraction would only add the `is_refusal` column.
+  Optional, for schema consistency only.
+
+## 7. Verification
+
+- `data_utils.py` / `evaluation.py` / `reextract.py` parse OK.
+- `verify_rubric.py` → **ALL CHECKS PASSED** (is_refusal wiring didn't break the
+  5-tuple / forced-answer / column contracts).
+- Targeted dry-run across all 19 files = exactly 13 changed rows; post-write
+  spot check confirmed the fix + an untouched normal row.
+
+## 8. Files modified / added this session (part 2)
+
+| File | Change |
+|---|---|
+| `data_utils.py` | + `is_refusal_response` + refusal patterns. Regex extractors unchanged (a root-cause edit was made then reverted). |
+| `evaluation.py` | import + compute `is_refusal`; add to result dict. |
+| `reextract.py` | NEW — targeted, forced-row-safe re-extraction utility. |
+| 19× `Gemma2-9B-instruct` CSVs | DATA: 13 rows fixed + `is_refusal` column; each has a `.csv.bak`. |
+
+Not committed. Combined with part 1, the uncommitted source set is:
+`confidence.py`, `data_utils.py`, `evaluation.py`, `reextract.py`.
+
+## 9. Pending / next steps
+
+1. **Commit** (when ready): `confidence.py` (GPT-OSS guard, part 1) +
+   `data_utils.py`, `evaluation.py`, `reextract.py` (part 2). Do NOT stage
+   `*.pyc` (confidence_telemetry_handoff.md §19.1).
+2. Optional: `reextract.py --write` on Gemma4-instruct / Qwen / GPT-OSS CSVs to
+   standardize the `is_refusal` column (no bug rows there — column-only).
+3. The actual GPU re-runs remain separate and pending: GPT-OSS loop rows
+   (part 1, selective) and Llama/Gemma base (full, §18.6).
+4. The `.bak` files can be deleted once the re-extracted CSVs are confirmed good.
