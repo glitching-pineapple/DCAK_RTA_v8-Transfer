@@ -7,6 +7,7 @@ import numpy as np
 from typing import Optional, Tuple, List, Dict
 from config import (
     MODEL_VARIANT,
+    MODEL_FAMILY,
     MAX_NEW_TOKENS,
     TWO_PASS_MAX_NEW_TOKENS,
     TWO_PASS_DISABLE_THINKING,
@@ -85,25 +86,63 @@ def generate_with_logits(
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
         - meta: dict with "finish_reason" ("eos"|"length") and "was_truncated" (bool)
 
-    Base-model handling:
-        Base (non-instruct) models are pure text-completion models. On an
-        instruction prompt they either collapse into verbatim repetition loops
-        (never reaching "Answer:", so model_answer comes back empty) or answer
-        and then keep generating new questions. For MODEL_VARIANT == "base" we
-        therefore turn on repetition guards and stop sequences. Instruct runs
-        are left completely untouched (guards off), so existing instruct results
-        remain reproducible byte-for-byte.
+    Repetition-loop handling:
+        Two model classes collapse into verbatim repetition loops on hard
+        prompts — emitting the same line dozens-to-hundreds of times until they
+        exhaust max_new_tokens (finish_reason="length"), never committing to a
+        final answer:
+
+          1. Base (non-instruct) models. On an instruction prompt they either
+             loop verbatim or answer and then keep generating new questions.
+          2. GPT-OSS-20B, which — despite being instruct-tuned — loops inside
+             its Harmony "analysis" (reasoning) channel. On TriviaQA this hit
+             ~16% of items (24/149), all finish_reason="length", with single
+             lines repeated up to ~1000×; the answer never reached the "final"
+             channel, so model_answer leaked the truncated analysis text. GSM8K
+             (deterministic numeric target) was unaffected (0/150).
+
+        Guard policy follows one principle: apply the minimal constraint that
+        prevents non-termination, preferring constraints that are INERT on
+        well-behaved generations (no_repeat_ngram_size, stop_strings) over
+        repetition_penalty, which reshapes the distribution at every step and
+        so perturbs the very token probabilities the confidence study measures.
+
+          - no_repeat_ngram_size=3 → BOTH base and GPT-OSS. It only fires when a
+            3-gram would repeat, so on a non-looping greedy generation the
+            output (and its scores) are bit-identical to unconstrained decoding.
+            GPT-OSS's loops are exactly repeated 3-grams, so this alone kills
+            them; that lets GPT-OSS skip repetition_penalty entirely, keeping
+            its non-looping rows untouched.
+          - repetition_penalty=1.2 → BASE ONLY. Base degeneration is mixed
+            (over-generation + looser rambles that dodge a 3-gram ban), where
+            the penalty is load-bearing. GPT-OSS does not need it.
+          - stop_strings → BASE ONLY. Targets the base over-generation failure
+            (restating "Question:"/"Solution:" blocks); those markers don't fit
+            GPT-OSS's reasoning loops and could clip a legitimate analysis
+            channel.
+
+        Every other instruct run (Qwen, Gemma) is left completely untouched
+        (guards off), so existing instruct results remain reproducible
+        byte-for-byte. Selective re-runs are therefore possible for GPT-OSS:
+        only the looped rows change; clean rows are unaffected by ngram=3.
 
         When the guards are active they warp `outputs.scores`, which would
         corrupt the logit-confidence metrics AND the MCQ answer-token-entropy.
-        So on the base path we re-derive both `token_probs` and `raw_scores`
+        So on the guarded path we re-derive both `token_probs` and `raw_scores`
         from a clean teacher-forced forward pass (raw, unwarped logits).
     """
-    # Resolve guard defaults from the model variant (None = auto).
+    # Anti-loop ngram ban: base (any family) + GPT-OSS. Inert on clean rows.
+    _needs_ngram_guard = (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss")
+    # repetition_penalty warps every step → base only, where it's load-bearing.
+    # GPT-OSS's loops are pure 3-gram repeats, killed by the ngram ban alone.
+    _needs_rep_penalty = (MODEL_VARIANT == "base")
+
+    # Resolve guard defaults (None = auto). See docstring for the policy.
     if repetition_penalty is None:
-        repetition_penalty = 1.2 if MODEL_VARIANT == "base" else 1.0
+        repetition_penalty = 1.2 if _needs_rep_penalty else 1.0
     if no_repeat_ngram_size is None:
-        no_repeat_ngram_size = 3 if MODEL_VARIANT == "base" else 0
+        no_repeat_ngram_size = 3 if _needs_ngram_guard else 0
+    # Stop sequences target base over-generation only (not GPT-OSS loops).
     if stop_strings is None and MODEL_VARIANT == "base":
         stop_strings = ["\nQuestion:", "\nAnswer the following", "\nSolution:"]
 

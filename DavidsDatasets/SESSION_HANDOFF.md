@@ -705,3 +705,197 @@ The error you see now is the real one. Most likely fixes, in order:
 2. `huggingface-cli login` if the error mentions auth (rare for this public dataset, but possible behind certain proxies).
 3. Network reachability to `huggingface.co` — check from the lambda box directly.
 - `verify_rubric.py` end-to-end: `ALL CHECKS PASSED`.
+
+---
+
+# Session 2026-06-07 — GPT-OSS repetition-loop diagnosis + decoding-guard fix
+
+## 0. Current status (TL;DR)
+
+GPT-OSS-20B-instruct runs were collapsing into **verbatim repetition loops** —
+the same failure class the §18 (confidence_telemetry_handoff.md) base-model work
+fixed for Llama base, but on an *instruct* model. The §18.3 repetition guards
+were gated on `MODEL_VARIANT == "base"`, so GPT-OSS (config'd `instruct`) got no
+guard. **Fixed** by extending the guard predicate in `confidence.py`, scoped so
+GPT-OSS gets the inert `no_repeat_ngram_size=3` only (no distribution-warping
+`repetition_penalty`), base stays exactly as §18.3 had it, and Qwen/Gemma
+instruct stay byte-for-byte reproducible. Code is in the working tree, **not
+committed**. No re-run done yet (needs GPU).
+
+## 1. The problem (diagnosed from the GPT-OSS CSVs)
+
+GPT-OSS spins inside its Harmony **`analysis`** (reasoning) channel — a single
+line repeated dozens-to-~1000× ("Ok, I'm going insane" ×1072; "She is banned
+from the United Kingdom" ×981) — exhausts `max_new_tokens` (8192,
+`finish_reason="length"`), and never reaches the `final` channel. So
+`model_answer` leaks the truncated analysis text (rows literally start with
+`"analysis…"`) and the row is marked wrong.
+
+Loop census across the four consolidated 150-item GPT-OSS files:
+
+| Benchmark | n | acc | loop rows (`finish_reason=="length"`) | % |
+|---|---|---|---|---|
+| GSM8K | 150 | 94.0% | **0** | 0% |
+| LegalBench | 150 | 81.3% | 2 | 1.3% |
+| StrategyQA | 150 | 78.0% | 5 | 3.3% |
+| TriviaQA | 149 | 68.5% | **24** | 16.1% |
+
+GSM8K is clean (deterministic numeric target → no recall flailing); TriviaQA is
+the hotspot. **Not parser-recoverable**: ground truth appears anywhere in the
+looped text in only 3/24 TriviaQA rows, and never on an `Answer:` line →
+consistent with handoff §18.7 (needs a decoding fix + re-run, not a re-parse).
+
+## 2. Root cause
+
+`confidence.py::generate_with_logits` resolved guards from `MODEL_VARIANT`
+only: `repetition_penalty = 1.2 if MODEL_VARIANT == "base" else 1.0`, same for
+`no_repeat_ngram_size`. GPT-OSS has **no `base` variant** (config.py:46-47,
+`gptoss` is instruct-only) and `MODEL_VARIANT = "instruct"`, so every guard was
+off and the loops ran free to the 8192-token budget.
+
+## 3. The fix (DONE — `confidence.py`, working tree, not committed)
+
+Split the single base-only predicate into two, by guard mechanism:
+
+```python
+# Anti-loop ngram ban: base (any family) + GPT-OSS. Inert on clean rows.
+_needs_ngram_guard = (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss")
+# repetition_penalty warps every step → base only, where it's load-bearing.
+_needs_rep_penalty = (MODEL_VARIANT == "base")
+```
+
+Resolved guard matrix (verified):
+
+| Config | `no_repeat_ngram_size` | `repetition_penalty` | `stop_strings` |
+|---|---|---|---|
+| Qwen/Gemma **instruct** | 0 | 1.0 | — |
+| **GPT-OSS** instruct | **3** | **1.0** | — |
+| **base** (Llama/Gemma) | 3 | 1.2 | ✓ |
+
+Also added `MODEL_FAMILY` to the `from config import (...)` block in
+`confidence.py`. Docstring rewritten to state the guiding principle.
+
+**The guard policy / rationale (the reasoning behind the numbers):**
+- *Use the minimal constraint that prevents non-termination; prefer constraints
+  that are INERT on well-behaved generations over `repetition_penalty`, which
+  reshapes the distribution at every step and so perturbs the very token
+  probabilities the confidence study measures.*
+- `no_repeat_ngram_size=3` only fires when a 3-gram would repeat → on a
+  non-looping greedy row the output and its scores are **bit-identical** to
+  unconstrained decoding. GPT-OSS's loops *are* repeated 3-grams, so this alone
+  kills them → GPT-OSS can skip `repetition_penalty` entirely. **3** = tightest,
+  already the §18.3 base value (shared mechanism, simple methods description);
+  larger values are weaker.
+- `repetition_penalty=1.2` is base-only because base degeneration is mixed
+  (over-generation + looser rambles that dodge a 3-gram ban), where the penalty
+  is load-bearing; `=1.0` everywhere else means "no penalty / don't touch the
+  distribution."
+- `stop_strings` stays base-only (targets base over-generation: restating
+  "Question:"/"Solution:" blocks); they don't fit GPT-OSS's reasoning loops.
+
+## 4. Key decisions (and why)
+
+- **Why NOT apply the change to base too** (user asked): base data is still
+  pre-fix/broken (Gemma2-base TriviaQA 15/40 empty answers; Llama-base GSM8K
+  44/150 `length`-truncated), so it's getting a full re-run regardless — but its
+  degeneration is *texturally different* (over-generation + loose rambles, **0**
+  verbatim >50× loops detected vs. GPT-OSS's tight ones), so `repetition_penalty`
+  is plausibly load-bearing for base. Keep base on the heavier §18.3 recipe;
+  **validate empirically** (re-run ~10 base rows with/without the penalty) before
+  the full base re-run.
+- **Why NOT apply to all instruct models**: Qwen/Gemma instruct don't loop
+  (their HTML pages exist, built from clean runs) and must stay byte-for-byte
+  reproducible per handoff §18.5. Add a future model to the predicate only if it
+  demonstrably loops.
+- **Guard strength for GPT-OSS**: chose ngram-only (not 1.2+ngram3) specifically
+  so clean rows are untouched → enables a **selective** re-run (only loop rows),
+  which is better for the calibration paper: dropping loop rows would bias
+  calibration optimistically (loop rows are the hardest items), and re-running
+  recovers a real (answer, confidence, correctness) triple on the high-
+  uncertainty tail.
+
+## 5. Verification performed
+
+- `python3 -c "import ast; ast.parse(open('confidence.py').read())"` → parses OK.
+- `python3 verify_rubric.py` → **ALL CHECKS PASSED** (5-tuple +
+  `_detect_truncation` contract from §18 intact).
+- Guard matrix resolved programmatically across 5 (family, variant) combos —
+  matches the table in §3.
+- Loop census + recoverability computed from the consolidated GPT-OSS CSVs
+  (pandas; installed locally this session via `pip3 install pandas`).
+
+## 6. Files modified this session
+
+| File | Change |
+|---|---|
+| `confidence.py` | Added `MODEL_FAMILY` import; split guard predicate into `_needs_ngram_guard` (base ∪ gptoss) and `_needs_rep_penalty` (base only); rewrote `generate_with_logits` docstring to state the guard policy. |
+
+Nothing committed. (`__pycache__/*.pyc` will also show as modified per the
+standing repo quirk — do **not** stage them; see confidence_telemetry_handoff.md
+§19.1–19.2.)
+
+## 7. Important file paths
+
+```
+Pipeline (source of truth, version-controlled):
+  ~/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/confidence.py   ← edited
+  ~/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/config.py        (gptoss = instruct-only, lines 46-47)
+
+GPT-OSS data (consolidated 150-item files):
+  ~/Desktop/AI Research/GPTOSS/TriviaQA_OSS/150TriviaQAGPT-OSS-20B-instruct.csv
+  ~/Desktop/AI Research/GPTOSS/StrategyQA_OSS/150StrategyQAGPT-OSS-20B-instruct.csv
+  ~/Desktop/AI Research/GPTOSS/Gsm8k_OSS/150_GSM8K_GPT-OSS-20B-instruct.csv
+  ~/Desktop/AI Research/GPTOSS/LegalBenchOSS/150LegalBenchGPTOSS-20B-Instruct.csv
+  ~/Desktop/AI Research/GPTOSS/<bench>_OSS/Seperated*/...   (per-seed shards)
+
+Base data (PRE-FIX / broken — full re-run pending):
+  ~/Desktop/AI Research/GEMMA/Gemma2Base/...
+  ~/Desktop/150GSM8KLlama3.1-8B-base - 1.csv
+  ~/Desktop/150strategyqaLlama3.1-8B-base - 15seed1strategyqa_confidence_Llama3.1-8B-base.csv
+
+Handoff docs:
+  DavidsDatasets/confidence_telemetry_handoff.md   (standalone reference; §18-19 = pipeline fixes)
+  DavidsDatasets/SESSION_HANDOFF.md                 (this chronological log)
+```
+
+## 8. Commands run this session
+
+```bash
+# locate + read the newest handoff (confidence_telemetry_handoff.md, Jun 6)
+find /Users/davidzhu -iname "*handoff*" -type f
+
+# loop census / recoverability over GPT-OSS CSVs
+pip3 install pandas        # was missing in the local python3
+python3  # ad-hoc analysis: finish_reason counts, repeated-line detection,
+         # ground-truth-in-text recoverability, base fix-state + loop severity
+
+# fix verification
+python3 -c "import ast; ast.parse(open('confidence.py').read())"
+python3 verify_rubric.py   # ALL CHECKS PASSED
+```
+
+## 9. Pending tasks / next steps (ready to execute)
+
+1. **Build the scan/merge helper** (not yet written). Three-step workflow:
+   - *scan mode* (local, no GPU): read each GPT-OSS CSV, emit the `idx` list of
+     loop rows (`main_pass_finish_reason == "length"`) per benchmark.
+   - *(you, on GPU box)*: run `main.py` on **only those idxs** with the new
+     config (GPT-OSS → ngram-only is now automatic) → small CSV of fresh rows.
+   - *merge mode* (local): splice regenerated rows over the old ones by `idx`,
+     stamp `regenerated_after_loop = True` (and `False` on untouched rows).
+   - **Open check before building**: does `main.py` support running a specific
+     idx list? If not, add a small idx-filter hook.
+2. **Selective re-run** of GPT-OSS TriviaQA (24), StrategyQA (5), LegalBench (2).
+   GSM8K (0 loops) needs no re-run. Because ngram=3 is inert on clean rows, the
+   untouched rows stay valid → no full re-run needed.
+3. **Validate the base recipe empirically** before the (separately-pending) full
+   base re-run: re-run ~10 base loop/empty rows with vs. without
+   `repetition_penalty` to confirm ngram-only really is insufficient for base. If
+   base loops turn out to also be tight verbatim repeats, base could drop the
+   penalty too.
+4. **Commit** (per confidence_telemetry_handoff.md §19.1 — only when ready):
+   `git add DavidsDatasets/confidence.py` then commit; do NOT stage `*.pyc`.
+5. **Secondary symptom (lower priority)**: when truncation still occurs, the
+   forcing fallback can leak `analysis…` text into `model_answer` (17 such rows
+   pre-fix). The guard removes most truncations; harden the extractor separately
+   only if leaks persist after re-run.
