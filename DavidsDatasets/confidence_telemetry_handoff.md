@@ -1878,15 +1878,23 @@ Option A is simpler (no new function signatures) and completely safe
 (extraction already gets the right first line; truncation only cleans up the
 stored field).
 
-### 28.3 Two-pass critique always empty for base models [LOW / COMPUTE WASTE]
+**Status: FIXED** (Option A implemented in `confidence.py::get_forced_answer`,
+after the harmony-strip block, pending commit).
+
+### 28.3 Two-pass critique always empty for base models — and `single_pass_correct` absent [LOW / COMPUTE WASTE]
 
 **Symptom**: `two_pass_critique=""`, `two_pass_confidence=None`,
 `two_pass_correct=None` for every base-model row. The flags are now clean
 (`finish_reason=eos, was_truncated=False`) after §27.4, but the data is absent.
 
+Additionally, `single_pass_correct` (the model's in-response "Correct: Yes/No"
+self-assessment) is blank for all forced/base rows — base models using the
+`"Q: {question}\nA:"` format never produce a "Correct:" line.
+
 **Root cause**: The instruction-style two-pass critique prompt is entirely
 outside a base model's training distribution. The model generates EOS
-immediately.
+immediately. The `single_pass_correct` absence is the same OOD issue applied
+to the single-pass response format.
 
 **Impact on calibration**: `verbalized_confidence` now correctly falls back to
 `single_pass_conf` (extracted from the main response via the §27 fix), so the
@@ -1894,35 +1902,61 @@ calibration signal IS present — it's just single-pass, not two-pass. The
 two-pass column is empty but not wrong.
 
 **Fix**: Skip `get_two_pass_confidence` for base models entirely — saves a
-GPU call per row with zero data loss (the output is always `None`):
+GPU call per row with zero data loss (the output is always `None`). Also add
+`MODEL_VARIANT` to the `evaluation.py` config import (it was missing):
 
 ```python
-# In evaluation.py, standard single-pass flow:
+# evaluation.py config import:
+from config import DATASET, ..., MODEL_FAMILY, MODEL_VARIANT, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
+
+# In the standard single-pass flow:
 two_pass_results = dict(_empty_two_pass)
-if model_answer and MODEL_VARIANT != "base":    # ← add guard
+# Base models respond to instruct-style critique with immediate EOS → always empty.
+# single_pass_correct is also absent (no "Correct:" line in base response format).
+if model_answer and MODEL_VARIANT != "base":
     two_pass_results = get_two_pass_confidence(...)
 ```
 
-Alternatively, develop a base-model-appropriate critique prompt (e.g. a simple
-Q&A asking "Was the answer X for question Y correct? (Yes/No)"), but this is
-lower priority — the single-pass signal is sufficient for calibration analysis.
+**Status: FIXED** (`evaluation.py` import updated and guard added, pending commit).
 
-### 28.4 Session commit status (updated)
+### 28.4 `is_correct` false negatives — idx 12587 (Al Gore), idx 6847 (lapwing)
+
+**Symptom**: Rows where the model gave a clearly correct answer but
+`is_correct=False` in the stored CSV:
+- idx 12587: `model_answer="Al Gore"`, answer field shows `is_correct=False`
+- idx 6847: `model_answer="lapwing"`, answer field shows `is_correct=False`
+
+**Root cause**: These CSVs were produced by an earlier pipeline version before
+the extractor and alias-matching improvements in §21/§24. The stored
+`model_answer` may have been a different (wrong) extraction at the time, or the
+TriviaQA alias matching was narrower. The current `check_triviaqa_correct` code
+correctly handles Al Gore and lapwing — new runs will produce correct values.
+
+**Fix**: Re-run or re-extract affected rows. `reextract.py` is conservative
+(targets `^\*{0,2}\s*(Confidence|Correct)\b` pattern only) and won't touch
+these rows. They need a targeted re-run or manual CSV correction.
+
+**Status**: Historical data artifact — current code is correct, no code change
+needed. New runs unaffected.
+
+### 28.5 Session commit status (updated)
 
 | File | What changed | Commit |
 |---|---|---|
 | `confidence.py` | GPT-OSS ngram guard; base rep_penalty + stop_strings; clean forward-pass logit re-derivation | earlier |
 | `confidence.py` | `get_two_pass_confidence` harmony strip + ngram guard; `get_forced_answer` harmony strip + analysis-marker rejection; `_HARMONY_FINAL_DELIM` + `_ANALYSIS_MARKER_RE` constants | `60c3d7a` |
 | `confidence.py` | P1/P2/P3 verbalized-confidence patterns; base `get_verbalized_confidence_separate`; empty-eos `_detect_truncation` guard | `9fc05f3` |
+| `confidence.py` | `get_forced_answer` `\nQ:` truncation for base Q&A continuations (§28.2) | **pending commit** |
 | `evaluation.py` | `is_refusal` column wiring | earlier |
+| `evaluation.py` | `MODEL_VARIANT` import + base-model two-pass skip guard (§28.3) | **pending commit** |
 | `data_utils.py` | 4 extractor/refusal fixes (§21) | `cb0ada1` |
 | `data_utils.py` | Priority-2 sentence-boundary split + meta-commentary blocklist (§24) | `056e4ce` |
 | `model_utils.py` | `generate_simple_response` gains `loop_guard: bool = True` | `60c3d7a` |
 | `verify_rubric.py` | dual instruct/base forced-path tests | `60c3d7a` |
 | `reextract.py` | new re-extraction tool (CPU, conservative) | earlier |
 
-**Still pending** (§28.1–§28.3): `is_correct` alias investigation, forced-pass
-Q&A truncation, base-model two-pass skip.
+**Still pending**: §28.1 `is_correct` alias investigation (idx 12270 Red≠Iron),
+§28.4 is_correct false negatives (idx 12587, 6847) need re-run or manual fix.
 
 ---
 

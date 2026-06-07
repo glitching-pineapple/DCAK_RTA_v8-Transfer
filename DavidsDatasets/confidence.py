@@ -1222,6 +1222,13 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
     if _forced_idx != -1:
         forced_response_clean = forced_response_clean[_forced_idx + len(_HARMONY_FINAL_DELIM):].strip()
 
+    # Truncate base-model Q&A continuations: base models completing "Q: ...\nA:"
+    # often continue with "\nQ: ..." new questions. Extraction already anchors to
+    # the first line, but this keeps forced_answer_response clean in stored output.
+    _qa_cont = forced_response_clean.find('\nQ:')
+    if _qa_cont != -1:
+        forced_response_clean = forced_response_clean[:_qa_cont]
+
     # For base models the response is just the completion AFTER "Answer: " —
     # i.e. it starts with the answer value directly, no "Answer:" prefix. Try
     # extract_model_answer first; if that fails (no anchored "Answer:" line),

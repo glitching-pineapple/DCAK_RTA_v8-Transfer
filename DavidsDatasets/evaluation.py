@@ -9,7 +9,7 @@ _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 # Everything BEFORE the last "assistantfinal" is the model's analysis (reasoning)
 # channel; everything AFTER is the committed final response.
 _HARMONY_FINAL_DELIM = "assistantfinal"
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, MODEL_VARIANT, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
 from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match, is_refusal_response
 from confidence import (
     generate_with_logits,
@@ -184,7 +184,11 @@ def evaluate_sample(
             )
 
         two_pass_results = dict(_empty_two_pass)
-        if model_answer:
+        # Base models receive an instruct-style critique prompt that is OOD;
+        # they respond with immediate EOS → empty two_pass_critique every time.
+        # single_pass_correct is also absent for base models (no "Correct:" line
+        # in the base-model response format). Skip two-pass entirely for base.
+        if model_answer and MODEL_VARIANT != "base":
             two_pass_results = get_two_pass_confidence(
                 model, tokenizer, question, model_answer, response, choices
             )
