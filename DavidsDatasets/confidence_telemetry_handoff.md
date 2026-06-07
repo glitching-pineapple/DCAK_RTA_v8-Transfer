@@ -1700,8 +1700,229 @@ if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
 | `confidence.py` | `get_forced_answer` — base-model override block for minimal Q&A prompt. |
 | `verify_rubric.py` | `check_forced_answer_paths` — dual instruct/base path tests. |
 
-Not yet committed. Uncommitted set: `confidence.py`, `model_utils.py`,
-`verify_rubric.py`, `SESSION_HANDOFF.md`, `confidence_telemetry_handoff.md`.
+Committed in `60c3d7a` (prior session) for `confidence.py` / `model_utils.py` /
+`verify_rubric.py`. `confidence_telemetry_handoff.md` updated in this session
+(see §27–§28).
+
+---
+
+## 27. Verbalized confidence extraction fixes (2026-06-07 part 7)
+
+### 27.1 What was wrong
+
+`triviaqa_confidencewithnewSE_Llama3.1-8B-base (6).csv` — 15 visible rows,
+**every single row shows `verbalized_confidence=10.0` and
+`single_pass_confidence=10.0`**, regardless of what the model actually stated.
+Spot check against `full_response`:
+
+| idx | Model said | Stored |
+|-----|-----------|--------|
+| 10031 | "Confidence 9 / Correct: No" | 10.0 |
+| 12587 | "Confidence 6" | 10.0 |
+| 6847  | "Confidence level: 9" | 10.0 |
+| 6174  | "Confidence 9" | 10.0 |
+| 15364 | "confidence level: 7" | 10.0 |
+
+Root cause: three bugs stacked.
+
+### 27.2 Bug A — `extract_verbalized_confidence` regex too narrow
+
+The single pattern `[Cc]onfidence\s*:\s*(\d+)` requires a colon immediately
+after the keyword. Base models write:
+- `"Confidence 9"` — no colon, standalone line → **no match**
+- `"Confidence level: 9"` — one word before colon → **no match**
+- `"confidence is 7 out of 10"` — prose form → **no match**
+
+When the pattern returns `None`, the fallback `get_verbalized_confidence_separate`
+runs instead.
+
+**Fix**: Three patterns tried in priority order (P1 → P2 → P3):
+
+```python
+_FILLER = r'(?:approximately|about|around|only|just|~|roughly|nearly|almost)?'
+_SUFFIX  = r'(?:/10|out\s+of\s+10|%)?'
+
+# P1: explicit colon, optionally one filler word ("level", "score", etc.)
+p1 = r'[Cc]onfidence(?:\s+\w+)?\s*:\s*' + _FILLER + r'\s*(\d+(?:\.\d+)?)\s*' + _SUFFIX
+
+# P2: no colon, number on its own line — base-model structured-output pattern
+p2 = r'(?m)^[Cc]onfidence\s+(\d+)\s*' + _SUFFIX + r'\s*$'
+
+# P3: prose — "confidence is N" / "confidence level is about N out of 10"
+# _SUFFIX after the captured number means we grab the NUMERATOR (7 not 10).
+p3 = r'[Cc]onfidence(?:\s+\w+)?\s+(?:is|of|at)\s+' + _FILLER + r'\s*(\d+(?:\.\d+)?)\s*' + _SUFFIX
+```
+
+Last match per pattern wins (self-correction). `verify_rubric.py`: ALL CHECKS
+PASSED. Regression suite of 15 CSV-derived cases: all passed.
+
+### 27.3 Bug B — `get_verbalized_confidence_separate` returns 10.0 for base models
+
+When the extractor returned `None` (pre-fix), the fallback ran a separate GPU
+call with an instruction-style confidence prompt. Base models don't follow
+instructions — they either emitted EOS immediately or echoed the last rubric
+number (`10`) from the prompt context. Result: 10.0 for every row.
+
+**Fix**: base models receive a minimal Q&A-style prompt:
+
+```python
+if MODEL_VARIANT == "base":
+    confidence_prompt = f"Q: {question}\nA: {answer}\nConfidence (1-10):"
+    base_suffix = ""
+```
+
+The prompt already ends with the trigger so `base_suffix=""` (same pattern as
+the forced-pass fix in §26).
+
+> **Note**: After Bug A is fixed, this fallback only fires for rows where the
+> main response genuinely has no confidence statement (e.g. was_forced=True
+> rows where the main pass looped without emitting a confidence line). The Bug B
+> fix is still important for those rows.
+
+### 27.4 Bug C — `_detect_truncation` contradictory flags on empty-eos
+
+Two-pass critique for base models generated EOS immediately (OOD prompt).
+The `expect_confidence_markers=True` path then set `was_truncated=True` even
+though `finish_reason=eos`, producing the contradictory pair seen in the CSV:
+`(finish_reason=eos, two_pass_was_truncated=True)`.
+
+**Fix**: marker check guarded on `generated_text` being non-empty:
+
+```python
+if expect_confidence_markers and generated_text:   # ← added `and generated_text`
+    ...
+```
+
+Empty-eos now correctly gives `was_truncated=False`. Non-empty eos responses
+that structurally lack Confidence:/Correct: still get `was_truncated=True`
+(the meaningful use case for instruct models).
+
+### 27.5 Files modified + commit
+
+| File | Change | Commit |
+|---|---|---|
+| `confidence.py` | P1/P2/P3 patterns in `extract_verbalized_confidence`; base-model path in `get_verbalized_confidence_separate`; empty-eos guard in `_detect_truncation` | `9fc05f3` |
+
+---
+
+## 28. Remaining known issues — ready for next session
+
+These are issues visible in CSV(6) that are NOT yet fixed. Ordered by impact.
+
+### 28.1 `is_correct` false positive — idx 12270 (Red ≠ Iron) [HIGH]
+
+**Symptom**: `model_answer="Red"`, `ground_truth="Iron"`, `is_correct=True`.
+The model answered "Red" (citing "Red Neil" Kinnock as a different politician)
+for a question whose answer is "Iron" (Thatcher's "Iron Lady"). "Red" has no
+obvious substring relationship with "Iron".
+
+**Root cause (needs investigation)**: `check_triviaqa_correct` does
+three-tier substring matching: `model_lower in acc or acc in model_lower`. If
+any alias in the TriviaQA alias list for this question contains "red" as a
+substring (e.g. an encoding artifact, a long alias, or an unrelated alias the
+dataset bundled), the match would fire. The specific alias needs to be printed
+to confirm.
+
+**Investigation step**:
+```python
+# Load TriviaQA validation, find idx 12270, print its full alias list
+from datasets import load_dataset
+ds = load_dataset("mandarjoshi/trivia_qa", "rc.nocontext", split="validation")
+sample = ds[12270]
+print(sample['answer'])   # should show value + aliases + normalized_aliases
+```
+Check whether any alias contains "red" as a substring via Tier 1 or its NFKD/
+compact variants.
+
+**Fix once cause is known**:
+- If it's a spurious substring match on a short model answer: add a minimum
+  length guard (e.g. `len(model_lower) >= 3`) before the `in` checks.
+- If it's a dataset alias artifact: add a per-question exclusion or tighten
+  the exact-match requirement for answers ≤ 4 characters.
+
+### 28.2 Forced-pass Q&A continuation — dirty `forced_answer_response` [MEDIUM]
+
+**Symptom**: `forced_answer_response` contains continuation Q&A pairs:
+- idx 11736: `"New Zealand\nQ: In which Commonwealth country is the Great Barrier Reef?\nA: Australia\nQ: ..."`
+- idx 8983:  `"Jack London\nQ: Who wrote The Sea Wolf\nA: Jack London\nQ: ..."`
+- idx 11209: `"Gregory Peck\nQ: Who played the title role in the 1951 film..."`
+
+**Root cause**: The base-model forced prompt `"Q: {question}\nA:"` matches the
+training distribution, but the model then pattern-completes by generating new
+Q&A pairs (typical base model behaviour on seeing `A: <answer>` — it continues
+with `Q: ...`). The stop strings for base in `generate_with_logits`
+(`"\nQuestion:"`, `"\nAnswer the following"`, `"\nSolution:"`) don't cover
+`"\nQ:"`. `loop_guard=False` means ngram=3 doesn't intervene.
+
+**Impact**: Cosmetic only. `extract_model_answer` in the forced path prepends
+`"Answer: "` then runs Priority-1, which anchors to `^`, so the FIRST line
+`"New Zealand"` / `"Jack London"` is always what's extracted. `model_answer`,
+`is_correct`, and confidence signals are unaffected.
+
+**Fix**: Two options (both clean):
+
+Option A — post-process `forced_response_clean` in `get_forced_answer` before
+extraction, truncating at the first `\nQ:`:
+```python
+# Truncate base-model Q&A continuations after the initial answer
+_qa_cont = forced_response_clean.find('\nQ:')
+if _qa_cont != -1:
+    forced_response_clean = forced_response_clean[:_qa_cont]
+```
+
+Option B — add `"\nQ:"` to the stop strings used inside `generate_simple_response`
+for the forced pass. Requires either threading stop_strings through the
+`loop_guard=False` call or adding a `stop_strings` param to `generate_simple_response`.
+
+Option A is simpler (no new function signatures) and completely safe
+(extraction already gets the right first line; truncation only cleans up the
+stored field).
+
+### 28.3 Two-pass critique always empty for base models [LOW / COMPUTE WASTE]
+
+**Symptom**: `two_pass_critique=""`, `two_pass_confidence=None`,
+`two_pass_correct=None` for every base-model row. The flags are now clean
+(`finish_reason=eos, was_truncated=False`) after §27.4, but the data is absent.
+
+**Root cause**: The instruction-style two-pass critique prompt is entirely
+outside a base model's training distribution. The model generates EOS
+immediately.
+
+**Impact on calibration**: `verbalized_confidence` now correctly falls back to
+`single_pass_conf` (extracted from the main response via the §27 fix), so the
+calibration signal IS present — it's just single-pass, not two-pass. The
+two-pass column is empty but not wrong.
+
+**Fix**: Skip `get_two_pass_confidence` for base models entirely — saves a
+GPU call per row with zero data loss (the output is always `None`):
+
+```python
+# In evaluation.py, standard single-pass flow:
+two_pass_results = dict(_empty_two_pass)
+if model_answer and MODEL_VARIANT != "base":    # ← add guard
+    two_pass_results = get_two_pass_confidence(...)
+```
+
+Alternatively, develop a base-model-appropriate critique prompt (e.g. a simple
+Q&A asking "Was the answer X for question Y correct? (Yes/No)"), but this is
+lower priority — the single-pass signal is sufficient for calibration analysis.
+
+### 28.4 Session commit status (updated)
+
+| File | What changed | Commit |
+|---|---|---|
+| `confidence.py` | GPT-OSS ngram guard; base rep_penalty + stop_strings; clean forward-pass logit re-derivation | earlier |
+| `confidence.py` | `get_two_pass_confidence` harmony strip + ngram guard; `get_forced_answer` harmony strip + analysis-marker rejection; `_HARMONY_FINAL_DELIM` + `_ANALYSIS_MARKER_RE` constants | `60c3d7a` |
+| `confidence.py` | P1/P2/P3 verbalized-confidence patterns; base `get_verbalized_confidence_separate`; empty-eos `_detect_truncation` guard | `9fc05f3` |
+| `evaluation.py` | `is_refusal` column wiring | earlier |
+| `data_utils.py` | 4 extractor/refusal fixes (§21) | `cb0ada1` |
+| `data_utils.py` | Priority-2 sentence-boundary split + meta-commentary blocklist (§24) | `056e4ce` |
+| `model_utils.py` | `generate_simple_response` gains `loop_guard: bool = True` | `60c3d7a` |
+| `verify_rubric.py` | dual instruct/base forced-path tests | `60c3d7a` |
+| `reextract.py` | new re-extraction tool (CPU, conservative) | earlier |
+
+**Still pending** (§28.1–§28.3): `is_correct` alias investigation, forced-pass
+Q&A truncation, base-model two-pass skip.
 
 ---
 
