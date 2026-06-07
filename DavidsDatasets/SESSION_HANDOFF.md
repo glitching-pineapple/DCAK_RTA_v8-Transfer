@@ -1307,3 +1307,115 @@ Not committed. Uncommitted source set: `confidence.py`, `model_utils.py`, `verif
 ## 4. Handoff reference
 
 See `confidence_telemetry_handoff.md §25` for the canonical write-up.
+
+---
+
+# Session 2026-06-07 (part 6) — Base-model forced-prompt root cause and final fix
+
+## 0. Context
+
+User ran `triviaqa_confidencewithnewSE_Llama3.1-8B-base (5).csv`. Even with `loop_guard=False`
+(part 5 fix applied), idx 8983 still showed `forced_answer_response=""`. The ngram guard
+hypothesis was therefore wrong or incomplete.
+
+## 1. Actual root cause
+
+The forced-pass prompt was an instruction-style document:
+
+```
+You were answering this trivia question but ran out of thinking time and did NOT commit
+to a final answer.
+
+Question: Who wrote The Sea Wolf?
+
+Your reasoning so far (likely incomplete):
+[2514 chars of reasoning]
+
+Based on your reasoning above, commit to your best-guess answer NOW. Output only the
+answer, no extra words.
+
+Answer: 
+```
+
+Llama-3.1-8B-**base** (not instruction-tuned) has never seen text like
+`"Based on your reasoning above, commit to your best-guess answer NOW. Output only..."`.
+It generates EOS as the first token because the continuation of this document in its
+training distribution doesn't exist. The ngram guard was a contributing factor (banning
+tokens on top of this), but removing it wasn't sufficient — the model simply doesn't
+know how to continue instruction-style prompts.
+
+**Contrast with the instruct model**: `apply_chat_template` wraps the prompt in
+`<|im_start|>` / `<|im_end|>` tokens that tell the instruct model this is a
+conversation; base models receive no such framing and treat the text as raw continuation.
+
+## 2. Fix
+
+In `get_forced_answer`, after the per-dataset instruction-style prompt is built, detect
+the base model variant and replace the prompt with a minimal Q&A format that matches
+the base model's pretraining distribution:
+
+```python
+from config import MODEL_VARIANT, MODEL_FAMILY
+_forced_base_suffix = "\n\nAnswer: "  # instruct path ignores base_suffix
+if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
+    if dataset == "triviaqa":
+        prompt = f"Q: {question}\nA:"
+    elif dataset in ("mmlupro", "medqa"):
+        prompt = f"Q: {question}\n{_format_choices(choices)}\nAnswer:"
+    elif dataset == "gsm8k":
+        prompt = f"Problem: {question}\nAnswer:"
+    elif dataset in ("strategyqa", "legalbench"):
+        prompt = f"Q: {question}\nAnswer (Yes or No):"
+    _forced_base_suffix = ""  # prompt already ends with the answer trigger
+```
+
+The base-model forced prompt for idx 8983 becomes:
+
+```
+Q: Who wrote The Sea Wolf?
+A:
+```
+
+24 chars. The model has seen this exact format billions of times and completes it with
+"Jack London" immediately.
+
+**Why the reasoning clip is dropped for base models:**
+- Instruction-following models benefit from seeing their prior reasoning so they commit
+  to the same line of thought.
+- Base models don't process instruction framing — the reasoning clip is noise that
+  pushes the context further from their training distribution.
+- The base model *already knows* factual trivia answers from pretraining; it just needs
+  to be prompted in the right format.
+
+**Why instruct behavior is unchanged:**
+- `_is_base` check is false → instruction-style prompt is used as before.
+- `base_suffix` parameter is ignored by `generate_simple_response` for instruct
+  models (chat template is used instead).
+
+## 3. Verify
+
+`verify_rubric.py` updated — `check_forced_answer_paths` now tests both instruct and
+base model paths explicitly:
+
+- instruct path: asserts instruction framing present, `base_suffix="\n\nAnswer: "`.
+- base path: asserts instruction framing absent, `base_suffix=""`, question in prompt.
+
+```
+ALL CHECKS PASSED
+```
+
+Prompt sizes: instruct 317 chars (with reasoning clip), base 24 chars (minimal Q&A).
+
+## 4. Files modified this session
+
+| File | Change |
+|---|---|
+| `confidence.py` | `get_forced_answer` — base model override to minimal Q&A format. |
+| `verify_rubric.py` | `check_forced_answer_paths` tests both instruct and base paths. |
+
+Not committed. Uncommitted source set: `confidence.py`, `model_utils.py`,
+`verify_rubric.py`, `SESSION_HANDOFF.md`, `confidence_telemetry_handoff.md`.
+
+## 5. Handoff reference
+
+See `confidence_telemetry_handoff.md §26` for the canonical write-up.

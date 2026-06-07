@@ -1144,19 +1144,29 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
     else:
         return None, ""
 
-    # base_suffix is only used by base models (instruct path uses chat template
-    # and ignores it). "Answer: " forces the base model into the answer slot via
-    # next-token completion — far more reliable than asking a base model to
-    # follow "output only" instructions, which it tends to ignore in favor of
-    # echoing whatever template fragments appear in the prompt.
+    # For BASE models: the instruction-style prompts built above are outside
+    # their training distribution — they generate EOS immediately because they
+    # have never seen text like "commit to your best-guess answer NOW. Output
+    # only..." followed by a factual completion. Override to a minimal Q&A
+    # format that matches their pretraining distribution.
+    from config import MODEL_VARIANT, MODEL_FAMILY
+    _forced_base_suffix = "\n\nAnswer: "  # instruct path ignores base_suffix
+    if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
+        if dataset == "triviaqa":
+            prompt = f"Q: {question}\nA:"
+        elif dataset in ("mmlupro", "medqa"):
+            prompt = f"Q: {question}\n{_format_choices(choices)}\nAnswer:"
+        elif dataset == "gsm8k":
+            prompt = f"Problem: {question}\nAnswer:"
+        elif dataset in ("strategyqa", "legalbench"):
+            prompt = f"Q: {question}\nAnswer (Yes or No):"
+        _forced_base_suffix = ""  # prompt already ends with the answer trigger
+
     # loop_guard=False: the forced budget is ≤ 32 tokens — impossible to loop.
-    # The ngram guard checks the full input+output sequence; with a dense
-    # reasoning context it over-bans tokens and can leave EOS as the only
-    # option, returning an empty string even when the answer is obvious.
     forced_response = generate_simple_response(
         model, tokenizer, prompt,
         max_new_tokens=max_tokens,
-        base_suffix="\n\nAnswer: ",
+        base_suffix=_forced_base_suffix,
         loop_guard=False,
     )
 

@@ -179,10 +179,14 @@ def check_generate_with_logits_signature() -> None:
 
 
 def check_forced_answer_paths() -> None:
-    """get_forced_answer must produce a dataset-specific forced-answer prompt
-    that asks ONLY for the answer in the expected format. Mock generate_simple_response
-    so we can probe what prompt the function would have sent."""
+    """get_forced_answer must produce correct prompts for both instruct and base variants.
+
+    Instruct path: instruction-style prompt with truncation framing, base_suffix='\\n\\nAnswer: '.
+    Base path: minimal Q&A prompt (no instruction framing), base_suffix='' (prompt already
+    ends with the answer trigger so next-token completion lands on the answer directly).
+    """
     import confidence
+    import config
     from confidence import get_forced_answer
 
     captured = {}
@@ -191,7 +195,6 @@ def check_forced_answer_paths() -> None:
         captured["prompt"] = prompt
         captured["max_new_tokens"] = max_new_tokens
         captured["base_suffix"] = base_suffix
-        # Return a canned valid Answer line so extract_model_answer succeeds
         ds = captured["dataset"]
         return {
             "gsm8k": "Answer: 42",
@@ -202,42 +205,61 @@ def check_forced_answer_paths() -> None:
             "legalbench": "Answer: Yes",
         }[ds]
 
-    # Monkey-patch the model_utils.generate_simple_response import inside
-    # get_forced_answer (it imports lazily, so patch the module).
-    import model_utils  # may not exist if torch was stubbed badly; guard
+    import model_utils
     real_simple = getattr(model_utils, "generate_simple_response", None)
     model_utils.generate_simple_response = fake_generate_simple_response
 
+    cases = {
+        "gsm8k": ("If x=2, what is 7x+8?", None, "42"),
+        "mmlupro": ("Pick the right physics answer.",
+                    ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"], "B"),
+        "strategyqa": ("Is water wet?", None, "Yes"),
+        "medqa": ("Diagnosis?", ["A.foo", "B.bar", "C.baz", "D.qux", "E.zap"], "C"),
+        "triviaqa": ("Capital of France?", None, "Paris"),
+        "legalbench": ("Is this statement hearsay?", None, "Yes"),
+    }
+
     try:
-        cases = {
-            "gsm8k": ("If x=2, what is 7x+8?", None, "42"),
-            "mmlupro": ("Pick the right physics answer.",
-                        ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10"], "B"),
-            "strategyqa": ("Is water wet?", None, "Yes"),
-            "medqa": ("Diagnosis?", ["A.foo", "B.bar", "C.baz", "D.qux", "E.zap"], "C"),
-            "triviaqa": ("Capital of France?", None, "Paris"),
-            "legalbench": ("Is this statement hearsay?", None, "Yes"),
-        }
+        # --- instruct path ---
+        config.MODEL_VARIANT = "instruct"
         for ds, (q, choices, expected) in cases.items():
             captured["dataset"] = ds
-            forced_answer, forced_resp = get_forced_answer(
+            forced_answer, _ = get_forced_answer(
                 None, None, q, "[some truncated reasoning]", ds, choices
             )
             prompt = captured["prompt"]
-            assert "ran out of thinking time" in prompt, f"[{ds}] forced prompt missing truncation framing"
-            # New design: prompt body no longer contains a template "Answer:" line —
-            # that's appended via base_suffix so base models complete it directly.
-            # The body must still tell the model to output only the answer value.
-            assert "Output only" in prompt, f"[{ds}] forced prompt missing 'Output only' instruction"
+            assert "ran out of thinking time" in prompt, \
+                f"[instruct/{ds}] forced prompt missing truncation framing"
+            assert "Output only" in prompt, \
+                f"[instruct/{ds}] forced prompt missing 'Output only' instruction"
             assert captured["base_suffix"] == "\n\nAnswer: ", \
-                f"[{ds}] forced call should pass base_suffix='\\n\\nAnswer: ' (got {captured['base_suffix']!r})"
-            assert q in prompt, f"[{ds}] forced prompt missing original question"
+                f"[instruct/{ds}] expected base_suffix='\\n\\nAnswer: ' (got {captured['base_suffix']!r})"
+            assert q in prompt, f"[instruct/{ds}] forced prompt missing question"
             assert forced_answer == expected, \
-                f"[{ds}] forced extraction got {forced_answer!r}, want {expected!r}"
-            print(f"  [{ds}] forced-answer path OK (prompt={len(prompt)} chars, forced={forced_answer!r})")
+                f"[instruct/{ds}] got {forced_answer!r}, want {expected!r}"
+            print(f"  [instruct/{ds}] OK (prompt={len(prompt)} chars, forced={forced_answer!r})")
+
+        # --- base path ---
+        config.MODEL_VARIANT = "base"
+        for ds, (q, choices, expected) in cases.items():
+            captured["dataset"] = ds
+            forced_answer, _ = get_forced_answer(
+                None, None, q, "[some truncated reasoning]", ds, choices
+            )
+            prompt = captured["prompt"]
+            assert captured["base_suffix"] == "", \
+                f"[base/{ds}] base path should pass base_suffix='' (got {captured['base_suffix']!r})"
+            assert q in prompt, f"[base/{ds}] forced prompt missing question"
+            assert "ran out of thinking time" not in prompt, \
+                f"[base/{ds}] base path must not use instruction framing"
+            assert forced_answer == expected, \
+                f"[base/{ds}] got {forced_answer!r}, want {expected!r}"
+            print(f"  [base/{ds}] OK (prompt={len(prompt)} chars, forced={forced_answer!r})")
+
     finally:
         if real_simple is not None:
             model_utils.generate_simple_response = real_simple
+        config.MODEL_VARIANT = "base"  # restore to what check_prompt left it
 
 
 def check_evaluate_sample_columns() -> None:

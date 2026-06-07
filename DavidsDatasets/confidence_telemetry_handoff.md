@@ -1616,4 +1616,93 @@ Not yet committed.
 
 ---
 
+## 26. Base-model forced-prompt root cause and fix (2026-06-07 part 6)
+
+### 26.1 What §25 got wrong
+
+§25 identified `no_repeat_ngram_size=3` over-banning as the root cause of
+`forced_answer_response=""`. The `loop_guard=False` fix was correct analysis and a
+correct partial fix, but user ran CSV(5) with that fix applied and still got `""`.
+
+**The real root cause**: the instruction-style forced prompt is completely outside the
+base model's training distribution. Llama-3.1-8B-**base** has never seen text like:
+
+```
+Based on your reasoning above, commit to your best-guess answer NOW. Output only the
+answer, no extra words.
+
+Answer: 
+```
+
+It generates EOS immediately because there is no plausible continuation of this
+instruction document in its training data. Removing the ngram guard was necessary but
+not sufficient — it only unblocked the token generation path, but the model was still
+generating EOS because of the prompt format.
+
+The `loop_guard=False` fix from §25 **is still correct** and should stay: it addresses
+an independent concern (ngram guard over-banning for all base-model forced passes, not
+just Llama). §26 fixes the underlying prompt-distribution mismatch.
+
+### 26.2 The fix
+
+In `get_forced_answer` (`confidence.py`), after the per-dataset instruction-style prompt
+is built (used for instruct models), override the prompt for base models with a minimal
+Q&A format that matches their pretraining distribution:
+
+```python
+from config import MODEL_VARIANT, MODEL_FAMILY
+_forced_base_suffix = "\n\nAnswer: "  # instruct path ignores base_suffix
+if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
+    if dataset == "triviaqa":
+        prompt = f"Q: {question}\nA:"
+    elif dataset in ("mmlupro", "medqa"):
+        prompt = f"Q: {question}\n{_format_choices(choices)}\nAnswer:"
+    elif dataset == "gsm8k":
+        prompt = f"Problem: {question}\nAnswer:"
+    elif dataset in ("strategyqa", "legalbench"):
+        prompt = f"Q: {question}\nAnswer (Yes or No):"
+    _forced_base_suffix = ""  # prompt already ends with the answer trigger
+```
+
+**Why drop the reasoning clip for base models:**
+- Instruction-following models benefit from seeing their own prior reasoning.
+- Base models don't process instruction framing — the reasoning clip pushes the
+  context further from their training distribution without providing any signal.
+- Base models know factual answers from pretraining; they just need natural Q&A format.
+
+### 26.3 Updated forced-pass prompt table
+
+| Model variant | Prompt format | base_suffix | Budget |
+|---|---|---|---|
+| instruct | Instruction-style (ran out of thinking time, reasoning clip, "Output only…") | `"\n\nAnswer: "` (ignored) | 8–32 tok |
+| base / gptoss | Minimal Q&A: `"Q: {question}\nA:"` or similar | `""` | 8–32 tok |
+
+### 26.4 Updated loop-guard table (amends §25.3)
+
+| Call site | `loop_guard` | Base-model prompt | Rationale |
+|---|---|---|---|
+| `get_forced_answer` | **False** | Minimal Q&A | Cannot loop; dense context over-bans; short budget |
+| `get_gen2_confidence` | True (default) | Instruction-style | Can loop at 512+ tokens; compact context |
+| `get_two_pass_confidence` | True (default) | Instruction-style | Can loop at 512+ tokens; compact context |
+
+### 26.5 verify_rubric.py
+
+`check_forced_answer_paths` updated to test both instruct and base paths:
+- instruct: asserts "ran out of thinking time", "Output only", `base_suffix="\n\nAnswer: "`.
+- base: asserts no instruction framing, `base_suffix=""`, question in prompt.
+
+`ALL CHECKS PASSED`. Prompt sizes: instruct 317 chars, base 24 chars.
+
+### 26.6 Files modified
+
+| File | Change |
+|---|---|
+| `confidence.py` | `get_forced_answer` — base-model override block for minimal Q&A prompt. |
+| `verify_rubric.py` | `check_forced_answer_paths` — dual instruct/base path tests. |
+
+Not yet committed. Uncommitted set: `confidence.py`, `model_utils.py`,
+`verify_rubric.py`, `SESSION_HANDOFF.md`, `confidence_telemetry_handoff.md`.
+
+---
+
 End of handoff document.
