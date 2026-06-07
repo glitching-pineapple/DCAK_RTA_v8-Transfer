@@ -71,6 +71,9 @@ def generate_with_logits(
     max_new_tokens: int = MAX_NEW_TOKENS,
     temperature: float = 1.0,
     do_sample: bool = False,
+    repetition_penalty: float = None,
+    no_repeat_ngram_size: int = None,
+    stop_strings: list = None,
 ) -> Tuple[str, List[float], List[str], list, Dict]:
     """
     Generate response and capture token-level probabilities.
@@ -81,37 +84,89 @@ def generate_with_logits(
         - tokens: The actual tokens generated
         - raw_scores: Per-step vocab logit tensors, shape (1, vocab_size) each
         - meta: dict with "finish_reason" ("eos"|"length") and "was_truncated" (bool)
+
+    Base-model handling:
+        Base (non-instruct) models are pure text-completion models. On an
+        instruction prompt they either collapse into verbatim repetition loops
+        (never reaching "Answer:", so model_answer comes back empty) or answer
+        and then keep generating new questions. For MODEL_VARIANT == "base" we
+        therefore turn on repetition guards and stop sequences. Instruct runs
+        are left completely untouched (guards off), so existing instruct results
+        remain reproducible byte-for-byte.
+
+        When the guards are active they warp `outputs.scores`, which would
+        corrupt the logit-confidence metrics AND the MCQ answer-token-entropy.
+        So on the base path we re-derive both `token_probs` and `raw_scores`
+        from a clean teacher-forced forward pass (raw, unwarped logits).
     """
+    # Resolve guard defaults from the model variant (None = auto).
+    if repetition_penalty is None:
+        repetition_penalty = 1.2 if MODEL_VARIANT == "base" else 1.0
+    if no_repeat_ngram_size is None:
+        no_repeat_ngram_size = 3 if MODEL_VARIANT == "base" else 0
+    if stop_strings is None and MODEL_VARIANT == "base":
+        stop_strings = ["\nQuestion:", "\nAnswer the following", "\nSolution:"]
+
+    use_penalty = bool(repetition_penalty) and repetition_penalty != 1.0
+    use_ngram = bool(no_repeat_ngram_size) and no_repeat_ngram_size > 0
+    guards_active = use_penalty or use_ngram or bool(stop_strings)
+
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     input_length = inputs.input_ids.shape[1]
 
+    gen_kwargs = dict(
+        max_new_tokens=max_new_tokens,
+        do_sample=do_sample,
+        return_dict_in_generate=True,
+        output_scores=True,
+        pad_token_id=tokenizer.pad_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+    )
+    # temperature only matters when sampling (and warns under greedy otherwise).
+    if do_sample:
+        gen_kwargs["temperature"] = temperature
+    if use_penalty:
+        gen_kwargs["repetition_penalty"] = repetition_penalty
+    if use_ngram:
+        gen_kwargs["no_repeat_ngram_size"] = no_repeat_ngram_size
+    if stop_strings:
+        gen_kwargs["stop_strings"] = stop_strings
+        gen_kwargs["tokenizer"] = tokenizer
+
     with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            do_sample=do_sample,
-            return_dict_in_generate=True,
-            output_scores=True,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        outputs = model.generate(**inputs, **gen_kwargs)
 
     generated_ids = outputs.sequences[0, input_length:]
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
 
     meta = _detect_truncation(generated_text, generated_ids, tokenizer)
 
-    raw_scores = list(outputs.scores)
-
     token_probs = []
     tokens = []
 
-    for i, score in enumerate(outputs.scores):
-        probs = torch.softmax(score[0], dim=-1)
-        token_id = generated_ids[i].item()
-        token_prob = probs[token_id].item()
-        token_probs.append(token_prob)
-        tokens.append(tokenizer.decode([token_id]))
+    if guards_active and generated_ids.numel() > 0:
+        # Clean forward pass over the full sequence → unwarped per-token logits.
+        with torch.no_grad():
+            clean_logits = model(outputs.sequences).logits[0]  # (seq_len, vocab)
+        raw_scores = []
+        for i in range(generated_ids.shape[0]):
+            # logits at position p predict token p+1; the i-th generated token
+            # sits at absolute index (input_length + i).
+            row = clean_logits[input_length + i - 1]
+            raw_scores.append(row.unsqueeze(0))  # keep (1, vocab) shape
+            probs = torch.softmax(row.float(), dim=-1)
+            token_id = generated_ids[i].item()
+            token_probs.append(probs[token_id].item())
+            tokens.append(tokenizer.decode([token_id]))
+    else:
+        # Instruct (and any guards-off) path — identical to the original.
+        raw_scores = list(outputs.scores)
+        for i, score in enumerate(outputs.scores):
+            probs = torch.softmax(score[0], dim=-1)
+            token_id = generated_ids[i].item()
+            token_prob = probs[token_id].item()
+            token_probs.append(token_prob)
+            tokens.append(tokenizer.decode([token_id]))
 
     return generated_text, token_probs, tokens, raw_scores, meta
 
@@ -312,6 +367,30 @@ def _get_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]
     return cache[cache_key]
 
 
+def _truncate_to_first_block(response: str) -> str:
+    """
+    Cut a response after its FIRST completed Answer/Confidence/Correct block.
+
+    Base models often answer correctly and then keep generating — restating the
+    template or hallucinating new questions and answering those. Extractors that
+    scan the whole response (or take the LAST match) then grab the continuation's
+    answer/confidence or a literal "<YOUR_ANSWER>" placeholder, marking a correct
+    answer wrong. Restricting every extractor to the first block fixes that;
+    within the block last-match behaviour is preserved so genuine mid-solution
+    self-correction still works.
+    """
+    if not response:
+        return response
+    m = re.search(r'\*{0,2}[Cc]orrect\*{0,2}\s*:\s*(?:Yes|No)\b', response, re.IGNORECASE)
+    if m:
+        return response[:m.end()]
+    m2 = re.search(r'\n\s*(?:Question\s*:|Answer the following|Solution\s*:)',
+                   response, re.IGNORECASE)
+    if m2:
+        return response[:m2.start()]
+    return response
+
+
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
     """
     Extract verbalized confidence from the model's response.
@@ -326,9 +405,10 @@ def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float
     - Legacy decimal format: "Confidence: 0.85" → auto-converted to 1-10
     - Legacy percentage: "Confidence: 85%" → auto-converted to 1-10
     """
+    # Only look at the model's first completed block (ignore any continuation).
     # Strip markdown bold for easier matching
-    cleaned = response.replace('*', '')
-    
+    cleaned = _truncate_to_first_block(response).replace('*', '')
+
     # Primary pattern: "Confidence" followed by optional filler then a number
     # Handles: "Confidence: 8", "Confidence: 7/10", "Confidence: about 9"
     pattern = r'[Cc]onfidence\s*:\s*(?:approximately|about|around|~|roughly)?\s*(\d+(?:\.\d+)?)\s*(?:/10|%)?'
@@ -351,6 +431,8 @@ def extract_more_likely_than_not(response: str) -> Optional[bool]:
     Extract the 'Correct' judgment from response.
     Handles optional markdown bold (**Correct:**).
     """
+    # Only look at the model's first completed block (ignore any continuation).
+    response = _truncate_to_first_block(response)
     # Handle optional markdown bold ** around keywords and after ":"
     patterns = [
         r'^\s*\*{0,2}[Cc]orrect\*{0,2}:\*{0,2}\s*(Yes|No)',

@@ -131,6 +131,31 @@ def _strip_harmony_envelope(response: str) -> str:
     return response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1]
 
 
+def _truncate_to_first_block(response: str) -> str:
+    """
+    Cut a response after its FIRST completed Answer/Confidence/Correct block.
+
+    Base models often answer correctly and then keep generating — restating the
+    template or hallucinating new questions and answering those. Scanning the
+    whole response (or taking the LAST "Answer:" match) then grabs the
+    continuation's answer or a literal "<YOUR_ANSWER>" placeholder, marking a
+    correct answer wrong. Restricting extraction to the first block fixes that;
+    within the block last-match behaviour is preserved so mid-solution
+    self-correction still works. (Kept self-contained here rather than imported
+    from confidence.py to avoid a circular import.)
+    """
+    if not response:
+        return response
+    m = re.search(r'\*{0,2}[Cc]orrect\*{0,2}\s*:\s*(?:Yes|No)\b', response, re.IGNORECASE)
+    if m:
+        return response[:m.end()]
+    m2 = re.search(r'\n\s*(?:Question\s*:|Answer the following|Solution\s*:)',
+                   response, re.IGNORECASE)
+    if m2:
+        return response[:m2.start()]
+    return response
+
+
 def extract_model_answer(response: str, dataset: str) -> Optional[str]:
     """
     Extract model answer based on dataset type.
@@ -143,6 +168,7 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
     - GPT-OSS harmony format: "<analysis>...assistantfinalAnswer: 42"
     """
     response = _strip_harmony_envelope(response)
+    response = _truncate_to_first_block(response)
     
     if dataset == "gsm8k":
         # Priority 1: "Answer:" anchored at start of line (so "in this answer:"
@@ -336,6 +362,7 @@ def extract_model_answer_strict(response: str, dataset: str) -> Optional[str]:
     # committed answer behind an "assistantfinal" delimiter that must be
     # peeled off before any "Answer:" pattern is reliably anchorable.
     response = _strip_harmony_envelope(response)
+    response = _truncate_to_first_block(response)
     cleaned = response.replace('*', '')
 
     if dataset == "gsm8k":
