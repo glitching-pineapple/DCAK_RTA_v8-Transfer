@@ -196,7 +196,18 @@ def is_refusal_response(response: str, extracted_answer) -> bool:
     if not isinstance(response, str) or not response.strip():
         return False
     text = _strip_harmony_envelope(response)
-    return bool(_REFUSAL_RE.search(text))
+    # Only scan the tail of long responses. Mid-reasoning phrases like "I can't
+    # find anything online" or "I don't remember who" fire the patterns even when
+    # the model was genuinely attempting to answer. Genuine abstentions appear at
+    # or near the end of the response. We use a character-based window (last 350
+    # chars) for responses longer than 400 chars, because line-based splitting
+    # gives the full text when the response is a single long paragraph — exactly
+    # the case where base-model false positives appear.
+    if len(text) > 400:
+        tail = text[-350:]
+    else:
+        tail = text
+    return bool(_REFUSAL_RE.search(tail))
 
 
 def extract_model_answer(response: str, dataset: str) -> Optional[str]:
@@ -344,18 +355,41 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         if matches:
             answer = re.split(r'\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect', matches[-1])[0]
             answer = answer.strip().rstrip('.')
-            if answer:
+            # Bare numbers are confidence scores, not trivia answers.
+            if answer and not re.match(r'^\d+\.?\d*$', answer):
                 return answer
 
-        # Priority 2: Common phrasing
+        # Priority 1.5: "Answer:" appearing mid-line after a commit-phrase
+        # separator (comma, period, ellipsis). Catches base-model patterns like:
+        #   "So overall, Answer: Henry II"
+        #   "...my reasoning... Answer: Isle of skye"
+        # The separator requirement blocks mid-CoT uses like "in this answer:"
+        # (no preceding comma/period). The length cap + prose-opener filter guard
+        # against accidentally capturing a continuation clause as the answer.
+        matches_15 = re.findall(r'[,;.…]\s*[Aa]nswer\s*:\s*(.+?)(?:\n|$)', response)
+        if matches_15:
+            answer = re.split(r'\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect', matches_15[-1])[0]
+            answer = answer.strip().rstrip('.')
+            _PROSE_OPENERS = r'^(?:we |i |it |if |so |but |and |or |that |which |when |there |is |are |was |were )'
+            if (answer
+                    and len(answer) <= 120
+                    and not re.match(r'^\d+\.?\d*$', answer)
+                    and not re.match(_PROSE_OPENERS, answer, re.IGNORECASE)):
+                return answer
+
+        # Priority 2: Common phrasing. Colon is REQUIRED after "final answer"
+        # to prevent "my final answer would be... Answer: X" from over-capturing
+        # the trailing clause instead of the committed answer after "Answer:".
         patterns = [
             r'[Tt]he answer is:?\s*(.+?)(?:\n|$)',
-            r'[Ff]inal answer:?\s*(.+?)(?:\n|$)',
+            r'[Ff]inal [Aa]nswer:\s*(.+?)(?:\n|$)',
         ]
         for pattern in patterns:
             match = re.search(pattern, response)
             if match:
-                return match.group(1).strip().rstrip('.')
+                ans = match.group(1).strip().rstrip('.')
+                if ans and not re.match(r'^\d+\.?\d*$', ans):
+                    return ans
         return None
 
     elif dataset == "legalbench":
