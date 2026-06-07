@@ -928,4 +928,161 @@ the next session can go straight to building 19.3.
 
 ---
 
+## 20. Re-run vs re-extraction — the decision framework (READ THIS before "fixing" any CSV)
+
+> Added after the GPT-OSS + Gemma2-instruct debugging session. This is the
+> single most important mental model for maintaining the result CSVs. If you
+> remember one thing: **most "the CSV is wrong" problems do NOT need the GPU.**
+
+### 20.1 The two repair tools (do not confuse them)
+
+| | **Re-inference (re-run)** | **Re-extraction (re-parse)** |
+|---|---|---|
+| What | Run the model again on the GPU | Re-parse the `full_response` text already in the CSV (CPU, seconds) |
+| Changes | The generated tokens themselves | Only the *derived* fields (`model_answer`, `is_correct`, `answer_extraction_failed`, `is_refusal`) |
+| Tool | `main.py` with the model config | `reextract.py` |
+| Cost / risk | GPU hours; breaks byte-for-byte reproducibility of existing runs | Free; `.bak`-backed; reproducible |
+
+The pipeline already separates "what the model said" (`full_response`, the raw
+record) from "what we parsed out of it" (`model_answer` etc.). So if the raw
+record is fine and only the parse is wrong, you re-extract. You re-run only when
+the raw record itself is unusable or would change.
+
+### 20.2 The decision rule
+
+**Re-run (re-inference) only if ONE of these holds:**
+1. The failure is in **generation** and the answer is **not recoverable from the
+   text** — e.g. the model looped/truncated and never produced an answer
+   (`finish_reason="length"`). The information genuinely isn't there to re-parse.
+2. You changed a **decoding setting** that alters the token stream — e.g.
+   `repetition_penalty`. Then *every* row's tokens (and logit-confidence
+   metrics) differ, so old and new rows aren't comparable within a benchmark →
+   full re-run of that (model × benchmark).
+
+**Re-extract (re-parse) if:**
+3. The failure is in **parsing** and the correct answer/signal **is present** in
+   `full_response`. The current extractor recovers it without the GPU. This is
+   the default — try it first.
+
+Corollary used repeatedly this session: a guard that is **inert on well-behaved
+rows** (e.g. `no_repeat_ngram_size`) lets you do a **selective** re-run (only the
+pathological rows), because the clean rows are byte-identical with or without it.
+A guard that touches every row (`repetition_penalty`) forces a **full** re-run.
+
+### 20.3 The three concrete cases (and why each lands where it does)
+
+**(A) GPT-OSS-20B-instruct — repetition loops → SELECTIVE RE-RUN.**
+GPT-OSS loops inside its Harmony `analysis` channel (a line repeated up to
+~1000×), exhausts `max_new_tokens`, and never emits a final answer. TriviaQA hit
+24/149 (16%); StrategyQA 5/150; LegalBench 2/150; GSM8K 0/150. The answer is NOT
+in the text (rule 1) → must re-run those rows. Fix in `confidence.py`: extend the
+guard predicate so GPT-OSS gets `no_repeat_ngram_size=3` (it was gated on
+`MODEL_VARIANT=="base"` only, and GPT-OSS is instruct). Because ngram=3 is inert
+on non-looping rows, **only the loop rows need regenerating** — clean rows stay
+valid. See §20.4 for why ngram-only (not the base recipe) was chosen.
+
+**(B) Llama base / Gemma base — FULL RE-RUN.** Two reasons stack: loop rows have
+no recoverable answer (rule 1) AND the base fix uses `repetition_penalty=1.2`,
+which warps every row (rule 2). Existing base CSVs are still pre-fix/broken
+(e.g. Gemma2-base TriviaQA 15/40 empty answers). Leave **instruct** base-peers
+untouched. (This is the §18.6 verdict; restated here in the framework.)
+
+**(C) Gemma2-9B-instruct — `"Confidence: N"` as the answer → RE-EXTRACT ONLY.**
+When the model abstained it emitted an empty `Answer:` line then `Confidence: N`;
+an OLD extractor captured the `Confidence:` line as the answer. The answer text
+(or its genuine absence) is fully present in `full_response` (rule 3), and the
+**current** extractor already handles it correctly via per-branch rubric guards —
+so this is purely STALE DATA. Fixed by `reextract.py` (CPU), already applied to
+all 19 Gemma2-instruct CSVs (13 rows). **No GPU.** See §20.5.
+
+> Trap that bit us: we first "fixed the root cause" by stopping the answer regex
+> from crossing newlines (`:\s*` → `:[^\S\n]*`). That BROKE legitimate answers
+> placed on the line *after* `Answer:` (e.g. `Answer:\nIgnatius J. Donnelly`).
+> **Reverted.** The newline-crossing is load-bearing; the per-branch guards
+> (`re.split` on `Confidence`/`Correct`, or letter/Yes-No matching) already
+> reject the leaked rubric text. Lesson: before "fixing" an extractor regex,
+> check whether existing post-processing already neutralizes the case — and
+> always blanket dry-run `reextract.py` to see collateral.
+
+### 20.4 GPT-OSS guard policy — why ngram-only, not the base recipe
+
+The base recipe is `repetition_penalty=1.2 + no_repeat_ngram_size=3 + stop_strings`.
+GPT-OSS gets **only `no_repeat_ngram_size=3`**. Reasoning:
+
+- `no_repeat_ngram_size=3` is **inert** on a non-repeating generation (it only
+  fires when a 3-gram would repeat). GPT-OSS's loops *are* repeated 3-grams, so
+  it kills them while leaving clean rows byte-identical → enables the selective
+  re-run.
+- `repetition_penalty=1.2` is applied at **every** step to all prior tokens, so
+  it perturbs the token-probability distribution on every row — and those
+  probabilities are the confidence signal the study measures. It is
+  **load-bearing for base** (whose degeneration is mixed: over-generation +
+  loose rambles a 3-gram ban misses) but **redundant for GPT-OSS** (pure
+  verbatim loops). So apply it to base only; dropping it for GPT-OSS keeps its
+  confidence telemetry "natural."
+- `stop_strings` (`\nQuestion:` etc.) target the *base* over-generation failure
+  and don't fit GPT-OSS's reasoning loops → base only.
+
+Resolved matrix (in `confidence.py::generate_with_logits`):
+
+| Config | ngram | rep_penalty | stop_strings |
+|---|---|---|---|
+| Qwen/Gemma **instruct** | 0 | 1.0 | — |
+| **GPT-OSS** instruct | 3 | 1.0 | — |
+| **base** (Llama/Gemma) | 3 | 1.2 | ✓ |
+
+Principle to carry forward: *use the minimal decoding constraint that prevents
+non-termination; prefer constraints inert on well-behaved rows over
+`repetition_penalty`. Add a future model to the guard predicate ONLY if it
+demonstrably loops* — do not blanket-enable for "instruct".
+
+### 20.5 Refusal detection + `reextract.py` (the §19.3 follow-through)
+
+`is_refusal` (handoff §19.3) is now implemented:
+- `data_utils.py::is_refusal_response(response, extracted_answer)` — returns True
+  only when the answer is empty/None AND the text matches a tight abstention
+  pattern ("I can't determine … without", "please provide the terms",
+  "I don't have access", "struggling to pinpoint", …). Conservative by design:
+  if any answer parsed, never a refusal. Prefer undercounting to mislabeling.
+- `evaluation.py` computes `is_refusal` right after `answer_extraction_failed`
+  (a refusal is a SUBSET of it, so the confidence fields are already NaN-ed) and
+  adds it to the result dict. `save_utils.py` needs nothing
+  (`pd.DataFrame(results)` picks the key up). Analysis treatment: EXCLUDE
+  refusals from accuracy/calibration (or bucket separately) — never coin-flip
+  force them, which would inject noise into the calibration signal.
+
+`reextract.py` — re-parse existing CSVs without the GPU. It is **targeted and
+conservative**; a blanket "re-parse every row" version is WRONG, as a
+full-dataset dry-run proved:
+- **GSM8K float trap**: pandas reads the numeric `model_answer` column as float,
+  so `"15"` → `15.0` and every row looks changed; one even mis-extracted
+  (`'2.0'→'00'`). → don't reformat clean numeric answers.
+- **Forced-answer trap**: `was_forced=True` rows hold the answer in
+  `forced_answer_response`, NOT `full_response`. Re-parsing `full_response`
+  destroyed correct forced answers (LegalBench `'No'`→none).
+
+So `reextract.py` ONLY rewrites rows whose stored `model_answer` matches the
+mis-parse signature `^\*{0,2}\s*(Confidence|Correct)\b`; every other row is left
+exactly as generated and merely gains the `is_refusal` column. Usage:
+`python3 reextract.py "<glob>" [--write]` (dry-run default; `--write` makes
+`.bak`). Re-running it on other instruct models (Gemma4-instruct/Qwen/GPT-OSS)
+would only ADD the column — they have 0 bug rows.
+
+### 20.6 Quick-reference: what to do with each model
+
+| Model (× benchmark) | Action | Why |
+|---|---|---|
+| GPT-OSS, loop rows (TriviaQA/SQA/LegalBench) | **Selective re-run** (GPU) | answer never generated; ngram-only keeps clean rows valid |
+| GPT-OSS, GSM8K + all non-loop rows | nothing | 0 loops / clean |
+| Llama base, Gemma base (all benchmarks) | **Full re-run** (GPU) | unrecoverable loops + `repetition_penalty` warps every row |
+| Gemma2-9B-instruct (all benchmarks) | **Re-extracted (done)** | stale parse; answer present in text; CPU only |
+| Gemma4-instruct, Qwen instruct | nothing (optional re-extract for `is_refusal` column) | 0 bug rows; clean, reproducible |
+
+Uncommitted source from this work: `confidence.py` (GPT-OSS guard),
+`data_utils.py` + `evaluation.py` (refusal), `reextract.py` (new tool). Commit
+per §19.1; never stage `*.pyc`. Blow-by-blow log lives in
+`SESSION_HANDOFF.md` → "Session 2026-06-07" parts 1 and 2.
+
+---
+
 End of handoff document.
