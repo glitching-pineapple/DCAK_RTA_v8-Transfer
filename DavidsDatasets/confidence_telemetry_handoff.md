@@ -1290,4 +1290,132 @@ recoverable answer), not rule 2 (penalty warped every row).
 
 ---
 
+## 23. GPT-OSS two-pass critique + forced-answer harmony bugs (2026-06-07)
+
+Three bugs found in `confidence.py` from inspecting
+`triviaqa_confidencewithnewSE_GPT-OSS-20B-instruct.csv`. All fixed in the
+working tree; not yet committed.
+
+### 23.1 Bug A — two-pass extractors saw the harmony analysis channel (idx 5)
+
+**Symptom:** `more_likely_than_not` and `single_pass_confidence` empty despite
+the critique response containing `"Correct: Yes"`.
+
+**Root cause:** `get_two_pass_confidence` passed raw `critique_response` (both
+harmony channels) to `extract_verbalized_confidence` / `extract_more_likely_than_not`.
+`_truncate_to_first_block` cut at a mid-sentence `"Correct: Yes"` in the
+**analysis** channel. `extract_more_likely_than_not` requires a line-start `^`
+anchor — mid-sentence matches return `None`.
+
+**Fix:** Strip harmony envelope before extraction.
+
+```python
+critique_for_extraction = critique_response
+if _HARMONY_FINAL_DELIM in critique_response:
+    critique_for_extraction = critique_response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+conf = extract_verbalized_confidence(critique_for_extraction, DATASET)
+correct_judgment = extract_more_likely_than_not(critique_for_extraction)
+```
+
+Extractors now see only the committed final channel, where `Correct:` appears at
+line start.
+
+### 23.2 Bug B — two-pass `model.generate()` missing ngram guard (idx 8959)
+
+**Symptom:** All confidence fields empty for idx 8959.
+
+**Root cause:** `get_two_pass_confidence` called `model.generate()` without
+`no_repeat_ngram_size`. The main forward pass (§19.4) already had the guard for
+GPT-OSS, but the two-pass critique's **separate** `model.generate()` call did
+not. GPT-OSS looped to the full `max_new_tokens` budget and produced no
+`Confidence:` or `Correct:` output.
+
+**Fix:** Mirror the same predicate from `generate_with_logits`:
+
+```python
+_two_pass_gen_kwargs = dict(
+    max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
+    do_sample=False,
+    return_dict_in_generate=True,
+    pad_token_id=tokenizer.pad_token_id,
+)
+if (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss"):
+    _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+outputs = model.generate(**inputs, **_two_pass_gen_kwargs)
+```
+
+**Principle:** every `model.generate()` call that can run on GPT-OSS or a base
+model must include `no_repeat_ngram_size=3`. It is not enough to guard only the
+main forward pass — secondary calls (two-pass critique, future eval calls) need
+the same guard independently.
+
+### 23.3 Bug C — `get_forced_answer` leaked harmony analysis text (idx 2322)
+
+**Symptom:** `model_answer` was a long analysis-channel blob (`"analysisWe need
+to consider…"`). `single_pass_confidence` / `single_pass_correct` empty.
+
+**Root cause:** When the main pass truncated before reaching `assistantfinal`,
+the forced-answer call ran with a 32-token budget. GPT-OSS again hit
+`max_new_tokens` before `assistantfinal`, producing only analysis text.
+`get_forced_answer` had no harmony stripping — `forced_response_clean` was the
+raw analysis blob. The lax fallback
+`extract_model_answer(f"Answer: {blob}", dataset)` accepted the analysis text as
+the "answer". The non-None bogus answer kept `answer_extraction_failed=False`, so
+confidence fields were attempted but two-pass critique also received garbage.
+
+**Fix:** Two guards added to `get_forced_answer`:
+
+1. **Harmony stripping:** `rsplit(_HARMONY_FINAL_DELIM, 1)[-1]` before any
+   extraction attempt.
+2. **Analysis-channel rejection:**
+   `_ANALYSIS_MARKER_RE = re.compile(r'^analysis', re.IGNORECASE)` — if the
+   extracted answer matches, set it to `None`. No `\b` word boundary: the harmony
+   channel name runs directly into the next word (`"analysisWe…"`), so `\b` would
+   not match.
+
+**Module-level constants** (lines 16–21 of confidence.py):
+```python
+_HARMONY_FINAL_DELIM = "assistantfinal"
+_ANALYSIS_MARKER_RE = re.compile(r'^analysis', re.IGNORECASE)
+```
+Defined in `confidence.py` (not imported from `evaluation.py`) to avoid a
+circular import.
+
+### 23.4 Pending — idx 4809 TriviaQA alias substring check
+
+**Observation:** idx 4809 `model_answer="Firenze"`, `ground_truth="Florence"`,
+`is_correct=True`. TriviaQA's official alias list for "Florence" includes
+`"firenze"` (Italian name) → `check_triviaqa_correct` matched via
+`model_lower == acc`. This is **semantically correct**; the TriviaQA official
+eval considers "Firenze" a valid answer for "Florence".
+
+The broader `model_lower in acc or acc in model_lower` substring predicates can
+cause false positives (e.g., a short model answer contained within a long alias,
+or vice versa). **No fix implemented.** Further analysis of false-positive rate
+across the full alias set is needed before restricting to exact-match only.
+
+### 23.5 Invariant: every secondary `model.generate()` call needs a loop guard
+
+Derived from Bug B: the ngram guard in `generate_with_logits` does not protect
+any other generation call. The pattern to apply any time a new `model.generate()`
+call is added for GPT-OSS or base models:
+
+```python
+gen_kwargs = {...}
+if (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss"):
+    gen_kwargs["no_repeat_ngram_size"] = 3
+outputs = model.generate(**inputs, **gen_kwargs)
+```
+
+### 23.6 Files modified
+
+| File | Change |
+|---|---|
+| `confidence.py` | `_HARMONY_FINAL_DELIM` + `_ANALYSIS_MARKER_RE` constants; `get_two_pass_confidence` ngram guard + harmony strip before extraction; `get_forced_answer` harmony strip + analysis-marker rejection. |
+
+Not committed. Uncommitted source set: `confidence.py`, `data_utils.py`,
+`evaluation.py`, `reextract.py`.
+
+---
+
 End of handoff document.

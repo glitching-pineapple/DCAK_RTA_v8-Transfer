@@ -2,7 +2,7 @@
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from config import get_model_name, get_model_label
+from config import get_model_name, get_model_label, MODEL_VARIANT, MODEL_FAMILY
 
 
 def get_device():
@@ -81,13 +81,18 @@ def generate_simple_response(
     else:
         formatted = prompt + base_suffix
     inputs = tokenizer(formatted, return_tensors="pt").to(model.device)
+    gen_kwargs = dict(
+        max_new_tokens=max_new_tokens,
+        do_sample=False,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    # Apply the same anti-loop ngram guard used in generate_with_logits so that
+    # forced-answer and two-pass calls on base/GPT-OSS models can't enter the
+    # same countdown loops that break the main pass.
+    if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
+        gen_kwargs["no_repeat_ngram_size"] = 3
     with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        outputs = model.generate(**inputs, **gen_kwargs)
     return tokenizer.decode(
         outputs[0, inputs.input_ids.shape[1]:], skip_special_tokens=True
     ).strip()

@@ -354,6 +354,13 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         )
         if matches:
             answer = re.split(r'\*{0,2}[Cc]onfidence|\*{0,2}[Cc]orrect', matches[-1])[0]
+            # Cut before model self-commentary that follows on the same line
+            # after the committed answer (e.g. "Gregory Peck. I am confident
+            # that this is the correct answer because..."). These start with a
+            # common sentence-opener after a period. Doesn't affect answers that
+            # contain legitimate "." (e.g. "J.K. Rowling") because those aren't
+            # followed by "I /My /So /This /It /In ".
+            answer = re.split(r'\.\s+(?:I[\s\']|My\s|So\s|This\s|It\s|In\s)', answer)[0]
             answer = answer.strip().rstrip('.')
             # Bare numbers are confidence scores, not trivia answers.
             if answer and not re.match(r'^\d+\.?\d*$', answer):
@@ -380,14 +387,20 @@ def extract_model_answer(response: str, dataset: str) -> Optional[str]:
         # Priority 2: Common phrasing. Colon is REQUIRED after "final answer"
         # to prevent "my final answer would be... Answer: X" from over-capturing
         # the trailing clause instead of the committed answer after "Answer:".
+        # "My answer is:" catches base-model commit phrases that use first-person
+        # rather than the structured Answer: line (e.g. idx 16129: "My answer
+        # is: strong winds").
         patterns = [
             r'[Tt]he answer is:?\s*(.+?)(?:\n|$)',
             r'[Ff]inal [Aa]nswer:\s*(.+?)(?:\n|$)',
+            r'[Mm]y (?:final )?[Aa]nswer is:?\s*(.+?)(?:\n|$)',
         ]
         for pattern in patterns:
             match = re.search(pattern, response)
             if match:
-                ans = match.group(1).strip().rstrip('.')
+                # rstrip('.') before strip quotes so "answer".'s trailing " is
+                # exposed and removed (e.g. My answer is: "strong winds".)
+                ans = match.group(1).strip().rstrip('.').strip('"\'')
                 if ans and not re.match(r'^\d+\.?\d*$', ans):
                     return ans
         return None

@@ -1009,6 +1009,33 @@ Correct: Yes or No"""
     }
 
 
+def _truncate_countdown_loop(response: str) -> str:
+    """Cut before a base-model probability-countdown loop.
+
+    A base model that knows the answer but can't commit to the Answer: format
+    sometimes enters a countdown loop: "I'll say there's a 99% chance X" →
+    "98%" → "97%"… The percentages change each iteration so
+    no_repeat_ngram_size=3 doesn't catch it (every line's tokens differ), but
+    the response exhausts max_new_tokens without ever writing Answer:.
+
+    Strategy: find lines containing both a confidence trigger phrase and a
+    percentage. If 3+ such lines appear within a 30-line span, truncate at the
+    first one so the forced pass gets the clean initial reasoning instead.
+
+    Handles concatenated-word variants the base model produces mid-loop
+    (e.g. "Iwill say", "I willsaya") via \\s* between tokens.
+    """
+    _COUNTDOWN_LINE_RE = re.compile(
+        r"(?:i\s*(?:'ll|will)\s*say|there\s*(?:'s|is))[^\n]{0,80}\d{1,3}\s*%",
+        re.IGNORECASE,
+    )
+    lines = response.split('\n')
+    matched = [i for i, ln in enumerate(lines) if _COUNTDOWN_LINE_RE.search(ln)]
+    if len(matched) >= 3 and (matched[-1] - matched[0]) <= 30:
+        return '\n'.join(lines[:matched[0]]).rstrip()
+    return response
+
+
 def get_forced_answer(
     model,
     tokenizer,
@@ -1035,9 +1062,13 @@ def get_forced_answer(
     from data_utils import extract_model_answer
     from model_utils import generate_simple_response
 
+    # Strip probability-countdown loops before clipping so the forced pass
+    # sees the clean initial reasoning rather than the loop that exhausted
+    # max_new_tokens. Inert on responses without a countdown pattern.
+    reasoning_delooped = _truncate_countdown_loop(reasoning)
     # 3000 chars: enough for the model to recall its train of thought without
     # bloating a forced-answer prompt that should be quick.
-    reasoning_clip = reasoning[:3000] if len(reasoning) > 3000 else reasoning
+    reasoning_clip = reasoning_delooped[:3000] if len(reasoning_delooped) > 3000 else reasoning_delooped
 
     # Each branch builds the *body* of the prompt — no trailing template line.
     # The literal "Answer: " is appended via base_suffix below so that BASE

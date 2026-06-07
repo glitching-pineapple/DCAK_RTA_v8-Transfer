@@ -1046,3 +1046,113 @@ Not committed. Combined with part 1, the uncommitted source set is:
 3. The actual GPU re-runs remain separate and pending: GPT-OSS loop rows
    (part 1, selective) and Llama/Gemma base (full, §18.6).
 4. The `.bak` files can be deleted once the re-extracted CSVs are confirmed good.
+
+---
+
+# Session 2026-06-07 (part 3) — GPT-OSS two-pass + forced-answer harmony bugs
+
+This session was triggered by the user supplying
+`triviaqa_confidencewithnewSE_GPT-OSS-20B-instruct.csv` and asking why specific
+rows had empty confidence fields or a bogus `model_answer`.
+
+Three distinct bugs were diagnosed and fixed in `confidence.py`. None are
+committed yet (they are in the working tree alongside the earlier part-1 and
+part-2 changes).
+
+## 1. Bug A — two-pass critique extractors received harmony analysis text (idx 5)
+
+**Symptom:** `more_likely_than_not` was empty for idx 5, even though the raw
+critique response contained `"Correct: Yes"`. `single_pass_confidence` was also
+empty.
+
+**Root cause:** `get_two_pass_confidence` passed the raw `critique_response`
+(which contains both GPT-OSS harmony channels — `analysis<…>assistantfinal<…>`)
+directly to `extract_verbalized_confidence` and `extract_more_likely_than_not`.
+The helper `_truncate_to_first_block` cut the response at the first
+`Correct: Yes` occurrence, which lived in the analysis channel mid-sentence.
+`extract_more_likely_than_not` requires the line-start anchor `^`, so a
+mid-sentence `Correct:` never matched — returning `None`.
+
+**Fix:** Strip the harmony envelope before passing to extractors. If
+`_HARMONY_FINAL_DELIM` (`"assistantfinal"`) appears in `critique_response`, use
+`rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()` to get only the committed final
+section; otherwise pass the response unchanged. Extractors then see only the
+clean final channel, where `Correct:` appears at line start.
+
+## 2. Bug B — two-pass `model.generate()` missing ngram guard for GPT-OSS (idx 8959)
+
+**Symptom:** All confidence fields (`verbalized_confidence`, `more_likely_than_not`,
+`single_pass_confidence`, `single_pass_correct`) were empty for idx 8959.
+
+**Root cause:** `get_two_pass_confidence` called `model.generate()` without
+`no_repeat_ngram_size`. The main forward pass in `generate_with_logits` already
+had the guard for GPT-OSS (from session part 1), but the two-pass critique's
+separate `model.generate()` call did not. GPT-OSS's critique generation looped
+to the full `max_new_tokens` budget and never produced `Confidence:` or
+`Correct:` output.
+
+**Fix:** Added `no_repeat_ngram_size=3` to the two-pass `model.generate()` call
+when `MODEL_VARIANT == "base"` or `MODEL_FAMILY == "gptoss"`, mirroring the
+same predicate used in `generate_with_logits`.
+
+## 3. Bug C — `get_forced_answer` leaked harmony analysis text into `model_answer` (idx 2322)
+
+**Symptom:** `model_answer` for idx 2322 was a long analysis-channel reasoning
+blob (started with `"analysis…"`). `single_pass_confidence` and
+`single_pass_correct` were empty.
+
+**Root cause:** When the main pass truncated before reaching `assistantfinal`,
+the forced-answer call was triggered with a 32-token budget. GPT-OSS again hit
+`max_new_tokens` before `assistantfinal`. `get_forced_answer` had no harmony
+stripping — the lax fallback `extract_model_answer(f"Answer: {blob}")` accepted
+the analysis text as the answer.
+
+**Fix:** Two guards added to `get_forced_answer`:
+
+1. **Harmony stripping:** If `_HARMONY_FINAL_DELIM` in `forced_response_clean`,
+   take the post-delimiter slice before extraction.
+2. **Analysis-channel rejection:** If the extracted answer matches
+   `_ANALYSIS_MARKER_RE` (`^analysis`, case-insensitive, no `\b` — the channel
+   name runs directly into the next word without a separator), set it to `None`.
+
+**Module-level constants added** (after the import block, lines 16–21):
+```python
+_HARMONY_FINAL_DELIM = "assistantfinal"
+_ANALYSIS_MARKER_RE = re.compile(r'^analysis', re.IGNORECASE)
+```
+
+## 4. Pending — idx 4809 substring-match investigation (NOT YET FIXED)
+
+**Symptom:** idx 4809 `model_answer="Firenze"`, `ground_truth="Florence"`, but
+`is_correct=True`.
+
+**Diagnosis:** `check_triviaqa_correct()` uses `model_lower == acc` against
+`normalized_aliases`. TriviaQA's official alias list for "Florence" includes
+`"firenze"` (the Italian name) → exact match → correctly marked correct by the
+dataset's own standard. This specific case is semantically correct. The broader
+substring predicates `model_lower in acc` and `acc in model_lower` can cause
+false positives in edge cases, but no fix was implemented this session — the
+alias-match path is the TriviaQA official standard and requires further analysis
+to confirm false-positive rate before restricting.
+
+## 5. Files modified this session
+
+| File | Changes |
+|---|---|
+| `confidence.py` | Module-level `_HARMONY_FINAL_DELIM` + `_ANALYSIS_MARKER_RE` constants; `get_two_pass_confidence` gains ngram guard and harmony stripping before extraction; `get_forced_answer` gains harmony stripping and analysis-marker rejection. |
+
+**Not committed.** Combined with part 1 and part 2, the full uncommitted source
+set is: `confidence.py`, `data_utils.py`, `evaluation.py`, `reextract.py`.
+
+## 6. Open items / next steps
+
+1. **Commit** all accumulated changes (confidence.py + data_utils.py +
+   evaluation.py + reextract.py). Do NOT stage `*.pyc`.
+2. **GPU re-run** GPT-OSS TriviaQA loop rows (identified in part 1) — the two-pass
+   harmony fix (Bug A) and ngram guard (Bug B) will now produce non-empty confidence
+   fields for those rows.
+3. **Validate idx 4809 and similar**: confirm the `acc in model_lower` substring
+   predicate doesn't create measurable false positives across the full TriviaQA
+   alias set before deciding whether to restrict to exact-match only.
+4. The `.bak` files from part 2 can be deleted once the re-extracted CSVs are
+   confirmed good.
