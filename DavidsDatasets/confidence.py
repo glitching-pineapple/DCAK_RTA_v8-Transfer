@@ -34,13 +34,22 @@ def _detect_truncation(
     finish_reason is 'length', or — when expect_confidence_markers is True —
     if the text is missing </think> (when <think> was opened) or the
     "Confidence:" / "Correct:" markers the two-pass prompt requires.
+
+    Empty-eos responses (base model emitting EOS immediately due to an OOD
+    instruction prompt) are NOT classified as truncated — the model simply
+    didn't generate anything, which is distinct from hitting the token budget.
+    Flagging them truncated produces the contradictory combination
+    (finish_reason=eos, was_truncated=True) that appears in the CSV when the
+    two-pass critique prompt is sent to a base model.
     """
     last_id = int(generated_ids[-1]) if len(generated_ids) > 0 else -1
     eos_id = tokenizer.eos_token_id
     finish_reason = "eos" if eos_id is not None and last_id == eos_id else "length"
 
     was_truncated = (finish_reason == "length")
-    if expect_confidence_markers:
+    # Only check structural completeness for non-empty responses. An empty eos
+    # means the model exited immediately (OOD prompt) — not a truncation.
+    if expect_confidence_markers and generated_text:
         think_opened = "<think>" in generated_text
         think_closed = (not think_opened) or ("</think>" in generated_text)
         has_confidence = bool(re.search(r"[Cc]onfidence\s*:", generated_text))
@@ -444,35 +453,55 @@ def _truncate_to_first_block(response: str) -> str:
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
     """
     Extract verbalized confidence from the model's response.
-    
+
     Returns confidence as integer 1-10.
     Handles:
-    - Standard integer: "Confidence: 7"
-    - With /10: "Confidence: 8/10"
-    - Markdown bold: "**Confidence:** 9"
-    - Approximate language: "Confidence: about 6"
-    - Space around colon: "Confidence : 8"
-    - Legacy decimal format: "Confidence: 0.85" → auto-converted to 1-10
-    - Legacy percentage: "Confidence: 85%" → auto-converted to 1-10
+    - Explicit colon:        "Confidence: 7",  "Confidence: 8/10"
+    - Word before colon:     "Confidence level: 9",  "Confidence score: 8"
+    - No colon (own line):   "Confidence 9"  (base-model standalone format)
+    - Prose form:            "my confidence is 9",  "confidence level is about 7 out of 10"
+    - Markdown bold:         "**Confidence:** 9"
+    - Approximate language:  "Confidence: about 6"
+    - Legacy decimal:        "Confidence: 0.85"  → auto-converted to 1-10 scale
+    - Legacy percentage:     "Confidence: 85%"   → auto-converted to 1-10 scale
+
+    Three patterns are tried in priority order; the LAST match within each
+    pattern wins (so a model that self-corrects mid-response still commits to
+    its final rating).
     """
     # Only look at the model's first completed block (ignore any continuation).
-    # Strip markdown bold for easier matching
+    # Strip markdown bold for easier matching.
     cleaned = _truncate_to_first_block(response).replace('*', '')
 
-    # Primary pattern: "Confidence" followed by optional filler then a number
-    # Handles: "Confidence: 8", "Confidence: 7/10", "Confidence: about 9"
-    pattern = r'[Cc]onfidence\s*:\s*(?:approximately|about|around|~|roughly)?\s*(\d+(?:\.\d+)?)\s*(?:/10|%)?'
-    
-    matches = re.findall(pattern, cleaned)
-    if matches:
-        conf = float(matches[-1])  # Take the LAST match
-        # Normalize legacy formats to 1-10 scale
-        if conf > 10:
-            conf = conf / 10.0
-        elif conf <= 1.0 and '.' in str(matches[-1]):
-            conf = conf * 10.0
-        return min(10.0, max(1.0, round(conf)))
-    
+    _FILLER = r'(?:approximately|about|around|only|just|~|roughly|nearly|almost)?'
+    _SUFFIX  = r'(?:/10|out\s+of\s+10|%)?'
+
+    # P1: explicit colon, optionally one filler word between "Confidence" and ":"
+    # Covers: "Confidence: 8", "Confidence level: 9", "Confidence score: 7/10"
+    p1 = (r'[Cc]onfidence(?:\s+\w+)?\s*:\s*'
+          + _FILLER + r'\s*(\d+(?:\.\d+)?)\s*' + _SUFFIX)
+
+    # P2: no colon, number on its own line — base-model structured-output pattern
+    # Covers: "Confidence 9\n", "Confidence 10\n"
+    p2 = r'(?m)^[Cc]onfidence\s+(\d+)\s*' + _SUFFIX + r'\s*$'
+
+    # P3: prose form — "confidence is 9", "confidence level is about 7 out of 10"
+    # The _SUFFIX captures the denominator so we grab the NUMERATOR (e.g. 7, not 10).
+    p3 = (r'[Cc]onfidence(?:\s+\w+)?\s+'
+          r'(?:is|of|at)\s+'
+          + _FILLER + r'\s*(\d+(?:\.\d+)?)\s*' + _SUFFIX)
+
+    for pattern in (p1, p2, p3):
+        matches = re.findall(pattern, cleaned)
+        if matches:
+            conf = float(matches[-1])
+            # Normalize legacy formats to 1-10 scale
+            if conf > 10:
+                conf = conf / 10.0
+            elif conf <= 1.0 and '.' in str(matches[-1]):
+                conf = conf * 10.0
+            return min(10.0, max(1.0, round(conf)))
+
     return None
 
 
@@ -761,11 +790,24 @@ def get_verbalized_confidence_separate(
     """
     Ask the model separately how confident it is in its answer.
     This is a fallback if confidence isn't in the main response.
-    
+
     Returns confidence as integer 1-10.
+
+    Base models receive a minimal Q&A-style prompt that matches their
+    pretraining distribution. The instruction-style prompt causes them to
+    emit EOS immediately (it's OOD), which the regex then misses — or,
+    if the rubric text happens to end with "10", returns 10.0 for every row.
     """
     from model_utils import generate_simple_response
-    confidence_prompt = f"""You solved the following problem:
+    from config import MODEL_VARIANT
+
+    if MODEL_VARIANT == "base":
+        # Minimal Q&A format — matches pretraining. Prompt already ends with
+        # the answer trigger so base_suffix is empty.
+        confidence_prompt = f"Q: {question}\nA: {answer}\nConfidence (1-10):"
+        base_suffix = ""
+    else:
+        confidence_prompt = f"""You solved the following problem:
 
 Question: {question}
 
@@ -773,15 +815,15 @@ Your answer: {answer}
 
 How confident are you that your answer is correct?
 Respond with ONLY a single integer from 1 to 10 (where 1 = very uncertain, 10 = very certain), nothing else."""
+        base_suffix = "\n\nConfidence:"
 
     response = generate_simple_response(
-        model, tokenizer, confidence_prompt, max_new_tokens=10, base_suffix="\n\nConfidence:"
+        model, tokenizer, confidence_prompt, max_new_tokens=10, base_suffix=base_suffix
     )
 
     match = re.search(r'(\d+(?:\.\d+)?)', response)
     if match:
         conf = float(match.group(1))
-        # Normalize legacy formats
         if conf <= 1.0 and '.' in match.group(1):
             conf = conf * 10.0
         elif conf > 10:
