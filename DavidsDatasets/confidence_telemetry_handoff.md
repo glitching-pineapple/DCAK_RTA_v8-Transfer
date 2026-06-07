@@ -1513,4 +1513,107 @@ uses a structured "Answer:" line so meta-commentary leakage via this path is les
 
 ---
 
+## 25. Forced-answer `loop_guard=False` — ngram guard silencing the forced pass (2026-06-07 part 5)
+
+### 25.1 The problem
+
+After the `_truncate_countdown_loop` fix in §21 (committed `7bf32a5`), Llama-3.1-8B-base
+idx 8983 ("Who wrote The Sea Wolf") still showed `forced_answer_response=""` on every
+re-run. The countdown deloop was confirmed working (the function fires, truncates at the
+70% line, and produces a clean 2514-char clip ending with clean Jack London reasoning).
+Yet the forced pass returned empty.
+
+**Root cause:** `generate_simple_response` applies `no_repeat_ngram_size=3` to **the
+entire input+output sequence** (not just the output). The forced-pass context is a
+2514-char reasoning block containing "Jack London" six times plus instruction-style
+prompt lines with `"Question: "` and `"Answer: "` colon patterns. At the very first
+output position, the ngram guard:
+
+1. Takes the last 2 tokens of the input (from `"Answer: "`, something like `[":", " "]`).
+2. Scans the full input for every place that 2-gram appears.
+3. Bans the token that follows each such occurrence in the input.
+
+With a dense reasoning context and multiple prompt structure tokens, many common
+completion tokens get banned. The only remaining option becomes EOS → the forced pass
+decodes to `""`, `.strip()` to `""`, `forced_answer = None`, `aef = True`.
+
+This was NOT a problem during normal (non-forced) generation because the main pass runs
+with a fresh context that doesn't contain `"Answer: "` before any answer word. The
+forced pass is unique in that the prompt itself explicitly ends with `"Answer: "` which
+creates 2-gram contexts that match against the reasoning text.
+
+### 25.2 The fix
+
+**`model_utils.py` — `generate_simple_response` gains `loop_guard: bool = True`:**
+
+```python
+def generate_simple_response(
+    model, tokenizer, prompt, max_new_tokens=512,
+    base_suffix="\n\nResponse:", enable_thinking=None,
+    loop_guard: bool = True,   # ← new
+) -> str:
+    ...
+    if loop_guard and (MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss"):
+        gen_kwargs["no_repeat_ngram_size"] = 3
+```
+
+**`confidence.py` — `get_forced_answer` passes `loop_guard=False`:**
+
+```python
+forced_response = generate_simple_response(
+    model, tokenizer, prompt,
+    max_new_tokens=max_tokens,
+    base_suffix="\n\nAnswer: ",
+    loop_guard=False,          # ← new
+)
+```
+
+**Why `loop_guard=False` is safe for the forced pass:**
+- Forced-pass budget is ≤ 32 tokens for TriviaQA (8 for letter/Yes-No datasets).
+  A countdown loop requires tens of tokens per step — impossible at this budget.
+- The reasoning fed to the forced pass was already delooped by `_truncate_countdown_loop`
+  before it reaches `generate_simple_response`.
+- The guard is actively harmful here: with a dense context it over-bans valid answer
+  tokens and can leave EOS as the only option.
+
+**Why the two-pass critique and Gen-2 keep `loop_guard=True`:**
+- Both run with 512–4096 token budgets where GPT-OSS and base models can and do loop.
+- Their contexts are summary-length (not full reasoning), so the over-banning effect
+  is much smaller.
+
+**`verify_rubric.py` — mock updated:**
+
+```python
+def fake_generate_simple_response(
+    model, tokenizer, prompt, max_new_tokens=512,
+    base_suffix="", loop_guard=True, **kwargs,
+):
+```
+
+`verify_rubric.py → ALL CHECKS PASSED`.
+
+### 25.3 Invariant: loop guard per call site
+
+| Call site | `loop_guard` | Budget | Rationale |
+|---|---|---|---|
+| `get_forced_answer` | **False** | ≤ 32 tokens | Cannot loop; dense context over-bans |
+| `get_gen2_confidence` | True (default) | ≤ 512 tokens | Possible loop; context is compact |
+| `get_two_pass_confidence` | True (default) | 512–4096 tokens | Possible loop; context is compact |
+
+Any future `generate_simple_response` call added for base/GPT-OSS should explicitly
+choose `loop_guard` based on whether the budget is large enough to loop AND whether the
+context is dense enough to cause over-banning.
+
+### 25.4 Files modified
+
+| File | Change |
+|---|---|
+| `model_utils.py` | `generate_simple_response` gains `loop_guard: bool = True`; ngram guard conditioned on it. |
+| `confidence.py` | `get_forced_answer` passes `loop_guard=False` with inline comment. |
+| `verify_rubric.py` | Mock signature updated to accept `loop_guard` kwarg. |
+
+Not yet committed.
+
+---
+
 End of handoff document.

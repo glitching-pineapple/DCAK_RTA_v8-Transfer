@@ -1231,3 +1231,79 @@ verbose); idx 8936 → `None` (not `"correct"`); all regression cases unchanged.
 ## 6. Updated handoff reference
 
 See `confidence_telemetry_handoff.md §24` for the canonical write-up of these fixes.
+
+---
+
+# Session 2026-06-07 (part 5) — Forced-answer ngram guard over-banning fix
+
+## 0. Context
+
+User supplied `triviaqa_confidencewithnewSE_Llama3.1-8B-base (4).csv` and reported
+that idx 8983 ("Who wrote The Sea Wolf") still had `forced_answer_response=""` even
+after the `_truncate_countdown_loop` fix from part 4 (commit `7bf32a5`).
+
+## 1. Diagnosis
+
+`_truncate_countdown_loop` IS firing correctly on the idx 8983 response:
+- Matches 11 countdown lines (70%…92%) spanning 25 lines → condition met.
+- Truncates at the 70% line; delooped context = 2514 chars.
+- Clip ends with: "I feel pretty confident that JackLondon is the authorof The Sea Wof,
+  but Idon't want to make any assumptions. I would have to double-check to be sure."
+
+Despite this clean context, `forced_answer_response=""`. Root cause:
+
+`generate_simple_response` applies `no_repeat_ngram_size=3` to the **full input+output
+sequence** (not just output). The forced-pass prompt is dense — 2514 chars of reasoning
+containing "Jack London" 6 times, plus instruction-template lines with "Question:" and
+"Answer:" colon patterns. At the first output position, the guard's 2-gram scan of the
+full input produces a large banned-token set. Common completion tokens are banned; the
+model falls back to EOS → `"".strip()` → `forced_answer_response=""`.
+
+This is specific to the forced pass because it's the only call that explicitly appends
+`"\n\nAnswer: "` to a long dense reasoning context, creating `[":", " "]`-style 2-grams
+that overlap with tokens in the reasoning text. The main pass and two-pass critique don't
+have this problem because their contexts don't end with a `"keyword: "` pattern that
+matches something from within the same context.
+
+## 2. Fix
+
+Added `loop_guard: bool = True` to `generate_simple_response` in `model_utils.py`. The
+ngram guard is now conditioned on `loop_guard`:
+
+```python
+if loop_guard and (MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss"):
+    gen_kwargs["no_repeat_ngram_size"] = 3
+```
+
+`get_forced_answer` in `confidence.py` passes `loop_guard=False`:
+
+```python
+forced_response = generate_simple_response(
+    model, tokenizer, prompt,
+    max_new_tokens=max_tokens,
+    base_suffix="\n\nAnswer: ",
+    loop_guard=False,
+)
+```
+
+`verify_rubric.py` mock updated to accept `loop_guard` kwarg → `ALL CHECKS PASSED`.
+
+`loop_guard=False` is safe for forced answers because:
+- Budget is ≤ 32 tokens — no room for any loop.
+- Context was already delooped by `_truncate_countdown_loop` before this call.
+- Two-pass critique and Gen-2 calls keep `loop_guard=True` (512–4096 token budgets
+  where loops are a real risk).
+
+## 3. Files modified this session
+
+| File | Change |
+|---|---|
+| `model_utils.py` | `generate_simple_response` gains `loop_guard: bool = True`; guard conditioned on it. |
+| `confidence.py` | `get_forced_answer` passes `loop_guard=False`. |
+| `verify_rubric.py` | Mock signature accepts `loop_guard` kwarg. |
+
+Not committed. Uncommitted source set: `confidence.py`, `model_utils.py`, `verify_rubric.py`.
+
+## 4. Handoff reference
+
+See `confidence_telemetry_handoff.md §25` for the canonical write-up.
