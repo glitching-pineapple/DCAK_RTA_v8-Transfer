@@ -10,7 +10,7 @@ _QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 # channel; everything AFTER is the committed final response.
 _HARMONY_FINAL_DELIM = "assistantfinal"
 from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match, is_refusal_response
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
@@ -234,7 +234,15 @@ def evaluate_sample(
         more_likely = None
         single_pass_conf = math.nan
         single_pass_correct = None
-    
+
+    # Refusal/abstention detection (handoff §19.3). A refusal is a SUBSET of
+    # answer_extraction_failed: no parseable answer (main AND forced both failed,
+    # encoded by model_answer being empty) AND the text reads like an abstention.
+    # The confidence fields are already NaN-ed above via answer_extraction_failed;
+    # this flag lets analysis EXCLUDE refusals (or bucket them) instead of
+    # treating a coin-flip as a real low-confidence data point.
+    is_refusal = is_refusal_response(response, model_answer)
+
     # Build result dictionary
     result = {
         "idx": idx,
@@ -248,7 +256,11 @@ def evaluate_sample(
         # be excluded from calibration analyses, not treated as low-confidence
         # data points.
         "answer_extraction_failed": answer_extraction_failed,
-        
+        # True when the empty answer is a genuine abstention/refusal (handoff
+        # §19.3), not just a truncated/unparseable attempt. Subset of
+        # answer_extraction_failed; exclude from accuracy/calibration.
+        "is_refusal": is_refusal,
+
         # Logit-based metrics
         "seq_confidence_mean": confidence_metrics["log_prob_sum"],
         "logit_confidence_min": confidence_metrics["min_prob"],

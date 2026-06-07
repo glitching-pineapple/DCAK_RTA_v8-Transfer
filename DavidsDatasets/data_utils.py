@@ -156,6 +156,49 @@ def _truncate_to_first_block(response: str) -> str:
     return response
 
 
+# Refusal / abstention patterns (handoff §19.3). Kept deliberately TIGHT: we
+# would rather miss a refusal than mislabel a real answer as one. These match
+# the model declining to commit — "please provide the terms", "I can't
+# determine … without", "I don't have access" — the texture seen when a model
+# (e.g. Gemma2-9B-instruct on TriviaQA) emits an empty "Answer:" line followed
+# by a low confidence rating instead of an answer.
+_REFUSAL_PATTERNS = [
+    r'please provide',
+    r'provide the (?:terms|text|document|passage|question|details)',
+    r"i need the (?:terms|text|document|passage|context|question)",
+    r"i (?:don'?t|do not) have (?:access|enough information|the information)",
+    r"i (?:can'?t|cannot|am unable to|could not) (?:determine|answer|find|provide|recall|access|look)",
+    r"(?:can'?t|cannot|unable to|couldn'?t) [^.\n]{0,50}? without",
+    r"without (?:more|additional|further|the|specific) (?:information|context|details|terms|access)",
+    r"need(?: to)? (?:consult|look .* up|access) (?:a |an |the )?(?:reliable )?(?:source|database|encyclopedia)",
+    r"struggling to (?:pinpoint|recall|determine|identify|find|name|answer)",
+    r"(?:don'?t|do not|can'?t|cannot) (?:recall|remember|know) (?:the|which|what|who|any)",
+]
+_REFUSAL_RE = re.compile("|".join(_REFUSAL_PATTERNS), re.IGNORECASE)
+
+
+def is_refusal_response(response: str, extracted_answer) -> bool:
+    """Conservative refusal/abstention detector (handoff §19.3).
+
+    Returns True only when BOTH:
+      1. extraction produced no usable answer (``extracted_answer`` is None/empty
+         — in the live pipeline this is the post-forcing answer, so it already
+         encodes "main AND forced both failed"), and
+      2. the response text reads like an abstention (matches a refusal pattern).
+
+    If any answer parsed, this is never a refusal. Callers should EXCLUDE
+    refusals from accuracy/calibration (or bucket them separately) rather than
+    force a coin-flip Yes/No, which would inject noise into the calibration
+    signal the study measures.
+    """
+    if extracted_answer is not None and str(extracted_answer).strip():
+        return False
+    if not isinstance(response, str) or not response.strip():
+        return False
+    text = _strip_harmony_envelope(response)
+    return bool(_REFUSAL_RE.search(text))
+
+
 def extract_model_answer(response: str, dataset: str) -> Optional[str]:
     """
     Extract model answer based on dataset type.
