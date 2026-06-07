@@ -187,7 +187,7 @@ def check_forced_answer_paths() -> None:
 
     captured = {}
 
-    def fake_generate_simple_response(model, tokenizer, prompt, max_new_tokens=512, base_suffix=""):
+    def fake_generate_simple_response(model, tokenizer, prompt, max_new_tokens=512, base_suffix="", loop_guard=True, **kwargs):
         captured["prompt"] = prompt
         captured["max_new_tokens"] = max_new_tokens
         captured["base_suffix"] = base_suffix

@@ -1418,4 +1418,99 @@ Not committed. Uncommitted source set: `confidence.py`, `data_utils.py`,
 
 ---
 
+## 24. Llama-3.1-8B-base TriviaQA second run — Priority-2 extractor regression + fix (2026-06-07 part 4)
+
+### 24.1 What was examined
+
+`triviaqa_confidencewithnewSE_Llama3.1-8B-base (2).csv` — 40 rows, same model as §21
+but a newer run that already included the §21 code fixes. The session analyzed which
+of the `aef=True` and verbose-answer rows would be addressed by the accumulated fixes.
+
+### 24.2 Bugs found and fixed
+
+Both bugs are in `data_utils.py` Priority-2 (`extract_model_answer`, triviaqa branch).
+Committed as `056e4ce`.
+
+---
+
+**Bug 1 — Priority-2 missing sentence-boundary truncation (verbose extraction)**
+
+**Affected row:** idx 5588 (Thursday Next series / Jasper Fforde).
+
+The model wrote `"My answer is Jasper Ffford. I am 70 percent confident in this
+answer."` Priority-2 "My answer is:" matched and captured the entire sentence:
+`"Jasper Ffford. I am 70 percent confident in this answer"`. The same
+sentence-boundary split that had been applied to Priority-1 since §21.2 (Bug fix for
+verbose Gregory Peck answers) was absent from Priority-2.
+
+**Fix:** Added the same split immediately after quote-stripping in the Priority-2 loop:
+
+```python
+ans = re.split(r'\.\s+(?:I[\s\']|My\s|So\s|This\s|It\s|In\s)', ans)[0].strip().rstrip('.')
+```
+
+Result: `"Jasper Ffford. I am 70 percent confident in this answer"` → `"Jasper Ffford"`.
+
+---
+
+**Bug 2 — Priority-2 "My answer is correct" false positive**
+
+**Affected row:** idx 8936 (Bolton Wanderers / West Ham United).
+
+The model wrote `"I am 100% confident that my answer is correct."` nowhere in the
+response was `Answer:` or a structured commit phrase. The Priority-2 pattern
+`[Mm]y (?:final )?[Aa]nswer is:?\s*(.+?)(?:\n|$)` matched `"my answer is correct."`
+and extracted `"correct"` as the trivia answer. `"correct"` is not a bare number, so
+the pre-existing guard `not re.match(r'^\d+\.?\d*$', ans)` did not filter it.
+
+Result before fix: `model_answer="correct"`, `aef=False`, `is_correct=False` — looked
+like the model gave a wrong answer, but the extractor fabricated it.
+
+**Fix:** Added a meta-commentary word blocklist immediately after the sentence-boundary
+split:
+
+```python
+if re.match(r'^(?:correct|incorrect|right|wrong|true|false|unknown|unsure)$', ans, re.I):
+    continue
+```
+
+`continue` skips to the next Priority-2 pattern rather than returning. If no remaining
+pattern produces a real answer, extraction correctly returns `None` → `aef=True`.
+
+---
+
+### 24.3 Remaining aef=True rows (still not fixable)
+
+| idx | Topic | Why unfixable |
+|-----|-------|---------------|
+| 16373 | Achille Lauro | Model narrates "the P.L.O. hijacked the Achille Lauro" — no structured commit phrase |
+| 6536 | To Kill a Mockingbird | Model uses "going to go with X as my answer" — not matched by any pattern |
+| 3101 | Erasmus | Response truncated mid-sentence; no answer attempted |
+| 8936 | Bolton Wanderers | Answer in narrative clause ("was West Ham United") — no structured format |
+
+These require a re-run (GPU) with improved loop guards so the forced-answer pass can
+produce a clean output.
+
+### 24.4 Invariant added to Priority-2
+
+After this fix, the full Priority-2 processing chain for triviaqa is:
+
+1. Pattern match and capture `(.+?)(?:\n|$)`.
+2. `.strip().rstrip('.').strip('"\'')` — clean whitespace and quotes.
+3. Sentence-boundary split `\.\s+(?:I[\s\']|My\s|So\s|This\s|It\s|In\s)` — truncate
+   before self-commentary.
+4. Meta-commentary blocklist — reject "correct/incorrect/right/wrong/true/false/unknown/unsure".
+5. Bare-number rejection `^\d+\.?\d*$` — triviaqa answers are never bare integers.
+
+Steps 3 and 5 mirror the Priority-1 guards. Step 4 is Priority-2-specific (Priority-1
+uses a structured "Answer:" line so meta-commentary leakage via this path is less likely).
+
+### 24.5 Files modified
+
+| File | Change |
+|---|---|
+| `data_utils.py` | Priority-2 triviaqa loop gains sentence-boundary split and meta-commentary filter. Committed `056e4ce`. |
+
+---
+
 End of handoff document.

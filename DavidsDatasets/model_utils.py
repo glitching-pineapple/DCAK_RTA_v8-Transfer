@@ -59,6 +59,7 @@ def generate_simple_response(
     max_new_tokens: int = 512,
     base_suffix: str = "\n\nResponse:",
     enable_thinking=None,
+    loop_guard: bool = True,
 ) -> str:
     """Format a prompt with the chat template (instruct) or a suffix (base) and generate.
 
@@ -66,6 +67,12 @@ def generate_simple_response(
     reasoning models. Pass False on short rating/extraction calls so the model
     skips the <think> block and spends the budget on the actual response.
     Tokenizers that don't accept the kwarg silently fall back.
+
+    loop_guard: when True (default), applies no_repeat_ngram_size=3 on base/GPT-OSS
+    to prevent countdown-style loops. Pass False for forced-answer calls (max_new_tokens
+    ≤ 32 — too short to loop) because the guard checks the ENTIRE input+output sequence
+    and bans tokens that would complete any 3-gram already in the dense reasoning context,
+    which can leave EOS as the only unbanned option and return an empty string.
     """
     from config import MODEL_VARIANT
     if MODEL_VARIANT == "instruct":
@@ -86,10 +93,7 @@ def generate_simple_response(
         do_sample=False,
         pad_token_id=tokenizer.pad_token_id,
     )
-    # Apply the same anti-loop ngram guard used in generate_with_logits so that
-    # forced-answer and two-pass calls on base/GPT-OSS models can't enter the
-    # same countdown loops that break the main pass.
-    if MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss":
+    if loop_guard and (MODEL_VARIANT == "base" or MODEL_FAMILY == "gptoss"):
         gen_kwargs["no_repeat_ngram_size"] = 3
     with torch.no_grad():
         outputs = model.generate(**inputs, **gen_kwargs)

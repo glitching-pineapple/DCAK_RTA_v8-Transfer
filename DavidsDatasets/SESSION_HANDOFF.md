@@ -1156,3 +1156,78 @@ set is: `confidence.py`, `data_utils.py`, `evaluation.py`, `reextract.py`.
    alias set before deciding whether to restrict to exact-match only.
 4. The `.bak` files from part 2 can be deleted once the re-extracted CSVs are
    confirmed good.
+
+---
+
+# Session 2026-06-07 (part 4) — Llama-3.1-8B-base TriviaQA second run: Priority-2 regression + fix
+
+## 0. Context
+
+User supplied `triviaqa_confidencewithnewSE_Llama3.1-8B-base (2).csv` (40 rows, same
+model, newer run that already includes the §21 / `cb0ada1` fixes) and asked whether
+the accumulated fixes would address the errors visible in it.
+
+## 1. Analysis: which aef=True rows would the fixes address
+
+| idx | Topic | Verdict |
+|-----|-------|---------|
+| 5588 | Thursday Next / Jasper Fforde | **Partially fixed** — "My answer is Jasper Ffford." hits new Priority-2 pattern, but captured verbosely without the sentence-boundary split (see §2) |
+| 16373 | Achille Lauro | Not fixed — narrative clause, no structured format |
+| 6536 | To Kill a Mockingbird | Not fixed — "going to go with X as my answer" unmatched |
+| 3101 | Erasmus | Not fixed — response truncated mid-sentence |
+| 8936 | Bolton Wanderers | Not fixed for aef — answer in narrative; BUT a **new regression found here** (see §2) |
+
+## 2. Two bugs found and fixed in `data_utils.py` Priority-2
+
+### Bug 1 — sentence-boundary split absent from Priority-2
+
+The fix in commit `cb0ada1` added a sentence-boundary split `\.\s+(?:I[\s\']|My\s|...)` to
+Priority-1 to prevent verbose model self-commentary from bloating model_answer. The same
+split was missing from Priority-2. For idx 5588, the "My answer is:" pattern captured:
+`"Jasper Ffford. I am 70 percent confident in this answer"` — still verbose.
+
+Fix: same split applied to `ans` in the Priority-2 loop immediately after quote-stripping.
+
+### Bug 2 — Priority-2 "My answer is correct" false positive
+
+For idx 8936, the model wrote `"I am 100% confident that my answer is correct."` The
+Priority-2 pattern `[Mm]y (?:final )?[Aa]nswer is:?\s*(.+?)(?:\n|$)` matched and extracted
+`"correct"` as the trivia answer. `"correct"` is not a bare number so the existing guard
+didn't catch it. Result: `model_answer="correct"`, `aef=False`, `is_correct=False` — the
+extractor fabricated a wrong answer when the model had no answer at all.
+
+Fix: added a meta-commentary blocklist after the sentence-boundary split:
+```python
+if re.match(r'^(?:correct|incorrect|right|wrong|true|false|unknown|unsure)$', ans, re.I):
+    continue
+```
+`continue` tries the next Priority-2 pattern rather than returning garbage. Falls through to
+`None` → `aef=True`, which is correct.
+
+## 3. Verification
+
+Ran all cases (idx 5588, 8936, 16373, 6536, 3101 + all §21 regressions: strong winds, Gregory
+Peck, J.K. Rowling) against the updated code. All pass — idx 5588 → `"Jasper Ffford"` (not
+verbose); idx 8936 → `None` (not `"correct"`); all regression cases unchanged.
+
+## 4. Files modified this session
+
+| File | Change |
+|---|---|
+| `data_utils.py` | Priority-2 triviaqa loop: sentence-boundary split + meta-commentary filter. Committed `056e4ce`. |
+
+## 5. Other CSV (2) observations (no code changes)
+
+- **idx 12604** (Art Tatum two-pass loop): two-pass critique column shows the full prompt
+  template looping. Already fixed by `gptossfix` commit's ngram guard in
+  `get_two_pass_confidence`. Not visible in this run because that run predated the fix.
+- **Verbose model_answers** (idx 2373 River Taff, idx 15595 Fisher King, idx 12604 Art Tatum):
+  the sentence-boundary split doesn't apply to these because the verbose clause doesn't follow
+  the `. I/My/So/This/It/In ` trigger pattern. All have `is_correct=True` via substring
+  matching — ugly but functionally correct. No code change made.
+- **No countdown loops** visible in this run. The `_truncate_countdown_loop` fix from the
+  Llama-3.1-8B-base first-run session is irrelevant for this particular data snapshot.
+
+## 6. Updated handoff reference
+
+See `confidence_telemetry_handoff.md §24` for the canonical write-up of these fixes.

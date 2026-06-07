@@ -1147,10 +1147,15 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
     # next-token completion — far more reliable than asking a base model to
     # follow "output only" instructions, which it tends to ignore in favor of
     # echoing whatever template fragments appear in the prompt.
+    # loop_guard=False: the forced budget is ≤ 32 tokens — impossible to loop.
+    # The ngram guard checks the full input+output sequence; with a dense
+    # reasoning context it over-bans tokens and can leave EOS as the only
+    # option, returning an empty string even when the answer is obvious.
     forced_response = generate_simple_response(
         model, tokenizer, prompt,
         max_new_tokens=max_tokens,
         base_suffix="\n\nAnswer: ",
+        loop_guard=False,
     )
 
     # Strip qwen3 think blocks if the forced call also produced one
