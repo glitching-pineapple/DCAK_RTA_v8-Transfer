@@ -13,6 +13,13 @@ from config import (
     TWO_PASS_DISABLE_THINKING,
 )
 
+# GPT-OSS harmony format: committed answer lives after this delimiter.
+# Defined here (not imported from evaluation.py) to avoid a circular import.
+_HARMONY_FINAL_DELIM = "assistantfinal"
+# Harmony analysis-channel marker: text starting with this is not a real answer.
+# No \b — the channel name "analysis" runs directly into the next word ("analysisWe…").
+_ANALYSIS_MARKER_RE = re.compile(r'^analysis', re.IGNORECASE)
+
 
 def _detect_truncation(
     generated_text: str,
@@ -963,14 +970,19 @@ Correct: Yes or No"""
     else:
         formatted_prompt = critique_prompt + "\n\nReview:"
     inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
+    # Mirror the anti-loop guard from generate_with_logits: GPT-OSS and base
+    # models can enter the same repetition loops during critique generation,
+    # exhausting max_new_tokens before emitting Confidence/Correct lines.
+    _two_pass_gen_kwargs = dict(
+        max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
+        do_sample=False,
+        return_dict_in_generate=True,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    if (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss"):
+        _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
     with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
-            do_sample=False,
-            return_dict_in_generate=True,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        outputs = model.generate(**inputs, **_two_pass_gen_kwargs)
     generated_ids = outputs.sequences[0, inputs.input_ids.shape[1]:]
     critique_response = tokenizer.decode(
         generated_ids, skip_special_tokens=True
@@ -978,9 +990,15 @@ Correct: Yes or No"""
     meta = _detect_truncation(
         critique_response, generated_ids, tokenizer, expect_confidence_markers=True
     )
-    # Extract confidence from critique
-    conf = extract_verbalized_confidence(critique_response, DATASET)
-    correct_judgment = extract_more_likely_than_not(critique_response)
+    # Strip harmony envelope before extraction. GPT-OSS writes analysis in a
+    # pre-"assistantfinal" channel; _truncate_to_first_block can cut at a
+    # mid-sentence "Correct: Yes" in that channel and then
+    # extract_more_likely_than_not (which requires a line-start ^) returns None.
+    critique_for_extraction = critique_response
+    if _HARMONY_FINAL_DELIM in critique_response:
+        critique_for_extraction = critique_response.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
+    conf = extract_verbalized_confidence(critique_for_extraction, DATASET)
+    correct_judgment = extract_more_likely_than_not(critique_for_extraction)
 
     return {
         "two_pass_confidence": conf,
@@ -1106,6 +1124,11 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
 
     # Strip qwen3 think blocks if the forced call also produced one
     forced_response_clean = _re_think_block.sub('', forced_response).strip()
+    # Strip harmony envelope: GPT-OSS writes analysis before "assistantfinal";
+    # without stripping, the analysis text leaks into the answer slot when the
+    # forced call hits max_new_tokens before reaching the committed final section.
+    if _HARMONY_FINAL_DELIM in forced_response_clean:
+        forced_response_clean = forced_response_clean.rsplit(_HARMONY_FINAL_DELIM, 1)[-1].strip()
 
     # For base models the response is just the completion AFTER "Answer: " —
     # i.e. it starts with the answer value directly, no "Answer:" prefix. Try
@@ -1119,6 +1142,11 @@ Based on your reasoning above, commit to a final answer NOW. Output only the wor
         forced_answer = extract_model_answer(
             f"Answer: {forced_response_clean}", dataset
         )
+    # Reject harmony analysis-channel text that leaked into the answer slot
+    # (GPT-OSS truncated before "assistantfinal" → forced_response_clean starts
+    # with "analysis"; extractor accepted it via the "Answer: {text}" path).
+    if forced_answer is not None and _ANALYSIS_MARKER_RE.match(str(forced_answer)):
+        forced_answer = None
 
     return forced_answer, forced_response_clean
 
