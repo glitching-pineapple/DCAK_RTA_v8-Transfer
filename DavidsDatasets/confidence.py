@@ -1044,16 +1044,17 @@ Correct: Yes or No"""
     else:
         formatted_prompt = critique_prompt + "\n\nReview:"
     inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
-    # Mirror the anti-loop guard from generate_with_logits: GPT-OSS and base
-    # models can enter the same repetition loops during critique generation,
-    # exhausting max_new_tokens before emitting Confidence/Correct lines.
+    # Anti-loop guard for GPT-OSS only. Base models use critique_prompt +
+    # "\n\nReview:" for pattern completion — applying no_repeat_ngram_size=3
+    # to them over-bans valid first tokens on the dense instruction prompt and
+    # causes EOS immediately (same mechanism as the forced-answer §25 issue).
     _two_pass_gen_kwargs = dict(
         max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
         do_sample=False,
         return_dict_in_generate=True,
         pad_token_id=tokenizer.pad_token_id,
     )
-    if (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss"):
+    if MODEL_FAMILY == "gptoss":
         _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
     with torch.no_grad():
         outputs = model.generate(**inputs, **_two_pass_gen_kwargs)
