@@ -847,9 +847,25 @@ def get_correct_separate_base(
     """
     from model_utils import generate_simple_response
 
-    prompt = f"Q: {question}\nA: {answer}\nQ: Is this answer correct? A:"
+    # Truncate verbose or mid-sentence answers before inserting into the A: slot.
+    # Long answers (especially ones truncated mid-sentence, as happens when the
+    # main pass hit max_new_tokens) create a strong continuation signal that
+    # causes the base model to complete the text instead of outputting Yes/No.
+    # Truncate to the last complete sentence within 150 chars, or first 150
+    # chars if no sentence boundary exists.
+    _ans = answer
+    if len(_ans) > 150:
+        _last_period = _ans[:150].rfind('.')
+        _ans = _ans[:_last_period + 1] if _last_period != -1 else _ans[:150]
+
+    prompt = f"Q: {question}\nA: {_ans}\nQ: Is this answer correct? A:"
+    # loop_guard=False: 10-token budget has no loop risk, and the ngram guard
+    # checks the full input context — "A:" followed by the answer text already
+    # appeared earlier in the prompt, which can ban the model's preferred first
+    # output token and cause it to output a non-Yes/No continuation (§25 mechanism).
     response = generate_simple_response(
-        model, tokenizer, prompt, max_new_tokens=10, base_suffix=""
+        model, tokenizer, prompt, max_new_tokens=10, base_suffix="",
+        loop_guard=False,
     )
 
     # Truncate at Q&A continuation before extracting
