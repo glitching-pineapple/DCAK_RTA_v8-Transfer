@@ -23,6 +23,7 @@ from confidence import (
     get_gen2_confidence,
     get_two_pass_confidence,
     get_forced_answer,
+    get_correct_separate_base,
 )
 
 
@@ -183,12 +184,13 @@ def evaluate_sample(
                 model, tokenizer, question, model_answer
             )
 
+        if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
+            single_pass_correct = get_correct_separate_base(
+                model, tokenizer, question, model_answer
+            )
+
         two_pass_results = dict(_empty_two_pass)
-        # Base models receive an instruct-style critique prompt that is OOD;
-        # they respond with immediate EOS → empty two_pass_critique every time.
-        # single_pass_correct is also absent for base models (no "Correct:" line
-        # in the base-model response format). Skip two-pass entirely for base.
-        if model_answer and MODEL_VARIANT != "base":
+        if model_answer:
             two_pass_results = get_two_pass_confidence(
                 model, tokenizer, question, model_answer, response, choices
             )

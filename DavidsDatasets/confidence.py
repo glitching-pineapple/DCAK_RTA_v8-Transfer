@@ -831,6 +831,38 @@ Respond with ONLY a single integer from 1 to 10 (where 1 = very uncertain, 10 = 
         return min(10.0, max(1.0, round(conf)))
     return None
 
+
+def get_correct_separate_base(
+    model,
+    tokenizer,
+    question: str,
+    answer: str,
+) -> Optional[bool]:
+    """
+    Ask a base model whether its answer is correct via a separate Q&A call.
+
+    Uses a minimal Q&A format matching base pretraining distribution.
+    Only called for base models — instruct models produce "Correct: Yes/No"
+    inline in the main response, extracted by extract_more_likely_than_not.
+    """
+    from model_utils import generate_simple_response
+
+    prompt = f"Q: {question}\nA: {answer}\nQ: Is this answer correct? A:"
+    response = generate_simple_response(
+        model, tokenizer, prompt, max_new_tokens=10, base_suffix=""
+    )
+
+    # Truncate at Q&A continuation before extracting
+    _qa_cont = response.find('\nQ:')
+    if _qa_cont != -1:
+        response = response[:_qa_cont]
+
+    match = re.search(r'\b(Yes|No)\b', response, re.IGNORECASE)
+    if match:
+        return match.group(1).lower() == 'yes'
+    return None
+
+
 def get_gen2_confidence(
     model,
     tokenizer,

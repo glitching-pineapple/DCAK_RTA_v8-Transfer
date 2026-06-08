@@ -1881,43 +1881,49 @@ stored field).
 **Status: FIXED** (Option A implemented in `confidence.py::get_forced_answer`,
 after the harmony-strip block, pending commit).
 
-### 28.3 Two-pass critique always empty for base models — and `single_pass_correct` absent [LOW / COMPUTE WASTE]
+### 28.3 `single_pass_correct` absent for base models [MEDIUM]
 
-**Symptom**: `two_pass_critique=""`, `two_pass_confidence=None`,
-`two_pass_correct=None` for every base-model row. The flags are now clean
-(`finish_reason=eos, was_truncated=False`) after §27.4, but the data is absent.
+**Symptom**: `single_pass_correct=None` for every base-model row.
 
-Additionally, `single_pass_correct` (the model's in-response "Correct: Yes/No"
-self-assessment) is blank for all forced/base rows — base models using the
-`"Q: {question}\nA:"` format never produce a "Correct:" line.
+**Root cause**: `extract_more_likely_than_not` looks for `"Correct: Yes/No"` on
+a line start in the main response. That line is only produced when the model
+follows the instruct-style prompt template. Base models receive
+`"Q: {question}\nA:"` — a bare Q&A completion — which never contains a
+"Correct:" line.
 
-**Root cause**: The instruction-style two-pass critique prompt is entirely
-outside a base model's training distribution. The model generates EOS
-immediately. The `single_pass_correct` absence is the same OOD issue applied
-to the single-pass response format.
+Note: the two-pass critique (`two_pass_critique`, `two_pass_confidence`,
+`two_pass_correct`) is **not** affected — the existing
+`critique_prompt + "\n\nReview:"` path already works for base models across
+Llama, Qwen, and Gemma families. The base model sees "Confidence: <1-10>" and
+"Correct: Yes or No" in the prompt context immediately above "Review:" and
+pattern-completes them. The empty `two_pass_critique` observed in the (6) CSV
+was from an older code version, not a fundamental incompatibility.
 
-**Impact on calibration**: `verbalized_confidence` now correctly falls back to
-`single_pass_conf` (extracted from the main response via the §27 fix), so the
-calibration signal IS present — it's just single-pass, not two-pass. The
-two-pass column is empty but not wrong.
+The earlier `MODEL_VARIANT != "base"` guard in `evaluation.py` was added based
+on that incorrect diagnosis and has since been reverted.
 
-**Fix**: Skip `get_two_pass_confidence` for base models entirely — saves a
-GPU call per row with zero data loss (the output is always `None`). Also add
-`MODEL_VARIANT` to the `evaluation.py` config import (it was missing):
+**Fix**: After `extract_more_likely_than_not`, add a fallback for base models
+using a separate Q&A call (`get_correct_separate_base`):
 
 ```python
-# evaluation.py config import:
-from config import DATASET, ..., MODEL_FAMILY, MODEL_VARIANT, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
+# confidence.py — new function:
+def get_correct_separate_base(model, tokenizer, question, answer):
+    prompt = f"Q: {question}\nA: {answer}\nQ: Is this answer correct? A:"
+    response = generate_simple_response(model, tokenizer, prompt, max_new_tokens=10)
+    _qa_cont = response.find('\nQ:')
+    if _qa_cont != -1:
+        response = response[:_qa_cont]
+    match = re.search(r'\b(Yes|No)\b', response, re.IGNORECASE)
+    return match.group(1).lower() == 'yes' if match else None
 
-# In the standard single-pass flow:
-two_pass_results = dict(_empty_two_pass)
-# Base models respond to instruct-style critique with immediate EOS → always empty.
-# single_pass_correct is also absent (no "Correct:" line in base response format).
-if model_answer and MODEL_VARIANT != "base":
-    two_pass_results = get_two_pass_confidence(...)
+# evaluation.py — after extract_more_likely_than_not:
+if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
+    single_pass_correct = get_correct_separate_base(model, tokenizer, question, model_answer)
 ```
 
-**Status: FIXED** (`evaluation.py` import updated and guard added, pending commit).
+`MODEL_VARIANT` import added to `evaluation.py` config import line (was missing).
+
+**Status: FIXED** (pending commit).
 
 ### 28.4 `is_correct` false negatives — idx 12587 (Al Gore), idx 6847 (lapwing)
 
@@ -1947,8 +1953,9 @@ needed. New runs unaffected.
 | `confidence.py` | `get_two_pass_confidence` harmony strip + ngram guard; `get_forced_answer` harmony strip + analysis-marker rejection; `_HARMONY_FINAL_DELIM` + `_ANALYSIS_MARKER_RE` constants | `60c3d7a` |
 | `confidence.py` | P1/P2/P3 verbalized-confidence patterns; base `get_verbalized_confidence_separate`; empty-eos `_detect_truncation` guard | `9fc05f3` |
 | `confidence.py` | `get_forced_answer` `\nQ:` truncation for base Q&A continuations (§28.2) | **pending commit** |
+| `confidence.py` | `get_correct_separate_base` — base-model Yes/No fallback for `single_pass_correct` (§28.3) | **pending commit** |
 | `evaluation.py` | `is_refusal` column wiring | earlier |
-| `evaluation.py` | `MODEL_VARIANT` import + base-model two-pass skip guard (§28.3) | **pending commit** |
+| `evaluation.py` | `MODEL_VARIANT` import; `get_correct_separate_base` fallback for `single_pass_correct` (§28.3) | **pending commit** |
 | `data_utils.py` | 4 extractor/refusal fixes (§21) | `cb0ada1` |
 | `data_utils.py` | Priority-2 sentence-boundary split + meta-commentary blocklist (§24) | `056e4ce` |
 | `model_utils.py` | `generate_simple_response` gains `loop_guard: bool = True` | `60c3d7a` |
