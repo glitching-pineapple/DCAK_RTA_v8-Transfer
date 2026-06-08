@@ -561,6 +561,7 @@ Answer: <YOUR_NUMBER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Solve the following math problem. Think through it step by step, then provide your final answer.
@@ -585,6 +586,7 @@ Answer: <YOUR_LETTER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Answer the following multiple choice question. Think through it step by step, then provide your answer.
@@ -608,6 +610,7 @@ Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Answer the following yes/no question. Think through it step by step, then provide your answer.
@@ -633,6 +636,7 @@ Answer: <YOUR_FINAL_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Solve the following medical question. Think through it step by step, then provide your final answer.
@@ -655,6 +659,7 @@ Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Answer the following legal-reasoning yes/no question. Think through it step by step, then provide your answer.
@@ -678,6 +683,7 @@ Answer: <YOUR_ANSWER>
 Confidence: <1-10>
 Correct: Yes or No
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 The Confidence number MUST match the class you selected — for example, if you select "Better than even" you MUST write Confidence: 6, not any other number."""
         else:
             instruction_body = f"""Answer the following trivia question. Think through it step by step, then provide your answer.
@@ -933,6 +939,7 @@ Select EXACTLY ONE confidence level:
 - 9 = "Highly likely" (80-90% likely correct)
 - 10 = "Almost certain" (90-100% likely correct)
 
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
 Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
 Confidence: <1-10>
 Correct: Yes or No"""
@@ -1040,6 +1047,7 @@ Instructions:
 - 9 = "Highly likely" (80-90% likely correct)
 - 10 = "Almost certain" (90-100% likely correct)
 
+State if you think the answer is more likely correct than not after "Correct:" (Yes or No).
 You MUST end your response with exactly:
 Confidence: <1-10>
 Correct: Yes or No"""
@@ -1080,14 +1088,27 @@ Correct: Yes or No"""
         pad_token_id=tokenizer.pad_token_id,
     )
     if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
-        # Short native Q&A output — cap tokens and skip ngram guard (short prompt,
-        # no loop risk; ngram guard over-bans on compact Q&A context).
-        _two_pass_gen_kwargs["max_new_tokens"] = 128
+        # Compact Q&A format: the model completes "Rate confidence 1-10. A:" with
+        # a short rating then immediately generates new Q&A pairs (CSV evidence:
+        # "10\nQ: What is the correct answer?\nA: Friday\nQ:..."). Reduce budget
+        # from 128 to 50 so a loop has no room to run, and add stop_strings to
+        # halt at the first new Q: the model tries to generate. Ngram guard still
+        # skipped: on the compact Q&A context the guard over-bans "A:" itself.
+        _two_pass_gen_kwargs["max_new_tokens"] = 50
+        _two_pass_gen_kwargs["stop_strings"] = ["\nQ:"]
+        _two_pass_gen_kwargs["tokenizer"] = tokenizer
     elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
         # Anti-loop guard for gptoss (dense assistant format loops without it)
         # and all non-Llama base models (Qwen/Gemma base can pattern-complete the
         # critique but loop without the ngram guard on max_new_tokens budgets).
         _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+        # Stop sequences for base models: same markers as the main generation path
+        # to prevent template continuation past the first completed critique block.
+        # CSV evidence: Gemma4 base over-generates into the Mona Lisa rubric
+        # example because the critique budget wasn't bounded by stop strings.
+        if MODEL_VARIANT == "base":
+            _two_pass_gen_kwargs["stop_strings"] = ["\nQuestion:", "\nAnswer the following", "\nSolution:"]
+            _two_pass_gen_kwargs["tokenizer"] = tokenizer
     with torch.no_grad():
         outputs = model.generate(**inputs, **_two_pass_gen_kwargs)
     generated_ids = outputs.sequences[0, inputs.input_ids.shape[1]:]

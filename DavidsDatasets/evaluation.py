@@ -176,18 +176,36 @@ def evaluate_sample(
             else:
                 model_answer = extract_model_answer(response, DATASET)
 
-        single_pass_conf = extract_verbalized_confidence(response, DATASET)
-        single_pass_correct = extract_more_likely_than_not(response)
-
-        if single_pass_conf is None and model_answer:
-            single_pass_conf = get_verbalized_confidence_separate(
-                model, tokenizer, question, model_answer
+        # Gen 2 (own-work-aware): same "YOUR OWN reasoning chain" framing used for
+        # reasoning-flow models, now applied here for all non-reasoning instruct and
+        # base models. Strip the inline Confidence/Correct footer so Gen 2 rates
+        # independently rather than anchoring to values already in the response.
+        single_pass_conf = None
+        single_pass_correct = None
+        if model_answer:
+            _gen2_reasoning = response
+            _ans_m = re.search(r'(?m)^Answer\s*:.*$', _gen2_reasoning, re.IGNORECASE)
+            if _ans_m:
+                _gen2_reasoning = _gen2_reasoning[:_ans_m.end()]
+            gen2 = get_gen2_confidence(
+                model, tokenizer, question, _gen2_reasoning, model_answer, choices
             )
+            single_pass_conf = gen2["gen2_confidence"]
+            single_pass_correct = gen2["gen2_correct"]
 
-        if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
-            single_pass_correct = get_correct_separate_base(
-                model, tokenizer, question, model_answer
-            )
+        # Fallbacks if Gen 2 call failed (e.g. base model emitted EOS on the prompt)
+        if single_pass_conf is None:
+            single_pass_conf = extract_verbalized_confidence(response, DATASET)
+            if single_pass_conf is None and model_answer:
+                single_pass_conf = get_verbalized_confidence_separate(
+                    model, tokenizer, question, model_answer
+                )
+        if single_pass_correct is None:
+            single_pass_correct = extract_more_likely_than_not(response)
+            if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
+                single_pass_correct = get_correct_separate_base(
+                    model, tokenizer, question, model_answer
+                )
 
         two_pass_results = dict(_empty_two_pass)
         if model_answer:

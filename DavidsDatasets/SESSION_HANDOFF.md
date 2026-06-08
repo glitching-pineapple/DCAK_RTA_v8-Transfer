@@ -1494,3 +1494,158 @@ Not committed. Uncommitted set: `confidence.py`, `model_utils.py`, `verify_rubri
 ## 5. Handoff reference
 
 See `confidence_telemetry_handoff.md §29` for the canonical write-up.
+
+---
+
+# Session 2026-06-08 — Two-pass loop fix, `Correct:` semantic restore, Gen-2 own-work framing for all models
+
+## 0. Context
+
+User supplied three TriviaQA CSVs and asked why the two-pass critique wasn't working:
+- `triviaqa_confidencewithnewSE_Llama3.1-8B-base (11).csv` — current Llama 3.1-8B base with the §29 tiered two-pass
+- `25seed77triviaqa_confidencewithnewSE_Gemma4-31B-base.csv` — Gemma4-31B base two-pass (comparison)
+- `40seed99triviaqa_confidence_Llama3.1-8B-base.csv` — older Llama base (pre-two-pass, comparison)
+
+Also asked whether `more_likely_than_not` was correctly semantically defined, and whether the "YOUR OWN reasoning chain" Gen-2 framing could be extended to non-reasoning-flow instruct and base models.
+
+## 1. Bug A — Llama base two-pass loops despite 128-token cap
+
+**Symptom:** `two_pass_critique` for nearly every Llama-8B-base row was
+`"10\nQ: What is the correct answer?\nA: Friday\nQ: What is the correct answer?\nA: Friday\n..."` to the 128-token limit. `finish_reason="length"` for most rows. `two_pass_verbalized_confidence` always extracted as 10.
+
+**Root cause (two compounding issues):**
+
+1. The Llama base Q&A prompt ends with `"A:"`. The model answers "10" (the confidence number) then its pretraining instinct kicks in and generates a new `Q:` → starts a full Q&A loop. 128 tokens lets the loop run ~10 iterations.
+
+2. **Missing stop_strings**: unlike `generate_with_logits`, the two-pass `model.generate()` call had no stop strings for any model. The first new `\nQ:` continuation was never halted.
+
+3. The §29 code had:
+   ```python
+   if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+       _two_pass_gen_kwargs["max_new_tokens"] = 128  # no stop_strings, no ngram guard
+   elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
+       _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+   ```
+   The `if` fires for Llama base and sets `max_new_tokens` but adds neither `stop_strings` nor `no_repeat_ngram_size`. The `elif` is then skipped. Comment in that code even said "no loop risk" — contradicted by the CSV evidence.
+
+**Fix:**
+```python
+if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["max_new_tokens"] = 50   # was 128
+    _two_pass_gen_kwargs["stop_strings"] = ["\nQ:"]
+    _two_pass_gen_kwargs["tokenizer"] = tokenizer
+elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+    if MODEL_VARIANT == "base":
+        _two_pass_gen_kwargs["stop_strings"] = ["\nQuestion:", "\nAnswer the following", "\nSolution:"]
+        _two_pass_gen_kwargs["tokenizer"] = tokenizer
+```
+
+- **128→50 tokens**: the model emits "10" then `\nQ:` — 50 tokens starves the loop of budget.
+- **`stop_strings=["\nQ:"]`**: halts at the first new Q: the model tries to generate; the loop never starts.
+- **Ngram guard still skipped for Llama base**: the compact `Q:/A:/Q:/A:` format context contains 3-grams from those format tokens that would over-ban the first completion token — the original rationale holds, stop_strings is the safer mechanism here.
+
+## 2. Bug B — Gemma4-base template continuation over-generation
+
+**Symptom:** Several Gemma4-31B-base rows had `two_pass_critique` running into the confidence rubric's Mona Lisa example (`"Answer the following trivia question...\nQuestion: What is the name of the famous painting..."`). `finish_reason="length"`, `was_truncated=True`.
+
+**Root cause:** The non-Llama base path got `no_repeat_ngram_size=3` (ngram guard prevents tight verbatim loops) but no `stop_strings`. After writing a valid critique and `Correct: Yes`, the model continued into template continuation. Each new "Answer the following..." generates different 3-grams so the ngram guard doesn't catch it.
+
+**Fix (same code block as Bug A):** Added `stop_strings=["\nQuestion:", "\nAnswer the following", "\nSolution:"]` to the `elif MODEL_VARIANT == "base"` branch — same stop markers used by `generate_with_logits` for the main pass. Clean critiques ending at `Correct:` are unaffected (those stop strings never appear in a legitimate critique body).
+
+## 3. What to expect after these fixes
+
+**Llama 3.1-8B base two-pass:** `finish_reason` will change from `"length"` → `"stop"` (stop string fired). `two_pass_critique` will be short — just `"10"` or a 1-sentence rating. Confidence values will still cluster around 10 (model quality limitation, not a pipeline issue). `more_likely_than_not` will still be None for Llama base two-pass — the Q&A format doesn't ask for `Correct:` and the model is too small to reliably follow the structured rubric.
+
+**Gemma4-31B base two-pass:** over-generation contamination eliminated. Critiques end cleanly at `Correct: Yes/No`. `two_pass_was_truncated` rate will drop substantially.
+
+## 4. `Correct: Yes or No` — semantic definition lost and restored
+
+**Discovery from git archaeology:**
+
+The "more likely than not" semantic definition (`"State if you think your answer is more likely correct than not after 'Correct:' (Yes or No)"`) was present in the active two-pass critique prompt and in a numbered-instruction version of `create_prompt` up through commit `6b016af` ("moreFIXXX"). It was **silently removed** in commit `da12192` on **May 10, 2026** ("ConfidenceandTruncating") when the prompts were restructured from instruction-list format to the current rubric format.
+
+**What `Correct: Yes or No` looks like without the definition:**
+
+Every prompt (all 6 datasets in `create_prompt`, `get_gen2_confidence`, `get_two_pass_confidence`) just said `"Correct: Yes or No"` with no explanation of what "Yes" means. Without a definition, models interpret `"Correct: Yes"` as `"I am sure I'm right"` — a high-confidence assertion — rather than the intended threshold of `"I believe this is more likely correct than not (better than a coin flip)"`. This explains the near-perfect correlation between `more_likely_than_not` and high `single_pass_confidence`: models that wrote "Correct: Yes" also gave high confidence numbers because they were both signaling the same "I'm certain" state.
+
+Contrast with `Confidence:` which has a full 10-class rubric with explicit probability ranges. `Correct:` had nothing equivalent.
+
+**Fix:** Restored the original wording verbatim to all prompt locations using `replace_all=True`:
+```
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
+```
+Applied to:
+- All 6 dataset variants in `create_prompt` (replace_all — all 6 at once via identical pattern)
+- `get_gen2_confidence` (before the "ONLY these two lines:" instruction)
+- `get_two_pass_confidence` closing instruction (before the "You MUST end..." line)
+
+Note: two-pass critique uses "the answer" instead of "your answer" since the model is in blinded-evaluator mode:
+`"State if you think the answer is more likely correct than not after 'Correct:' (Yes or No)."`
+
+## 5. Gen-2 own-work framing extended to all non-reasoning-flow models
+
+**Previous state:** For the non-reasoning-flow branch (`evaluation.py`), `single_pass_conf` and `single_pass_correct` came from inline extraction of the main gen response — no explicit "YOUR OWN reasoning chain" framing, just parsing the `Confidence:` and `Correct:` lines the model wrote during question-answering.
+
+**Problem:** `get_gen2_confidence` (the own-work-aware explicit framing — "The following is YOUR OWN reasoning chain and final answer that YOU previously produced") was only wired for reasoning-flow models (qwen3, gptoss, gemma4-instruct, llama4scout-instruct). Non-reasoning instruct and base models never received this explicit authorship-aware prompt.
+
+**Why it matters for the metacognition research:** For the two-pass comparison to be clean (`single_pass_confidence` = own-work-aware, `two_pass_confidence` = blinded), the single-pass elicitation should use explicit "YOUR OWN" framing, not just happen to be done in the same generation as the answer.
+
+**Fix in `evaluation.py`:** The non-reasoning-flow block now calls `get_gen2_confidence` as the primary source:
+
+```python
+# Gen 2 (own-work-aware): same "YOUR OWN reasoning chain" framing used for
+# reasoning-flow models, now applied here for all non-reasoning instruct and
+# base models. Strip the inline Confidence/Correct footer so Gen 2 rates
+# independently rather than anchoring to values already in the response.
+single_pass_conf = None
+single_pass_correct = None
+if model_answer:
+    _gen2_reasoning = response
+    _ans_m = re.search(r'(?m)^Answer\s*:.*$', _gen2_reasoning, re.IGNORECASE)
+    if _ans_m:
+        _gen2_reasoning = _gen2_reasoning[:_ans_m.end()]
+    gen2 = get_gen2_confidence(
+        model, tokenizer, question, _gen2_reasoning, model_answer, choices
+    )
+    single_pass_conf = gen2["gen2_confidence"]
+    single_pass_correct = gen2["gen2_correct"]
+
+# Fallbacks if Gen 2 call failed (e.g. base model emitted EOS on the prompt)
+if single_pass_conf is None:
+    single_pass_conf = extract_verbalized_confidence(response, DATASET)
+    if single_pass_conf is None and model_answer:
+        single_pass_conf = get_verbalized_confidence_separate(
+            model, tokenizer, question, model_answer
+        )
+if single_pass_correct is None:
+    single_pass_correct = extract_more_likely_than_not(response)
+    if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
+        single_pass_correct = get_correct_separate_base(
+            model, tokenizer, question, model_answer
+        )
+```
+
+Key design decisions:
+- **Stripping Confidence/Correct from the response before passing to Gen 2**: the main gen response contains `Confidence: X\nCorrect: Yes` at the end. Gen 2 should rate independently, not anchor to those inline values. The regex cuts the reasoning at the `Answer:` line, excluding the footer.
+- **Fallback chain preserved**: inline extraction → `get_verbalized_confidence_separate` → `get_correct_separate_base`. If Gen 2 fails (base model emits EOS on the dense "YOUR OWN" prompt), the pipeline falls back silently.
+- **Works for base models via `generate_simple_response`**: `get_gen2_confidence` uses `generate_simple_response` with `base_suffix="\n\nAssessment:"`. For base models, this appends the suffix as a continuation primer (no chat template). Large base models (Gemma4-31B) may follow the "YOUR OWN reasoning chain" prompt; small ones (Llama 8B) will likely emit EOS → fallback fires.
+- **Extra generation cost**: non-reasoning-flow models now make one additional Gen-2 call per sample.
+
+## 6. Limitation: Llama 3.1-8B base metacognition signal
+
+After all fixes, Llama 3.1-8B base two-pass will produce clean short ratings instead of loops, but:
+- `two_pass_confidence` will still be mostly 10 (model calibration issue, not pipeline)
+- `more_likely_than_not` (from two-pass) will still be None (Q&A format never produces `Correct:`)
+- `single_pass_confidence` (from Gen-2 call) will also likely be 10 for everything
+
+The metacognition delta (`single_pass_confidence` vs `two_pass_confidence`) will be ~0 for Llama 8B base — not a meaningful research signal. Gemma4-31B base is the model to use for base-model metacognition research.
+
+## 7. Files modified this session
+
+| File | Changes |
+|---|---|
+| `confidence.py` | `get_two_pass_confidence`: Llama base — `max_new_tokens` 128→50, added `stop_strings=["\nQ:"]`; non-Llama base — added `stop_strings` (template continuation prevention); all 6 dataset variants in `create_prompt` — restored "State if you think your answer is more likely correct than not" definition for `Correct:`; `get_gen2_confidence` — same restoration; `get_two_pass_confidence` closing instruction — same restoration (blinded-evaluator wording). |
+| `evaluation.py` | Non-reasoning-flow branch: replaced inline `single_pass_conf/correct` extraction with `get_gen2_confidence` call (YOUR OWN framing); original inline extraction + separate-call functions preserved as fallback chain. |
+
+Not committed. Uncommitted source set (accumulated across §27–§30): `confidence.py`, `model_utils.py`, `evaluation.py`, `verify_rubric.py`.
