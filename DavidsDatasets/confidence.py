@@ -845,44 +845,52 @@ def get_correct_separate_base(
     answer: str,
 ) -> Optional[bool]:
     """
-    Ask a base model whether its answer is correct via a separate Q&A call.
+    Ask a base model whether its answer is correct by comparing logits.
 
-    Uses a minimal Q&A format matching base pretraining distribution.
+    Logit-comparison rather than generation: one forward pass, compare the
+    raw logit for ' Yes' vs ' No' at the first output position. Always
+    returns True or False — never None (unless tokenization fails to produce
+    distinct Yes/No token IDs, which is handled by falling back to None).
+
+    Why not generation: greedy continuation after "A:" is unreliable for
+    Llama-3.1-8B-base — the model's preferred token is not consistently
+    'Yes' or 'No' even for clearly correct/incorrect answers (§30.1). The
+    generative version left single_pass_correct blank (e.g. idx 3101, 8936,
+    7574, 16129). Logit comparison bypasses generation entirely.
+
     Only called for base models — instruct models produce "Correct: Yes/No"
     inline in the main response, extracted by extract_more_likely_than_not.
     """
-    from model_utils import generate_simple_response
-
-    # Truncate verbose or mid-sentence answers before inserting into the A: slot.
-    # Long answers (especially ones truncated mid-sentence, as happens when the
-    # main pass hit max_new_tokens) create a strong continuation signal that
-    # causes the base model to complete the text instead of outputting Yes/No.
-    # Truncate to the last complete sentence within 150 chars, or first 150
-    # chars if no sentence boundary exists.
+    # Truncate verbose mid-sentence answers to avoid strong continuation
+    # signals that skew the logit distribution toward text completion.
     _ans = answer
     if len(_ans) > 150:
         _last_period = _ans[:150].rfind('.')
         _ans = _ans[:_last_period + 1] if _last_period != -1 else _ans[:150]
 
     prompt = f"Q: {question}\nA: {_ans}\nQ: Is this answer correct? A:"
-    # loop_guard=False: 10-token budget has no loop risk, and the ngram guard
-    # checks the full input context — "A:" followed by the answer text already
-    # appeared earlier in the prompt, which can ban the model's preferred first
-    # output token and cause it to output a non-Yes/No continuation (§25 mechanism).
-    response = generate_simple_response(
-        model, tokenizer, prompt, max_new_tokens=10, base_suffix="",
-        loop_guard=False,
-    )
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
-    # Truncate at Q&A continuation before extracting
-    _qa_cont = response.find('\nQ:')
-    if _qa_cont != -1:
-        response = response[:_qa_cont]
+    # Token IDs for " Yes" and " No" (leading space = how they appear mid-text)
+    yes_ids = [
+        tokenizer.encode(s, add_special_tokens=False)[0]
+        for s in (" Yes", "Yes", " yes", "yes")
+        if tokenizer.encode(s, add_special_tokens=False)
+    ]
+    no_ids = [
+        tokenizer.encode(s, add_special_tokens=False)[0]
+        for s in (" No", "No", " no", "no")
+        if tokenizer.encode(s, add_special_tokens=False)
+    ]
+    if not yes_ids or not no_ids:
+        return None  # tokenizer gave nothing useful
 
-    match = re.search(r'\b(Yes|No)\b', response, re.IGNORECASE)
-    if match:
-        return match.group(1).lower() == 'yes'
-    return None
+    with torch.no_grad():
+        logits = model(**inputs).logits[0, -1, :]  # shape: [vocab_size]
+
+    yes_logit = max(logits[i].item() for i in yes_ids)
+    no_logit = max(logits[i].item() for i in no_ids)
+    return yes_logit > no_logit
 
 
 def get_gen2_confidence(
