@@ -1419,3 +1419,78 @@ Not committed. Uncommitted source set: `confidence.py`, `model_utils.py`,
 ## 5. Handoff reference
 
 See `confidence_telemetry_handoff.md §26` for the canonical write-up.
+
+---
+
+# Session 2026-06-07 (part 7) — §29: Tiered two-pass critique for base models
+
+## 0. Context
+
+User supplied four TriviaQA CSVs showing base-model two-pass critique behavior:
+- `40seed99triviaqa_confidence_Gemma4-31B-base.csv` — works but some rows loop (need ngram guard)
+- `40seed99triviaqa_confidencewithnewSE_Gemma2-9B-base.csv` — partial; some loops, some format issues
+- `40seed99triviaqa_confidencewithnewSE_Qwen2.5-7B-instruct.csv` — perfect (instruct path unchanged)
+- `40seed99triviaqa_confidence_Qwen2.5-7B-base.csv` — works; echoes Q/A then reviews, 1 loop row
+
+Key question: why do Qwen/Gemma base produce valid critiques while Llama-8B-base never does?
+
+## 1. Root cause — two separate bugs compounding for Llama
+
+1. **OOD prompt** (§26 mechanism): the dense instruction-style critique rubric is out of Llama-3.1-8B-base's pretraining distribution. Llama-8B emits EOS immediately — the same mechanism that required native Q&A for `get_forced_answer`. Qwen2.5-7B-base and Gemma models are large enough to pattern-complete the critique prompt.
+
+2. **ngram guard removed for all base models** (§23.2 fallout): the guard was restored to `gptoss`-only in §23.2 because it over-banned Llama-8B. But Qwen/Gemma base CAN do the critique — they just loop without the guard. Both bugs interacted: removing the guard didn't help Llama (OOD still causes EOS) and hurt Qwen/Gemma (no anti-loop protection).
+
+**Note on earlier Llama base two-pass numbers**: old CSVs showed non-None `two_pass_confidence` for Llama-8B-base because the old broken extractor returned verbose answers (e.g. "The currency of Ecuador before adopting the US dollar was a form of currency" instead of "sucre"). This made the `Final answer given:` field long enough to look like natural pretraining text, enabling ~13% pattern completion. With the fixed extractor returning clean short answers, the critique prompt looks instruction-like → EOS.
+
+## 2. CSV evidence
+
+| Model | Two-pass behavior |
+|---|---|
+| Qwen2.5-7B-instruct | Perfect — instruct chat-template path unaffected |
+| Qwen2.5-7B-base | Works — echoes Q/A context, writes review, ends `Confidence: X\nCorrect: Yes`; 1 loop row |
+| Gemma4-31B-base | Works for most rows; several loop rows (`finish_reason=length`) |
+| Gemma2-9B-base | Partial — some valid critiques, some loops, some contradictory `was_truncated` (pre-§27 bug) |
+| Llama-3.1-8B-base | Never works — EOS immediately on the instruction-style critique prompt |
+
+## 3. Fix — tiered prompt + guard in `get_two_pass_confidence`
+
+Split the `else` (base model) branch:
+
+**`MODEL_FAMILY == "llama"` base:**
+```python
+formatted_prompt = (
+    f"Q: {question}\n"
+    f"A: {answer}\n"
+    f"Q: Is this answer correct? Rate confidence 1-10.\n"
+    f"A:"
+)
+_two_pass_gen_kwargs["max_new_tokens"] = 128  # short response, no loop risk
+```
+No ngram guard (compact Q&A format, no loop risk). Model generates "Confidence: X\nCorrect: Yes/No" after "A:" — existing P1/P2/P3 patterns apply unchanged.
+
+**All other base models (Qwen, Gemma, gemma4):**
+```python
+formatted_prompt = critique_prompt + "\n\nReview:"
+_two_pass_gen_kwargs["no_repeat_ngram_size"] = 3  # restored anti-loop guard
+```
+
+**Updated ngram guard condition:**
+```python
+if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["max_new_tokens"] = 128
+elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+```
+The `elif` covers gptoss (unchanged from §23.2 / §27) and all non-Llama base models.
+
+## 4. Files modified this session
+
+| File | Change |
+|---|---|
+| `confidence.py` | `get_two_pass_confidence` — `elif MODEL_FAMILY == "llama"` branch with native Q&A format; ngram guard condition expanded to `MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base"` (excluding Llama base). |
+
+Not committed. Uncommitted set: `confidence.py`, `model_utils.py`, `verify_rubric.py` (plus prior pending changes from §27–§28).
+
+## 5. Handoff reference
+
+See `confidence_telemetry_handoff.md §29` for the canonical write-up.

@@ -1967,4 +1967,87 @@ needed. New runs unaffected.
 
 ---
 
+## §29 — Tiered two-pass critique for base models (2026-06-07, part 7)
+
+### 29.1 Problem
+
+`get_two_pass_confidence` used a single code path for all base models:
+```python
+else:
+    formatted_prompt = critique_prompt + "\n\nReview:"
+```
+
+Different base model families have very different behavior with this prompt:
+
+| Family | Behavior | Root cause |
+|---|---|---|
+| `llama` (8B base) | EOS immediately — no output | Dense instruction rubric is OOD (§26 mechanism) |
+| `gemma`/`gemma4` base | Works but loops to `max_new_tokens` | Can pattern-complete; no ngram guard (removed in §23.2 fix) |
+| `qwen`/`qwen3` base | Works but loops to `max_new_tokens` | Same as above |
+
+The ngram guard (`no_repeat_ngram_size=3`) was removed for all base models in the §23.2 fix because it over-banned Llama-8B's first-token candidates on the dense critique prompt. But removing it also exposed Qwen/Gemma base to looping. Both bugs compounded: Llama-8B still gets EOS (OOD problem is deeper than the ngram guard), and Qwen/Gemma base loop.
+
+### 29.2 CSV evidence (four TriviaQA CSVs, 40 rows each)
+
+- **Gemma4-31B-base**: valid critiques for most rows; several `finish_reason=length` loop rows without the ngram guard
+- **Gemma2-9B-base**: partial success; some loops; pre-§27 contradictory `was_truncated` visible on some rows
+- **Qwen2.5-7B-instruct**: perfect (instruct path unchanged — uses `apply_chat_template`)
+- **Qwen2.5-7B-base**: works well — echoes the Q/A context then writes a review ending with `Confidence: X\nCorrect: Yes`; 1 loop row; mostly `finish_reason=eos`
+
+The difference between Qwen2.5-7B-base (works) and Llama-3.1-8B-base (fails) is not just size — it's that the critique prompt is inside Qwen's pretraining distribution (lots of code/text with dense formatting) but not Llama-8B's.
+
+### 29.3 Note on earlier Llama base two-pass numbers
+
+Earlier CSVs showed non-None `two_pass_confidence` for Llama-8B-base. Those numbers came from the **old broken extractor** which returned verbose multi-word answers (e.g. "The currency of Ecuador before adopting the US dollar was a form of currency" instead of "sucre"). This made the `Final answer given:` section long enough to look like natural pretraining text, enabling occasional pattern completion (~13% success rate). With the fixed extractor returning clean short answers, the critique prompt looks more instruction-like → EOS. The native Q&A fix addresses the underlying problem rather than depending on verbose extraction.
+
+### 29.4 Fix — tiered prompt in `get_two_pass_confidence`
+
+Changed the base model `else` branch to an `elif`/`else` split:
+
+```python
+elif MODEL_FAMILY == "llama":
+    # Llama-3.1-8B-base emits EOS immediately on the dense instruction-style
+    # critique prompt: too small + OOD (§26 mechanism). Qwen/Gemma base can
+    # pattern-complete it. Use minimal native Q&A for Llama only.
+    formatted_prompt = (
+        f"Q: {question}\n"
+        f"A: {answer}\n"
+        f"Q: Is this answer correct? Rate confidence 1-10.\n"
+        f"A:"
+    )
+else:
+    formatted_prompt = critique_prompt + "\n\nReview:"
+```
+
+**Ngram guard (updated condition):**
+```python
+if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["max_new_tokens"] = 128  # short Q&A output, no loop risk
+elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
+    _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+```
+
+The `elif` covers gptoss (unchanged from §23.2/§27) AND all non-Llama base models (Qwen/Gemma base). The Llama native Q&A path gets `max_new_tokens=128` instead of the ngram guard (compact prompt, no loop risk).
+
+**Extraction compatibility**: native Q&A path ends with `"A:"` so the model generates the full `"Confidence: X\nCorrect: Yes/No"`. Existing P1/P2/P3 patterns in `extract_verbalized_confidence` and `extract_more_likely_than_not` apply unchanged. `_detect_truncation` with `expect_confidence_markers=True` checks for `r"[Cc]onfidence\s*:"` and `r"[Cc]orrect\s*:"` — present in well-formed Llama native Q&A output; absent if Llama outputs non-standard text, correctly flagging `was_truncated=True`.
+
+### 29.5 Guard matrix (full, post §29)
+
+| Config | Prompt format | `no_repeat_ngram_size` | `max_new_tokens` |
+|---|---|---|---|
+| instruct (non-gptoss) | `apply_chat_template` | — | `TWO_PASS_MAX_NEW_TOKENS` |
+| gptoss instruct | `critique_prompt + "\n\nReview:"` | 3 | `TWO_PASS_MAX_NEW_TOKENS` |
+| **llama** base | `Q: …\nA: …\nQ: …\nA:` | — | **128** |
+| gemma/gemma4/qwen/qwen3 base | `critique_prompt + "\n\nReview:"` | **3 (restored)** | `TWO_PASS_MAX_NEW_TOKENS` |
+
+### 29.6 Files modified
+
+| File | Change |
+|---|---|
+| `confidence.py` | `get_two_pass_confidence`: `elif MODEL_FAMILY == "llama"` native Q&A branch; updated ngram guard condition. |
+
+Not committed (pending commit alongside §27–§28 changes).
+
+---
+
 End of handoff document.

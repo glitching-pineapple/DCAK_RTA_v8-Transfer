@@ -1041,20 +1041,36 @@ Correct: Yes or No"""
         except TypeError:
             template_kwargs.pop("enable_thinking", None)
             formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
+    elif MODEL_FAMILY == "llama":
+        # Llama-3.1-8B-base emits EOS immediately on the dense instruction-style
+        # critique prompt: the model is too small and the rubric text is OOD,
+        # so no valid continuation tokens survive and EOS wins (§25/§26 mechanism).
+        # Qwen/Gemma base models are large enough to pattern-complete the full
+        # critique prompt and produce valid critiques (confirmed by CSV evidence).
+        # Use a minimal native Q&A format for Llama base only.
+        formatted_prompt = (
+            f"Q: {question}\n"
+            f"A: {answer}\n"
+            f"Q: Is this answer correct? Rate confidence 1-10.\n"
+            f"A:"
+        )
     else:
         formatted_prompt = critique_prompt + "\n\nReview:"
     inputs = tokenizer(formatted_prompt, return_tensors="pt").to(model.device)
-    # Anti-loop guard for GPT-OSS only. Base models use critique_prompt +
-    # "\n\nReview:" for pattern completion — applying no_repeat_ngram_size=3
-    # to them over-bans valid first tokens on the dense instruction prompt and
-    # causes EOS immediately (same mechanism as the forced-answer §25 issue).
     _two_pass_gen_kwargs = dict(
         max_new_tokens=TWO_PASS_MAX_NEW_TOKENS,
         do_sample=False,
         return_dict_in_generate=True,
         pad_token_id=tokenizer.pad_token_id,
     )
-    if MODEL_FAMILY == "gptoss":
+    if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+        # Short native Q&A output — cap tokens and skip ngram guard (short prompt,
+        # no loop risk; ngram guard over-bans on compact Q&A context).
+        _two_pass_gen_kwargs["max_new_tokens"] = 128
+    elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
+        # Anti-loop guard for gptoss (dense assistant format loops without it)
+        # and all non-Llama base models (Qwen/Gemma base can pattern-complete the
+        # critique but loop without the ngram guard on max_new_tokens budgets).
         _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
     with torch.no_grad():
         outputs = model.generate(**inputs, **_two_pass_gen_kwargs)
