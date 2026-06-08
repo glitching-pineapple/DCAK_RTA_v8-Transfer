@@ -1138,17 +1138,6 @@ Correct: Yes or No"""
     conf = extract_verbalized_confidence(critique_for_extraction, DATASET)
     correct_judgment = extract_more_likely_than_not(critique_for_extraction)
 
-    # Llama-3.1-8B-base compact Q&A two-pass outputs a bare digit (e.g. "10")
-    # before the "\nQ:" stop trigger. Standard patterns all require a "Confidence:"
-    # label, so pull the number directly from the first non-empty line.
-    if conf is None and MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
-        _first_tok = critique_for_extraction.split('\n')[0].strip()
-        _bare_m = re.fullmatch(r'(\d{1,2})', _first_tok)
-        if _bare_m:
-            _v = float(_bare_m.group(1))
-            if 1.0 <= _v <= 10.0:
-                conf = _v
-
     return {
         "two_pass_confidence": conf,
         "two_pass_correct": correct_judgment,
