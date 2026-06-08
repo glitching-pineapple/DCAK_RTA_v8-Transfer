@@ -2050,4 +2050,114 @@ Not committed (pending commit alongside §27–§28 changes).
 
 ---
 
+## §30 — `get_correct_separate_base` logit-comparison rewrite (pending — do first in next session)
+
+### 30.1 Problem: generative Yes/No is unreliable for base models
+
+`get_correct_separate_base` generates up to 10 tokens after `"Q: Is this answer correct? A:"` and checks for `\b(Yes|No)\b`. This fails in two documented ways:
+
+**Case A (idx 3101 / Erasmus)**: The `model_answer` is a verbose mid-sentence truncation (`"...He was a humanist scholar who wrote in"`). The base model sees the dangling continuation and writes `"Latin and Greek..."` instead of `"Yes/No"`. The 10-token budget exhausts before any Yes/No token.
+
+**Case B (idx 8936 / Bolton)**: The answer is a complete sentence (83 chars, so the §29-session answer-truncation fix didn't apply). Even without the ngram guard (`loop_guard=False`, also applied in §29 session), the model does not reliably output `"Yes"` or `"No"` as its first token. Llama-3.1-8B-base's top completion after `"A:"` in this context is something other than a bare Yes/No — confirmed by the blank persisting after the `loop_guard=False` change.
+
+**Root cause**: The generative approach is fundamentally unreliable. The base model's preferred token after `"A:"` in a short Q&A context depends on the specific question/answer pair, and there is no guarantee it is "Yes" or "No".
+
+### 30.2 Failed fix (§29 session — do NOT re-apply)
+
+The `get_correct_separate_base` edit made in the §29 session added:
+1. `loop_guard=False` — removes ngram guard from the 10-token call
+2. Answer truncation to last complete sentence ≤ 150 chars
+
+Neither resolved the blanks. The answer-truncation did nothing for idx 8936 (83 chars, under threshold). The `loop_guard=False` did nothing because the underlying problem is the model's generation distribution, not token banning.
+
+**These changes are currently in the working tree. Revert them (or overwrite with the fix below).**
+
+### 30.3 Correct fix: logit-comparison (single forward pass)
+
+Replace the generative approach with a direct logit comparison at the first output position:
+
+```python
+def get_correct_separate_base(
+    model,
+    tokenizer,
+    question: str,
+    answer: str,
+) -> Optional[bool]:
+    """
+    Ask a base model whether its answer is correct by comparing logits.
+
+    Logit-comparison rather than generation: one forward pass, compare the
+    raw logit for ' Yes' vs ' No' at the first output position. Always
+    returns True or False — never None (unless tokenization fails to produce
+    distinct Yes/No token IDs, which is handled by falling back to None).
+
+    Why not generation: greedy continuation after "A:" is unreliable for
+    Llama-3.1-8B-base — the model's preferred token is not consistently
+    'Yes' or 'No' even for clearly correct/incorrect answers (§30.1).
+    Logit comparison bypasses generation entirely.
+    """
+    # Truncate verbose mid-sentence answers to avoid strong continuation
+    # signals that skew the logit distribution toward text completion.
+    _ans = answer
+    if len(_ans) > 150:
+        _last_period = _ans[:150].rfind('.')
+        _ans = _ans[:_last_period + 1] if _last_period != -1 else _ans[:150]
+
+    prompt = f"Q: {question}\nA: {_ans}\nQ: Is this answer correct? A:"
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    # Token IDs for " Yes" and " No" (leading space = how they appear mid-text)
+    yes_ids = [
+        tokenizer.encode(s, add_special_tokens=False)[0]
+        for s in (" Yes", "Yes", " yes", "yes")
+        if tokenizer.encode(s, add_special_tokens=False)
+    ]
+    no_ids = [
+        tokenizer.encode(s, add_special_tokens=False)[0]
+        for s in (" No", "No", " no", "no")
+        if tokenizer.encode(s, add_special_tokens=False)
+    ]
+    if not yes_ids or not no_ids:
+        return None  # tokenizer gave nothing useful
+
+    with torch.no_grad():
+        logits = model(**inputs).logits[0, -1, :]  # shape: [vocab_size]
+
+    yes_logit = max(logits[i].item() for i in yes_ids)
+    no_logit = max(logits[i].item() for i in no_ids)
+    return yes_logit > no_logit
+```
+
+**Key points**:
+- Requires `import torch` at the top of `confidence.py` (already present).
+- The `model(**inputs)` call is a full forward pass on the prompt — same computational cost as generating the first token, but without the overhead of sampling/decoding.
+- Answer truncation to 150 chars is KEPT for a different reason: long verbose answers skew the logit distribution toward text-completion tokens; a shorter answer gives a cleaner signal.
+- Returns `True` or `False`, never `None` (unless tokenizer is broken).
+- `generate_simple_response` is no longer called — remove the `from model_utils import generate_simple_response` line inside the function and the `loop_guard=False` kwarg.
+
+### 30.4 What to revert first
+
+The §29-session changes to `get_correct_separate_base` are in the working tree. The new implementation completely replaces the function body, so no explicit revert is needed — just overwrite the function with the §30.3 version above.
+
+### 30.5 Expected outcome
+
+After §30.3 is applied:
+- `single_pass_correct` will be non-None for ALL base-model rows that have a non-empty `model_answer`
+- `more_likely_than_not` will be non-None for all rows where `two_pass_correct` is also None (i.e., the fallback chain always terminates with a real value)
+- The 2/40 blank rows (idx 3101, 8936) in the Llama-8B-base TriviaQA run will be fixed
+- This should work across all base model families (Qwen, Gemma, Llama) since the logit comparison is family-agnostic
+
+### 30.6 Verify after implementing
+
+Run `verify_rubric.py` after the change. The `check_evaluate_sample_columns` test does not exercise `get_correct_separate_base` directly, so write a quick manual test:
+
+```python
+# Smoke test (no GPU needed — mock the model call)
+# Confirm the function falls through to the logit comparison and returns
+# True/False for a simple prompt. With a real model on GPU, spot-check
+# idx 3101 and 8936 from the Llama-8B-base TriviaQA run.
+```
+
+---
+
 End of handoff document.
