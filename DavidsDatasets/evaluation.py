@@ -218,6 +218,11 @@ def evaluate_sample(
             # main pass response, which correctly reads "Correct: Yes/No".
             if single_pass_correct is None and MODEL_VARIANT == "base":
                 single_pass_correct = extract_more_likely_than_not(response)
+                # Returns None for was_forced=True rows: those responses end in
+                # prose without a "Correct: Yes/No" line — the same template
+                # deviation that caused forcing also omitted the structured footer.
+                # None is intentional (Option A): honest missing signal; downstream
+                # must handle NaN rather than a fabricated value.
 
         two_pass_results = dict(_empty_two_pass)
         if model_answer:
