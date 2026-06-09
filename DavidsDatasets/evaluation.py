@@ -303,7 +303,7 @@ def evaluate_sample(
         "is_refusal": is_refusal,
 
         # Logit-based metrics
-        "seq_confidence_sum": confidence_metrics["log_prob_sum"],
+        "seq_confidence_mean": confidence_metrics["log_prob_sum"],
         "logit_confidence_min": confidence_metrics["min_prob"],
         "logit_confidence_geom": confidence_metrics["geom_mean"],
         "logit_confidence_mean_prob": confidence_metrics["mean_prob"],
