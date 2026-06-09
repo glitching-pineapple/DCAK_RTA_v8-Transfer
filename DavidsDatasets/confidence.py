@@ -25,15 +25,20 @@ def _detect_truncation(
     generated_text: str,
     generated_ids,
     tokenizer,
+    max_new_tokens: int = None,
     expect_confidence_markers: bool = False,
 ) -> Dict:
     """Classify why generation stopped and whether the output is structurally complete.
 
-    finish_reason is 'eos' if the last generated token is the EOS token,
-    else 'length' (i.e. hit max_new_tokens). was_truncated is True if
-    finish_reason is 'length', or — when expect_confidence_markers is True —
-    if the text is missing </think> (when <think> was opened) or the
-    "Confidence:" / "Correct:" markers the two-pass prompt requires.
+    finish_reason is one of:
+      'eos'    – last generated token is the EOS token
+      'stop'   – generation ended before max_new_tokens without EOS (stop string fired)
+      'length' – hit max_new_tokens without EOS or stop string
+
+    was_truncated is True only for finish_reason='length', or — when
+    expect_confidence_markers is True — if the text is missing </think> (when
+    <think> was opened) or the "Confidence:" / "Correct:" markers the two-pass
+    prompt requires.
 
     Empty-eos responses (base model emitting EOS immediately due to an OOD
     instruction prompt) are NOT classified as truncated — the model simply
@@ -44,7 +49,15 @@ def _detect_truncation(
     """
     last_id = int(generated_ids[-1]) if len(generated_ids) > 0 else -1
     eos_id = tokenizer.eos_token_id
-    finish_reason = "eos" if eos_id is not None and last_id == eos_id else "length"
+    num_generated = generated_ids.numel() if hasattr(generated_ids, 'numel') else len(generated_ids)
+
+    if eos_id is not None and last_id == eos_id:
+        finish_reason = "eos"
+    elif max_new_tokens is not None and num_generated < max_new_tokens and last_id != (eos_id if eos_id is not None else -2):
+        # Stopped before budget and not EOS → stop string fired
+        finish_reason = "stop"
+    else:
+        finish_reason = "length"
 
     was_truncated = (finish_reason == "length")
     # Only check structural completeness for non-empty responses. An empty eos
@@ -153,13 +166,9 @@ def generate_with_logits(
     """
     # Anti-loop ngram ban: base (any family) + GPT-OSS. Inert on clean rows.
     _needs_ngram_guard = (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss")
-    # repetition_penalty disabled: penalizes format tokens (Answer:/Confidence:)
-    # that appear in the prompt, breaking structured output for base models.
-    _needs_rep_penalty = False
 
     # Resolve guard defaults (None = auto). See docstring for the policy.
-    if repetition_penalty is None:
-        repetition_penalty = 1.2 if _needs_rep_penalty else 1.0
+    # repetition_penalty is disabled by default (caller must pass explicitly to enable).
     if no_repeat_ngram_size is None:
         no_repeat_ngram_size = 3 if _needs_ngram_guard else 0
     # Stop sequences target base over-generation only (not GPT-OSS loops).
@@ -198,7 +207,7 @@ def generate_with_logits(
     generated_ids = outputs.sequences[0, input_length:]
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-    meta = _detect_truncation(generated_text, generated_ids, tokenizer)
+    meta = _detect_truncation(generated_text, generated_ids, tokenizer, max_new_tokens=max_new_tokens)
 
     token_probs = []
     tokens = []
@@ -847,50 +856,20 @@ def get_correct_separate_base(
     """
     Ask a base model whether its answer is correct by comparing logits.
 
-    Logit-comparison rather than generation: one forward pass, compare the
-    raw logit for ' Yes' vs ' No' at the first output position. Always
-    returns True or False — never None (unless tokenization fails to produce
-    distinct Yes/No token IDs, which is handled by falling back to None).
-
-    Why not generation: greedy continuation after "A:" is unreliable for
-    Llama-3.1-8B-base — the model's preferred token is not consistently
-    'Yes' or 'No' even for clearly correct/incorrect answers (§30.1). The
-    generative version left single_pass_correct blank (e.g. idx 3101, 8936,
-    7574, 16129). Logit comparison bypasses generation entirely.
+    Known limitation (Llama-3.1-8B-base): returns None unconditionally.
+    At the "Q: Is this answer correct? A:" completion position, Llama base
+    pretraining distribution overwhelmingly favours Yes tokens regardless of
+    answer quality (CSV evidence: 15/15 rows True, including clearly wrong
+    answers). The logit comparison prompt design is the problem — the model
+    predicts the statistically expected continuation, not a genuine evaluation.
+    Returning None allows evaluation.py to fall through to
+    extract_more_likely_than_not on the main pass response instead, which
+    correctly reads the model's "Correct: Yes/No" template completion.
 
     Only called for base models — instruct models produce "Correct: Yes/No"
     inline in the main response, extracted by extract_more_likely_than_not.
     """
-    # Truncate verbose mid-sentence answers to avoid strong continuation
-    # signals that skew the logit distribution toward text completion.
-    _ans = answer
-    if len(_ans) > 150:
-        _last_period = _ans[:150].rfind('.')
-        _ans = _ans[:_last_period + 1] if _last_period != -1 else _ans[:150]
-
-    prompt = f"Q: {question}\nA: {_ans}\nQ: Is this answer correct? A:"
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    # Token IDs for " Yes" and " No" (leading space = how they appear mid-text)
-    yes_ids = [
-        tokenizer.encode(s, add_special_tokens=False)[0]
-        for s in (" Yes", "Yes", " yes", "yes")
-        if tokenizer.encode(s, add_special_tokens=False)
-    ]
-    no_ids = [
-        tokenizer.encode(s, add_special_tokens=False)[0]
-        for s in (" No", "No", " no", "no")
-        if tokenizer.encode(s, add_special_tokens=False)
-    ]
-    if not yes_ids or not no_ids:
-        return None  # tokenizer gave nothing useful
-
-    with torch.no_grad():
-        logits = model(**inputs).logits[0, -1, :]  # shape: [vocab_size]
-
-    yes_logit = max(logits[i].item() for i in yes_ids)
-    no_logit = max(logits[i].item() for i in no_ids)
-    return yes_logit > no_logit
+    return None  # known limitation: Yes-biased for all inputs on Llama base
 
 
 def get_gen2_confidence(
@@ -915,6 +894,12 @@ def get_gen2_confidence(
         gen2_response    – raw response string
     """
     from config import MODEL_VARIANT, DATASET
+
+    # Base models template-complete the instruction prompt instead of self-assessing.
+    # The "Assessment:" suffix causes the base model to echo the format example
+    # ("Confidence: 10\nCorrect: Yes") as fill-in-the-blank, not genuine evaluation.
+    if MODEL_VARIANT == "base":
+        return {"gen2_confidence": None, "gen2_correct": None, "gen2_response": ""}
 
     # 3000 chars: Gen 2 is own-work-aware and benefits from seeing more detail
     reasoning_trimmed = reasoning[:3000] if len(reasoning) > 3000 else reasoning
@@ -1006,6 +991,19 @@ def get_two_pass_confidence(
         two_pass_critique   – raw critique response string
     """
     from config import MODEL_VARIANT, DATASET
+
+    # Llama base compact Q&A format always produces an unextractable bare digit
+    # ("10\nQ:") — both extract_verbalized_confidence and extract_more_likely_than_not
+    # return None every time. Skip the forward pass entirely rather than running
+    # dead work and emitting misleading finish_reason=length rows.
+    if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+        return {
+            "two_pass_confidence": None,
+            "two_pass_correct": None,
+            "two_pass_critique": "",
+            "two_pass_finish_reason": "skipped",
+            "two_pass_was_truncated": False,
+        }
 
     # 2000 chars: blinded reviewer gets a summary; longer would bloat the critique prompt
     reasoning_trimmed = reasoning[:2000] if len(reasoning) > 2000 else reasoning
@@ -1124,7 +1122,9 @@ Correct: Yes or No"""
         generated_ids, skip_special_tokens=True
     ).strip()
     meta = _detect_truncation(
-        critique_response, generated_ids, tokenizer, expect_confidence_markers=True
+        critique_response, generated_ids, tokenizer,
+        max_new_tokens=_two_pass_gen_kwargs["max_new_tokens"],
+        expect_confidence_markers=True,
     )
     # Strip harmony envelope before extraction. GPT-OSS writes analysis in a
     # pre-"assistantfinal" channel; _truncate_to_first_block can cut at a

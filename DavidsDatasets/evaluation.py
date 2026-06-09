@@ -192,9 +192,8 @@ def evaluate_sample(
             )
             single_pass_conf = gen2["gen2_confidence"]
             single_pass_correct = gen2["gen2_correct"]
-            # Base models predict "Correct: Yes/No" as training-data continuation,
-            # not genuine self-evaluation — override with logit comparison which is
-            # reliable regardless of what the model wrote in its response.
+            # Attempt logit comparison for base models (returns None for Llama base;
+            # the fallback below catches that and reads from the main response instead).
             if MODEL_VARIANT == "base":
                 single_pass_correct = get_correct_separate_base(
                     model, tokenizer, question, model_answer
@@ -208,15 +207,17 @@ def evaluate_sample(
                     model, tokenizer, question, model_answer
                 )
         if single_pass_correct is None:
-            # Base models hallucinate "Correct: No" as a grading continuation even
-            # when their answer is correct — skip inline extraction and go straight
-            # to logit comparison.
             if MODEL_VARIANT != "base":
                 single_pass_correct = extract_more_likely_than_not(response)
             if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
                 single_pass_correct = get_correct_separate_base(
                     model, tokenizer, question, model_answer
                 )
+            # get_correct_separate_base returns None for Llama base (known limitation:
+            # Yes-biased logit comparison). Fall through to inline extraction from the
+            # main pass response, which correctly reads "Correct: Yes/No".
+            if single_pass_correct is None and MODEL_VARIANT == "base":
+                single_pass_correct = extract_more_likely_than_not(response)
 
         two_pass_results = dict(_empty_two_pass)
         if model_answer:

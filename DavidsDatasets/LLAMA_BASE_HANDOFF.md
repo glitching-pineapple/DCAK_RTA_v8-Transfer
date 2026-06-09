@@ -1,103 +1,182 @@
-# Llama-3.1-8B-Base Pipeline Problems — Targeted Handoff
+# Llama-3.1-8B-Base Pipeline — Confirmed Bugs & Fix Targets
 
-**Date:** 2026-06-08  
-**Model:** Llama-3.1-8B-base (Llama base path only — instruct is unaffected)  
-**Status:** Two fixes applied, still failing on re-run of TriviaQA
+**Date:** 2026-06-08
+**Model:** Llama-3.1-8B-base (Llama base path only — instruct is unaffected)
+**Status:** Five confirmed bugs in confidence.py. None are fixed yet. All causes are known.
 
 ---
 
-## The Two Broken Columns
+## Confirmed Bug 1: `more_likely_than_not` always True
 
-### Column A: `single_pass_correct` — always False even when model is right
+**Root cause: `get_gen2_confidence` has no base model guard (confidence.py:896)**
 
-**Root cause:** `get_gen2_confidence` sends a dense instruction prompt to the base model:
+The function docstring says "Gen 2 verbalized confidence for qwen3" but there is no early return or guard for `MODEL_VARIANT == "base"`. It runs unconditionally for Llama base.
+
+What happens: the full instruction prompt is sent with `base_suffix="\n\nAssessment:"`. The last lines of the prompt the base model sees are:
+
 ```
-[YOUR reasoning chain... Based on YOUR reasoning... Select EXACTLY ONE confidence level: 1='Almost no chance'...]
-State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
-...
-\n\nAssessment:
-```
-The base model treats "Correct: Yes or No" as a fill-in-the-blank training pattern and outputs "Correct: No" regardless of whether its answer is right. `extract_more_likely_than_not` reads that literal "Correct: No" and returns `False`. This then sets `single_pass_correct = False` for most rows even on correct answers.
+Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
+Confidence: <1-10>
+Correct: Yes or No
 
-**What was tried (evaluation.py lines 195-201):**
+Assessment:
+```
+
+The base model template-completes "Assessment:" by echoing the format example above it. It outputs something like `"Confidence: 10\nCorrect: Yes"` — filling in `Yes` because it is the first option listed in `"Yes or No"`. `extract_more_likely_than_not` finds `"Correct: Yes"` and returns `True` for every row.
+
+**This is not the model's real self-assessment. It is fill-in-the-blank completion.**
+
+**Fix:** Add a base model guard at the top of `get_gen2_confidence`. Return a null result dict immediately when `MODEL_VARIANT == "base"`:
 ```python
-single_pass_correct = gen2["gen2_correct"]
-# Override with logit comparison for base models
 if MODEL_VARIANT == "base":
-    single_pass_correct = get_correct_separate_base(
-        model, tokenizer, question, model_answer
-    )
+    return {"gen2_confidence": None, "gen2_correct": None, "gen2_response": ""}
 ```
-And fallback guard (lines 210-219):
-```python
-if single_pass_correct is None:
-    if MODEL_VARIANT != "base":
-        single_pass_correct = extract_more_likely_than_not(response)
-    if single_pass_correct is None and MODEL_VARIANT == "base" and model_answer:
-        single_pass_correct = get_correct_separate_base(...)
-```
-
-**What `get_correct_separate_base` does (confidence.py line 841):**
-Single forward pass, no generation. Prompt: `"Q: {question}\nA: {answer}\nQ: Is this answer correct? A:"`. Compares max logit of [" Yes","Yes"," yes","yes"] vs [" No","No"," no","no"]. Returns `True/False`.
-
-**Why the fix might still be failing:**
-1. `MODEL_VARIANT` might not equal `"base"` at runtime — check `config.py` and that it's imported correctly inside the function scope (both files use `from config import MODEL_VARIANT` at call time, not module level)
-2. The fix code path requires `model_answer` to be non-None. If extraction is failing → `model_answer=None` → the override block never runs → `single_pass_correct` stays `None`
-3. `get_correct_separate_base` itself could be unreliable: for short yes/no StrategyQA answers the prompt is clean, but for multi-word TriviaQA answers the logit comparison competes with the continuation signal of a long answer
+`more_likely_than_not` in evaluation.py should then fall through to `extract_more_likely_than_not` on the main pass response, which correctly reads the model's `"Correct: No"` outputs.
 
 ---
 
-### Column B: `two_pass_confidence` — always None (every single row)
+## Confirmed Bug 2: `single_pass_correct` always True
 
-**Root cause:** The compact Q&A two-pass prompt:
+**Root cause: `get_correct_separate_base` is Yes-biased for all inputs (confidence.py:841)**
+
+The logit comparison prompt is:
+```
+Q: {question}
+A: {answer}
+Q: Is this answer correct? A:
+```
+
+For Llama 3.1 8B base, at this completion position the model's pretraining distribution is overwhelmingly skewed toward Yes-variant tokens. In pretraining Q&A corpora, `"Q: Is this answer correct? A: Yes"` is far more common than `"A: No"` — people writing Q&A pairs typically confirm, not deny. The model does not evaluate the answer at all; it predicts the statistically expected next token for this prompt structure.
+
+**CSV confirmation:** 15/15 rows return `single_pass_correct=True`, including row 8983 where the model gave the book title ("The Sea-Wolf") instead of the author name when asked "Who wrote The Sea Wolf." The function called the wrong answer correct.
+
+The fix that replaced always-False overcorrected to always-True. The logit comparison prompt design is the problem, not the comparison mechanism itself.
+
+**Fix options (choose one):**
+1. Compare logits for the *answer token itself* vs. a plausible alternative, rather than asking "is this correct?" — the model can't reliably introspect on correctness, but it does have calibrated next-token predictions.
+2. Use a contrastive format: give two candidate answers (one correct-looking, one wrong) and ask the model to complete which is right — forces a choice rather than a free yes/no.
+3. Accept that `single_pass_correct` is not reliably obtainable from Llama base and set it to `None` for this model path.
+
+Option 3 is the safest until a reliable method is found. Document it as a known limitation rather than shipping a broken True-everywhere signal.
+
+---
+
+## Confirmed Bug 3: `_detect_truncation` misclassifies stop-string endings
+
+**Root cause: no third case for stop-string termination (confidence.py:24)**
+
+Current logic: last token == EOS → `"eos"`, else → `"length"`. Stop-string termination is silently collapsed into `"length"`.
+
+When the two_pass stop string `"\nQ:"` fires for Llama base, generation halts before EOS and before hitting `max_new_tokens`. The last generated token is NOT EOS, so `finish_reason="length"` and `was_truncated=True` are set. Then `expect_confidence_markers=True` additionally checks for `"Confidence:"` and `"Correct:"` — absent from `"10\nQ:"` — making `was_truncated=True` doubly confirmed.
+
+**CSV confirmation:** Every row shows `two_pass_finish_reason=length, two_pass_was_truncated=True` even though the `"\nQ:"` stop string was working correctly.
+
+**Fix:** After generation, check if `outputs.sequences` stopped before `max_new_tokens` for a non-EOS reason. HuggingFace `generate` returns `stopping_criteria` information or you can infer it: if `generated_ids.numel() < max_new_tokens` and `last_id != eos_id`, the stop string fired. Add `"stop"` as a third `finish_reason` and only set `was_truncated=True` for genuine length truncation.
+
+---
+
+## Confirmed Bug 4: Dead `repetition_penalty` code in `generate_with_logits`
+
+**Location: confidence.py:155–188**
+
+`_needs_rep_penalty = False` is hardcoded unconditionally, making the entire downstream path dead:
+
+```python
+_needs_rep_penalty = False         # always False
+if repetition_penalty is None:
+    repetition_penalty = 1.2 if _needs_rep_penalty else 1.0  # always 1.0
+...
+use_penalty = bool(repetition_penalty) and repetition_penalty != 1.0  # always False
+...
+if use_penalty:                    # never executes
+    gen_kwargs["repetition_penalty"] = repetition_penalty
+```
+
+`_needs_rep_penalty`, the `repetition_penalty` conditional, and the `if use_penalty` block are all dead code. No runtime effect, but it's misleading noise.
+
+**Fix:** Delete `_needs_rep_penalty`, the `if repetition_penalty is None` block for it, `use_penalty`, and the `if use_penalty` branch. If `repetition_penalty` is passed in as a non-None argument by a caller, it should still be respected — keep only that path.
+
+---
+
+## Confirmed Bug 5: Two-pass for Llama base always returns None — silently
+
+**Location: confidence.py:1082–1147**
+
+The compact Q&A format:
 ```
 Q: {question}
 A: {answer}
 Q: Is this answer correct? Rate confidence 1-10.
 A:
 ```
-The base model completes "A:" with a bare digit "10" (mode-default completion in training data), then the `\nQ:` stop_string fires. `extract_verbalized_confidence` requires a "Confidence: N" label — bare digit is never matched → returns `None`.
+produces `"10\nQ:"` — a bare digit then the stop string fires. The code then calls:
+- `extract_verbalized_confidence` — requires `"Confidence: N"` or `"Confidence N"`. Never matches `"10"`. Returns `None`.
+- `extract_more_likely_than_not` — requires `"Correct: Yes/No"`. Not present. Returns `None`.
 
-**Two-pass confidence is therefore always None for Llama base.** This means `verbalized_confidence` always falls back to `single_pass_confidence` (evaluation.py line 252-253):
+Both always return `None`. The entire two_pass branch for Llama base is theater — it runs a forward pass, stops on the stop string, then silently returns `two_pass_confidence=None, two_pass_correct=None` every time.
+
+This is a known structural limitation: the compact Q&A format does not elicit a labeled confidence rating. The "10" the model emits is also a constant (49/50 StrategyQA rows output "10" regardless of difficulty), so extracting it as a number would not be useful either.
+
+**Fix:** Skip two_pass entirely for Llama base. Add a guard in `get_two_pass_confidence` before the prompt is built:
 ```python
-verbalized_conf = two_pass_results["two_pass_confidence"]  # always None
-if verbalized_conf is None:
-    verbalized_conf = single_pass_conf  # this is what gets used
+if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
+    return {
+        "two_pass_confidence": None,
+        "two_pass_correct": None,
+        "two_pass_critique": "",
+        "two_pass_finish_reason": "skipped",
+        "two_pass_was_truncated": False,
+    }
 ```
-
-**Fix 1 (bare-digit extraction) was added then reverted.** It correctly extracted the "10" but that "10" is a meaningless constant — 49/50 StrategyQA rows output "10" regardless of question difficulty. Extracting it replaced meaningful `single_pass_confidence` variation (3,7,8,9,10) with a constant 10. Reverted.
-
-**Current state is the best achievable with this prompt design.** The compact Q&A format doesn't elicit calibrated ratings from Llama base. `verbalized_confidence = single_pass_confidence` is the correct fallback.
+This is honest about the absence of signal rather than running code that will always produce nothing.
 
 ---
 
-## What to Check First on a Fresh Re-Run
+## Fix Order
 
-Run this after generating any CSV — it will tell you immediately where each column is coming from:
+Fix in this sequence — each unblocks the next:
+
+1. **Bug 1** (`get_gen2_confidence` guard) — fixes `more_likely_than_not`
+2. **Bug 2** (`get_correct_separate_base` / `single_pass_correct`) — fixes or retires the correctness signal
+3. **Bug 5** (two_pass guard) — simplifies Llama base path, removes misleading None
+4. **Bug 3** (`_detect_truncation`) — fixes metadata columns in CSV
+5. **Bug 4** (dead code) — cleanup, no behavioral change
+
+---
+
+## Verification Queries After Fixes
+
+Run on the output CSV after any re-run:
 
 ```python
 import pandas as pd
 df = pd.read_csv("your_output.csv")
 
-# Is single_pass_correct still contaminated?
-correct_rows = df[df["is_correct"] == True]
-print("is_correct=True but single_pass_correct=False (false negatives):")
-print(correct_rows[correct_rows["single_pass_correct"] == False][
-    ["idx", "question", "model_answer", "ground_truth", "single_pass_correct", "two_pass_critique"]
-])
+# Bug 1 fixed: more_likely_than_not should match "Correct: Yes/No" in full_response
+# For rows where full_response contains "Correct: No", mltn should be False
+no_in_response = df["full_response"].str.contains(r"Correct:\s*No", regex=True, na=False)
+print("Correct:No in response but more_likely_than_not=True (should be 0):")
+print((no_in_response & (df["more_likely_than_not"] == True)).sum())
 
-# Is two_pass always None?
-print("\ntwo_pass_confidence non-null:", df["two_pass_confidence"].notna().sum(), "of", len(df))
+# Bug 2 fixed / retired: single_pass_correct should not be all-True
+print("\nsingle_pass_correct value counts:")
+print(df["single_pass_correct"].value_counts())
 
-# Does verbalized_confidence match single_pass_confidence (correct fallback)?
+# Bug 5 fixed: two_pass should be fully absent for Llama base
+print("\ntwo_pass_confidence non-null (should be 0):", df["two_pass_confidence"].notna().sum())
+print("two_pass_finish_reason unique:", df["two_pass_finish_reason"].unique())
+
+# Fallback still working
 print("\nverbalized_conf == single_pass_conf:",
-    (df["verbalized_confidence"] == df["single_pass_confidence"]).sum(), "rows")
+    (df["verbalized_confidence"] == df["single_pass_confidence"]).sum(), "of", len(df))
 ```
 
-Expected healthy output:
-- False-negative count: **0** (or low — some will be model knowledge errors, not contamination)
-- `two_pass_confidence` non-null: **0** (always None for Llama base — expected)
-- `verbalized_conf == single_pass_conf`: **all rows** (fallback working correctly)
+Expected healthy output after fixes:
+- `Correct:No in response but more_likely_than_not=True`: **0**
+- `single_pass_correct` value counts: **mixed True/False** (or all None if option 3 chosen)
+- `two_pass_confidence` non-null: **0**
+- `two_pass_finish_reason` unique: **`["skipped"]`**
+- `verbalized_conf == single_pass_conf`: **all rows**
 
 ---
 
@@ -105,33 +184,21 @@ Expected healthy output:
 
 | What | File | Lines |
 |------|------|-------|
-| Fix 2 — override gen2_correct for base | evaluation.py | 195-201 |
-| Fix 3 — guard fallback path for base | evaluation.py | 210-219 |
-| `get_correct_separate_base` (logit compare) | confidence.py | 841-893 |
-| `get_gen2_confidence` (sends OOD prompt to base) | confidence.py | 896-978 |
-| Compact Q&A two-pass prompt for Llama base | confidence.py | 1082-1088 |
-| `generate_simple_response` (base_suffix path) | model_utils.py | 55-102 |
+| `get_gen2_confidence` — needs base guard | confidence.py | 896–978 |
+| `get_correct_separate_base` — Yes-biased logit compare | confidence.py | 841–893 |
+| `_detect_truncation` — stop-string blindness | confidence.py | 24–60 |
+| Dead `repetition_penalty` path | confidence.py | 155–188 |
+| Two_pass Llama base compact Q&A — needs skip guard | confidence.py | 1076–1108 |
+| `extract_more_likely_than_not` — correct logic, wrong source | confidence.py | 508–528 |
+| `generate_with_logits` — guards active / clean forward pass | confidence.py | 84–230 |
 
 ---
 
-## Hypotheses for Why Fixes Still Fail
+## What Is Working and Should Not Be Touched
 
-**Most likely: `MODEL_VARIANT` is not `"base"` at runtime**  
-Both fix guards are `if MODEL_VARIANT == "base"`. If `config.py` has `MODEL_VARIANT = "instruct"` or the import resolves differently at call time, neither fix triggers and the original contamination path runs. Verify:
-```python
-from config import MODEL_VARIANT, MODEL_FAMILY
-print(MODEL_VARIANT, MODEL_FAMILY)  # must print "base" "llama"
-```
-
-**Second most likely: `model_answer` is None for more rows than expected**  
-If `extract_model_answer` / forced-answer fallback is failing → `model_answer = None` → the `if model_answer:` guard on line 185 skips all of Gen 2 → `single_pass_conf = None`, `single_pass_correct = None`. With both None, the fallback on line 204-219 runs but `if model_answer:` on line 216 is also False → still no logit comparison. Net: `single_pass_correct = None` forever for those rows. Check `answer_extraction_failed` column prevalence.
-
-**Third: `get_correct_separate_base` is unreliable for TriviaQA open-domain answers**  
-For long factual answers (e.g., "Montserrat" → correct, "Mozambique" → incorrect), the logit comparison at "Is this answer correct? A:" may be biased toward "No" if the model has uncertain knowledge about the fact. This is a knowledge limitation, not a code bug, but it looks like `single_pass_correct=False` in the CSV and is indistinguishable from contamination.
-
----
-
-## What Has NOT Been Fixed and Is a Known Limitation
-
-- **Two-pass for Llama base is structurally uninformative.** The compact Q&A format makes the model output "10" as a default. No extraction fix will make this a useful calibration signal. If two-pass confidence matters for Llama base, the prompt needs a completely different design (not a Q&A continuation; possibly a logit comparison similar to `get_correct_separate_base`).
-- **`single_pass_confidence` for Llama base comes from the main response or a separate verbalized call** — it varies (3,7,8,9,10) and is currently the best confidence signal available for this model. Protect it.
+- `verbalized_confidence` falls back to `single_pass_confidence` when `two_pass_confidence=None` — correct behavior, leave it
+- `answer_extraction_failed` all False — extraction is healthy
+- `extract_verbalized_confidence` — correctly reads `single_pass_confidence` from main pass responses
+- `no_repeat_ngram_size=3` anti-loop guard — working correctly for base model over-generation
+- Stop strings `["\nQuestion:", "\nAnswer the following", "\nSolution:"]` on main pass — working
+- Forced answer path (`was_forced=True` rows) — working correctly, extraction is valid
