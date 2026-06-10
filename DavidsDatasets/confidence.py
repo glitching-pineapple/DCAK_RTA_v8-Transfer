@@ -1142,16 +1142,6 @@ Correct: Yes or No"""
         pad_token_id=tokenizer.pad_token_id,
     )
     if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
-<<<<<<< Updated upstream
-        # Compact Q&A format: the model completes "Rate confidence 1-10. A:" with
-        # a short rating then immediately generates new Q&A pairs (CSV evidence:
-        # "10\nQ: What is the correct answer?\nA: Friday\nQ:..."). Reduce budget
-        # from 128 to 50 so a loop has no room to run, and add stop_strings to
-        # halt at the first new Q: the model tries to generate. Ngram guard still
-        # skipped: on the compact Q&A context the guard over-bans "A:" itself.
-        _two_pass_gen_kwargs["max_new_tokens"] = 50
-        _two_pass_gen_kwargs["stop_strings"] = ["\nQ:"]
-=======
         # §31: few-shot critique writes a short review + Confidence/Correct
         # block. Cap at 256 tokens (enough for the review + format lines),
         # guard the loop with ngram=3, and stop at the next exemplar boundary
@@ -1161,7 +1151,6 @@ Correct: Yes or No"""
         _two_pass_gen_kwargs["max_new_tokens"] = 256
         _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
         _two_pass_gen_kwargs["stop_strings"] = ["\nQuestion:"]
->>>>>>> Stashed changes
         _two_pass_gen_kwargs["tokenizer"] = tokenizer
     elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
         # Anti-loop guard for gptoss (dense assistant format loops without it)
