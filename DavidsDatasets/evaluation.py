@@ -240,6 +240,13 @@ def evaluate_sample(
     # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
 
+    # Last-token-only variants of the same logit metrics. These mirror the
+    # aggregates above but are computed over ONLY the final generated token's
+    # probability (token_probs[-1:]) instead of the full sequence. Written to
+    # separate "*_last_token" columns so the all-token metrics are preserved.
+    last_token_probs = token_probs[-1:] if token_probs else []
+    last_token_metrics = compute_confidence_metrics(last_token_probs)
+
     # Answer-token logit entropy for MCQ datasets (single forward pass)
     if COMPUTE_ANSWER_TOKEN_ENTROPY and DATASET in ("mmlupro", "medqa"):
         ate_results = extract_answer_token_entropy(tokens, raw_scores, tokenizer, DATASET)
@@ -302,12 +309,21 @@ def evaluate_sample(
         # answer_extraction_failed; exclude from accuracy/calibration.
         "is_refusal": is_refusal,
 
-        # Logit-based metrics
+        # Logit-based metrics (aggregated over ALL generated tokens)
         "seq_confidence_mean": confidence_metrics["log_prob_sum"],
         "logit_confidence_min": confidence_metrics["min_prob"],
         "logit_confidence_geom": confidence_metrics["geom_mean"],
         "logit_confidence_mean_prob": confidence_metrics["mean_prob"],
-        
+
+        # Logit-based metrics computed over ONLY the last generated token.
+        # Parallel to the all-token columns above; added so logit confidence
+        # can be evaluated on the final token alone without dropping the
+        # full-sequence aggregates.
+        "seq_confidence_mean_last_token": last_token_metrics["log_prob_sum"],
+        "logit_confidence_min_last_token": last_token_metrics["min_prob"],
+        "logit_confidence_geom_last_token": last_token_metrics["geom_mean"],
+        "logit_confidence_mean_prob_last_token": last_token_metrics["mean_prob"],
+
         # Verbalized confidence (primary = two-pass, 1-10 scale)
         "verbalized_confidence": verbalized_conf,
         "more_likely_than_not": more_likely,

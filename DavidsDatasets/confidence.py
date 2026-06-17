@@ -963,6 +963,41 @@ Correct: Yes or No"""
     }
 
 
+# Few-shot critique exemplars for Llama-base two-pass (§31).
+# The dense instruction-style critique prompt triggers immediate EOS on
+# Llama-3.1-8B-base (§25/§26), and the prior minimal Q&A prompt
+# ("...Rate confidence 1-10.\nA:") emitted a bare constant "10" then looped
+# "Q: What is the correct answer? A: X" — so the extractors (which need a
+# "Confidence:" / "Correct:" block) saw nothing and two_pass_* was None on
+# EVERY base row (zero variance, no signal; verbalized_confidence collapsed
+# to a copy of single_pass_confidence).
+#
+# Fix: few-shot native completion. Two worked exemplars with DIFFERENT
+# confidence/correct labels (a) prime the EXACT trailing
+# "Confidence: N\nCorrect: Yes/No" block that the instruct path emits — so the
+# SAME extractors apply and base/instruct metacognition trends are directly
+# comparable — and (b) break the constant-10 prior so the rating actually
+# varies with the reviewed solution. The format stays in the base model's
+# pretraining distribution (worked examples), avoiding the EOS collapse.
+_BASE_CRITIQUE_FEWSHOT = """Review each proposed answer, then rate how likely it is correct.
+
+Question: What is the capital of Australia?
+Proposed answer: Sydney
+Solution to review: Sydney is the largest and most famous city in Australia, so it must be the capital.
+Review: The reasoning confuses "largest city" with "capital". Australia's capital is Canberra, not Sydney, so the proposed answer is wrong.
+Confidence: 2
+Correct: No
+
+Question: How many sides does a hexagon have?
+Proposed answer: 6
+Solution to review: A hexagon is a polygon, and the prefix "hexa-" means six, so a hexagon has six sides.
+Review: The reasoning is sound — "hexa-" does mean six and a hexagon has six sides by definition. The answer is correct.
+Confidence: 9
+Correct: Yes
+
+"""
+
+
 def get_two_pass_confidence(
     model,
     tokenizer,
@@ -1072,17 +1107,30 @@ Correct: Yes or No"""
             template_kwargs.pop("enable_thinking", None)
             formatted_prompt = tokenizer.apply_chat_template(messages, **template_kwargs)
     elif MODEL_FAMILY == "llama":
-        # Llama-3.1-8B-base emits EOS immediately on the dense instruction-style
-        # critique prompt: the model is too small and the rubric text is OOD,
-        # so no valid continuation tokens survive and EOS wins (§25/§26 mechanism).
-        # Qwen/Gemma base models are large enough to pattern-complete the full
-        # critique prompt and produce valid critiques (confirmed by CSV evidence).
-        # Use a minimal native Q&A format for Llama base only.
-        formatted_prompt = (
-            f"Q: {question}\n"
-            f"A: {answer}\n"
-            f"Q: Is this answer correct? Rate confidence 1-10.\n"
-            f"A:"
+        # §31: few-shot native-completion critique for Llama-3.1-8B-base.
+        # The dense instruction-style critique prompt triggers immediate EOS
+        # (§25/§26 — rubric text is OOD for an 8B base model). The PRIOR fix
+        # (minimal "Q: …Rate confidence 1-10.\nA:") regressed differently: the
+        # model emitted a bare constant "10" then looped, so the extractors
+        # (which require a "Confidence:" / "Correct:" block) returned None on
+        # every row — two_pass_confidence was always None and verbalized_conf
+        # collapsed to a copy of single_pass_confidence (zero variance).
+        #
+        # Few-shot worked exemplars (_BASE_CRITIQUE_FEWSHOT) keep the two-pass
+        # for base models — preserving the base-vs-instruct metacognition
+        # comparison — while priming the SAME trailing "Confidence: N /
+        # Correct: Yes-No" block the instruct path emits (same extractors →
+        # directly comparable) and breaking the constant-10 prior. The
+        # solution's own self-reported Answer/Confidence/Correct tail is
+        # stripped so the critique rates INDEPENDENTLY instead of echoing the
+        # first-pass score (parallels the instruct critique's blinded intent).
+        _review_solution = re.split(r'(?im)^\s*Answer\s*:', reasoning_trimmed)[0].strip()
+        _choices_block = choices_text if choices else ""
+        formatted_prompt = _BASE_CRITIQUE_FEWSHOT + (
+            f"Question: {question}{_choices_block}\n"
+            f"Proposed answer: {answer}\n"
+            f"Solution to review: {_review_solution}\n"
+            f"Review:"
         )
     else:
         formatted_prompt = critique_prompt + "\n\nReview:"
@@ -1094,14 +1142,15 @@ Correct: Yes or No"""
         pad_token_id=tokenizer.pad_token_id,
     )
     if MODEL_FAMILY == "llama" and MODEL_VARIANT == "base":
-        # Compact Q&A format: the model completes "Rate confidence 1-10. A:" with
-        # a short rating then immediately generates new Q&A pairs (CSV evidence:
-        # "10\nQ: What is the correct answer?\nA: Friday\nQ:..."). Reduce budget
-        # from 128 to 50 so a loop has no room to run, and add stop_strings to
-        # halt at the first new Q: the model tries to generate. Ngram guard still
-        # skipped: on the compact Q&A context the guard over-bans "A:" itself.
-        _two_pass_gen_kwargs["max_new_tokens"] = 50
-        _two_pass_gen_kwargs["stop_strings"] = ["\nQ:"]
+        # §31: few-shot critique writes a short review + Confidence/Correct
+        # block. Cap at 256 tokens (enough for the review + format lines),
+        # guard the loop with ngram=3, and stop at the next exemplar boundary
+        # so the model can't fabricate a third Q/A pair and roll into a loop.
+        # _truncate_to_first_block (used by the extractors) cuts at the first
+        # "Correct: Yes/No", so trailing tokens never reach extraction anyway.
+        _two_pass_gen_kwargs["max_new_tokens"] = 256
+        _two_pass_gen_kwargs["no_repeat_ngram_size"] = 3
+        _two_pass_gen_kwargs["stop_strings"] = ["\nQuestion:"]
         _two_pass_gen_kwargs["tokenizer"] = tokenizer
     elif MODEL_FAMILY == "gptoss" or MODEL_VARIANT == "base":
         # Anti-loop guard for gptoss (dense assistant format loops without it)
