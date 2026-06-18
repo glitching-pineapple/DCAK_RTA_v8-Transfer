@@ -2,6 +2,13 @@
 
 A standalone reference for continuing work on the confidence-telemetry HTML cluster pages. Hand this entire document to a new chat at the start of the conversation. It contains everything needed to add new data, build new pages, or update existing ones without re-establishing context.
 
+> ⚠️ **DEPRECATION NOTICE (2026-06-18):**
+> - **MedQA** is no longer an active dataset. Any planned HTML pages for MedQA should be cancelled.
+> - **MMLU-Pro** is no longer an active dataset. Existing MMLU-Pro HTML pages (`mmlupro_confidence_browser.html`) and embed data are archived. The MCQ-specific signals they visualize (`answer_token_entropy`, `chosen_answer_raw_prob`, per-letter probs A–J) will not be populated for new runs and should not be added to new cluster pages.
+> - **LLaMA Scout (Llama-4-Scout-17B-16E-Instruct)** is no longer in the model lineup. Do not build cluster pages for it.
+> - **Active datasets:** GSM8K, StrategyQA, TriviaQA, LegalBench.
+> - **Active models (instruct):** Qwen2.5-7B, Qwen3-30B-A3B, Llama-3.1-8B, Gemma-2-9B, Gemma-4-31B, GPT-OSS-20B.
+
 ---
 
 ## 1. What this project is
@@ -25,20 +32,20 @@ The pages are all self-contained: the data is embedded as JSON in a `<script id=
 
 **Currently in the series:**
 
-| Model | Benchmark | Page | Items | Accuracy |
-|---|---|---|---|---|
-| Qwen3 6-35B-A3B-instruct | GSM8K | `gsm8k_confidence_browser.html` | 145 | 95.2% |
-| Qwen3 6-35B-A3B-instruct | MMLU-Pro | `mmlupro_confidence_browser.html` | 74 | 75.7% |
-| Qwen3 6-35B-A3B-instruct | TriviaQA | `triviaqa_confidence_browser.html` | 150 | 77.3% |
-| Qwen3 6-35B-A3B-instruct | StrategyQA | `strategyqa_confidence_browser.html` | 142 | 74.6% |
-| Qwen3 6-35B-A3B-instruct | LegalBench | `legalbench_confidence_browser.html` | 194 (2 subsets) | 65.5% (combined) |
-| Gemma4-31B-instruct | GSM8K | `gemma_gsm8k_confidence_browser.html` | 146 | 95.9% |
-| Gemma4-31B-instruct | StrategyQA | `gemma_strategyqa_confidence_browser.html` | 98 | 85.7% |
+| Model | Benchmark | Page | Items | Accuracy | Status |
+|---|---|---|---|---|---|
+| Qwen3 6-35B-A3B-instruct | GSM8K | `gsm8k_confidence_browser.html` | 145 | 95.2% | Active |
+| Qwen3 6-35B-A3B-instruct | ~~MMLU-Pro~~ | `mmlupro_confidence_browser.html` | 74 | 75.7% | **ARCHIVED — MMLU-Pro removed from study** |
+| Qwen3 6-35B-A3B-instruct | TriviaQA | `triviaqa_confidence_browser.html` | 150 | 77.3% | Active |
+| Qwen3 6-35B-A3B-instruct | StrategyQA | `strategyqa_confidence_browser.html` | 142 | 74.6% | Active |
+| Qwen3 6-35B-A3B-instruct | LegalBench | `legalbench_confidence_browser.html` | 194 (2 subsets) | 65.5% (combined) | Active |
+| Gemma4-31B-instruct | GSM8K | `gemma_gsm8k_confidence_browser.html` | 146 | 95.9% | Active |
+| Gemma4-31B-instruct | StrategyQA | `gemma_strategyqa_confidence_browser.html` | 98 | 85.7% | Active |
 
 **Cross-cluster:**
-- `correlation_matrix.html` — Pearson/Spearman/Kendall correlation matrices over **all Qwen items combined** (currently 511 across 4 benchmarks; LegalBench is not yet included in the matrix). Has a method toggle and a per-benchmark breakout.
+- `correlation_matrix.html` — Pearson/Spearman/Kendall correlation matrices over **all Qwen items combined** (currently 511 across 4 benchmarks; LegalBench is not yet included in the matrix). Note: MMLU-Pro data was part of the 511-item pool — if the matrix is rebuilt, exclude MMLU-Pro items and recompute pooled n.
 
-**New models incoming** (per user message): **Gemma4** (more data) and **GPT-OSS**. Plan to add pages following the same conventions.
+**New models incoming:** **GPT-OSS** data. Plan to add pages following the same conventions. Do NOT build pages for LLaMA Scout (removed from lineup) or any new MMLU-Pro / MedQA data.
 
 ---
 
@@ -70,15 +77,17 @@ main_pass_was_truncated          — boolean
 full_response                    — string, the raw model output
 ```
 
-### MMLU-Pro additions (multiple-choice only)
+### MMLU-Pro additions (multiple-choice only — ARCHIVED, MMLU-Pro no longer active)
+
+> These columns exist in legacy MMLU-Pro CSVs and HTML pages but will not be populated for any new dataset runs. Do not include them in new cluster page schemas or cross-cluster analysis.
 
 ```
-answer_token_entropy             — Shannon entropy over A–J letter probs (lower = more peaked)
-chosen_answer_raw_prob           — raw probability the model assigned to the picked letter
-answer_letter_probs              — JSON-encoded dict of per-letter probabilities
-chosen_letter                    — A through J
-top_answer_letter                — the letter with the highest p
-prob_A, prob_B, … prob_J         — individual per-letter probabilities
+answer_token_entropy             — Shannon entropy over A–J letter probs (lower = more peaked)  [DEPRECATED]
+chosen_answer_raw_prob           — raw probability the model assigned to the picked letter        [DEPRECATED]
+answer_letter_probs              — JSON-encoded dict of per-letter probabilities                  [DEPRECATED]
+chosen_letter                    — A through J                                                   [DEPRECATED]
+top_answer_letter                — the letter with the highest p                                 [DEPRECATED]
+prob_A, prob_B, … prob_J         — individual per-letter probabilities                           [DEPRECATED]
 ```
 
 ### Gemma & LegalBench-format additions
@@ -656,7 +665,9 @@ gemma_sqa.html.template        — forest aesthetic, includes Qwen-bias comparis
 
 ## 14. What's likely incoming (from user)
 
-**More Gemma4 data** — likely more GSM8K, StrategyQA, possibly new benchmarks for Gemma (MMLU-Pro? TriviaQA? LegalBench?). Treat new benchmarks for Gemma as **new clusters** with their own pages, not as additions to existing Qwen pages. The series organizes by `(model, benchmark)` tuples — each tuple gets its own page.
+> **Scope clarification (2026-06-18):** MMLU-Pro and MedQA are no longer active datasets. LLaMA Scout is no longer in the model lineup. New cluster pages should only be built for the four active benchmarks: **GSM8K, StrategyQA, TriviaQA, LegalBench**.
+
+**More Gemma4 data** — likely more GSM8K, StrategyQA, TriviaQA, or LegalBench data for Gemma. Treat new benchmarks for Gemma as **new clusters** with their own pages. Do NOT build MMLU-Pro or MedQA pages. The series organizes by `(model, benchmark)` tuples — each tuple gets its own page.
 
 **GPT-OSS data** — a new model. Same pattern: each `(GPT-OSS, benchmark)` combination gets its own page, with a freshly chosen aesthetic that doesn't collide with the eight existing pages. Possible aesthetic territories still open:
 - Industrial / Bauhaus poster (yellow/red/black)

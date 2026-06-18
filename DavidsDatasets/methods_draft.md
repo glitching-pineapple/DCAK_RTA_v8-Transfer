@@ -4,22 +4,20 @@
 
 ## 1. Datasets
 
-We evaluate across six benchmark datasets spanning arithmetic reasoning, factual recall, medical and legal question answering, and multi-domain academic knowledge. Each dataset was selected to provide a distinct task type and answer format, allowing confidence signals to be assessed across a wide range of difficulty and domain.
+We evaluate across four benchmark datasets spanning arithmetic reasoning, factual recall, commonsense reasoning, and legal question answering. Each dataset was selected to provide a distinct task type and answer format, allowing confidence signals to be assessed across a wide range of difficulty and domain.
 
 | Dataset | Task Type | Answer Format | Split Used | Reason for Inclusion |
 |---------|-----------|--------------|------------|----------------------|
 | **GSM8K** | Arithmetic word problems | Open-ended numeric (integer or decimal) | Test | Grade-school math provides near-deterministic ground truth with graded difficulty; widely used calibration benchmark |
-| **MMLU-Pro** | Multi-domain academic MCQ | Multiple-choice, A–J | Test | 10-option format (vs. MMLU's 4) increases difficulty and makes answer-token entropy meaningful over a richer letter distribution |
 | **StrategyQA** | Multi-hop commonsense reasoning | Binary Yes/No | Test | Tests implicit decomposition; binary output supports confusion-matrix analysis and Yes/No bias measurement |
-| **MedQA (USMLE)** | Medical licensing exam | Multiple-choice, A–D | Test | High-stakes domain with clinically grounded distractors; 4-option MCQ provides anchor for answer-token entropy |
 | **TriviaQA** | Open-ended factual recall | Free-form string | Validation | Tests recall breadth; alias-aware evaluation handles paraphrase variability |
 | **LegalBench** | Legal reasoning (hearsay, consumer contracts) | Binary Yes/No | Test | Expert-knowledge domain; binary format with two distinct subtasks (hearsay rules, consumer contracts) enables cross-subtask calibration comparison |
 
 ### Dataset Notes
 
-- **MMLU-Pro** is the primary benchmark; most modeling decisions and architectural changes were first validated here.
 - **LegalBench** is drawn from two subtasks (`hearsay` and `consumer_contracts_qa`) pooled into a single evaluation cluster with subset labels to disambiguate idx collisions between subtasks.
 - Sample counts vary by model and run; typical run sizes range from 40–200 items per (model × dataset) cell, accumulated across multiple random seeds and combined by deduplication on `idx`.
+- *Previously included datasets (no longer in active use): MMLU-Pro (10-option MCQ) and MedQA/USMLE (4-option MCQ). These were removed from the study scope; their associated MCQ-only confidence signals (answer-token entropy, per-letter probabilities) are not reported.*
 
 ---
 
@@ -32,10 +30,11 @@ The study focuses exclusively on instruct-tuned variants. All models are evaluat
 | **Qwen2.5-7B-Instruct** | `Qwen/Qwen2.5-7B-Instruct` | 7B | Standard (no chain-of-thought scaffolding) | Compact, well-calibrated baseline; representative of mid-size instruction-tuned models |
 | **Qwen3-30B-A3B** | `Qwen/Qwen3-30B-A3B` | 30B total / ~3B active (MoE) | Thinking model — emits `<think>…</think>` chain-of-thought block before committing to an answer | Large-scale reasoning model; primary test case for the three-generation architecture |
 | **Llama-3.1-8B-Instruct** | `meta-llama/Llama-3.1-8B-Instruct` | 8B | Standard | Widely used open-weights baseline; enables comparison with Qwen at similar scale |
-| **Llama-4-Scout-17B-16E-Instruct** | `meta-llama/Llama-4-Scout-17B-16E-Instruct` | 17B×16E (MoE) | Thinking model (`<think>…</think>`) | Represents the Llama-4 MoE generation; same reasoning-flow architecture as Qwen3 |
 | **Gemma-2-9B-IT** | `google/gemma-2-9b-it` | 9B | Standard | Google's mid-size instruct model; provides a third family for cross-model comparison |
 | **Gemma-4-31B-IT** | `google/gemma-4-31b-it` | 31B | Thinking model (`<think>…</think>`) | Large-scale Google reasoning model; tested in the three-generation pipeline |
 | **GPT-OSS-20B-Instruct** | `openai/gpt-oss-20b` | 20B | Uses OpenAI harmony channel format: `analysis<reasoning>assistantfinal<final answer>` (no `<think>` tags) | OpenAI open-weights model; tests generalization of the confidence pipeline to a non-Transformers-standard output format |
+
+*Previously included model (no longer in active use): Llama-4-Scout-17B-16E-Instruct (`meta-llama/Llama-4-Scout-17B-16E-Instruct`) — removed from the study scope.*
 
 ### Model Loading
 
@@ -60,21 +59,23 @@ For models that require repetition guards (base models and GPT-OSS), a clean tea
 | **`logit_confidence_mean_prob`** | Arithmetic mean of per-token probabilities: $\frac{1}{T}\sum_{t=1}^T p(x_t)$ | More sensitive to occasional low-probability tokens than geometric mean |
 | **`logit_confidence_min`** | Minimum per-token probability: $\min_t p(x_t)$ | Captures the weakest link in the generation chain |
 
-### 3.2 Answer Token Entropy (MCQ Only)
+### 3.2 Answer Token Entropy (MCQ Only — Not Reported in This Study)
 
-For multiple-choice datasets (MMLU-Pro, MedQA), a dedicated signal captures the model's uncertainty at the answer-commitment step specifically.
+> **Note:** Answer Token Entropy was implemented for the multiple-choice datasets (MMLU-Pro and MedQA) that were previously in scope. Since both MCQ datasets have been removed from the study, this signal is not included in the reported results. The implementation remains in the pipeline for potential future use.
 
-After extracting the `Answer:` token position in the generated sequence, the raw logit vector at that position (shape `[vocab_size]`) is used to compute the probability distribution over answer letters (A through J for MMLU-Pro; A through D for MedQA). Shannon entropy is then computed over that letter distribution:
+~~For multiple-choice datasets (MMLU-Pro, MedQA), a dedicated signal captures the model's uncertainty at the answer-commitment step specifically.~~
+
+~~After extracting the `Answer:` token position in the generated sequence, the raw logit vector at that position (shape `[vocab_size]`) is used to compute the probability distribution over answer letters (A through J for MMLU-Pro; A through D for MedQA). Shannon entropy is then computed over that letter distribution:~~
 
 $$H_{\text{ATE}} = -\sum_{k \in \{A,\ldots,J\}} p_k \log p_k$$
 
-Low entropy indicates a peaked distribution (the model strongly preferred one letter); high entropy indicates near-uniform uncertainty across options. If the model never emits the `Answer:` token (e.g. due to truncation), this field is set to `NaN`.
+~~Low entropy indicates a peaked distribution (the model strongly preferred one letter); high entropy indicates near-uniform uncertainty across options.~~
 
-Additional columns derived from the same logit snapshot: `chosen_answer_raw_prob`, `top_answer_letter`, and `prob_A` through `prob_J`.
+~~Additional columns derived from the same logit snapshot: `chosen_answer_raw_prob`, `top_answer_letter`, and `prob_A` through `prob_J`.~~
 
 ### 3.3 Verbalized Confidence (1–10 Scale)
 
-The model is asked to rate its own confidence on a 10-class scale with explicit probability ranges. The rubric, applied uniformly across all six datasets after harmonization on 2026-05-10, reads:
+The model is asked to rate its own confidence on a 10-class scale with explicit probability ranges. The rubric, applied uniformly across all four active datasets (GSM8K, StrategyQA, TriviaQA, LegalBench) after harmonization on 2026-05-10, reads:
 
 ```
 - 1  = "Almost no chance"  (0–10% likely correct)
@@ -123,7 +124,7 @@ Additional SE-related outputs: `predictive_entropy` (token-count-based Shannon e
 
 ## 4. Three-Generation Architecture (Reasoning-Flow Models)
 
-For thinking models — those that emit a reasoning block before committing to an answer (Qwen3, GPT-OSS, Gemma4-instruct, Llama4-Scout-instruct) — a three-generation pipeline separates reasoning, self-assessment, and blinded critique into distinct forward passes. This architecture is controlled by the `USE_REASONING_FLOW` flag in `config.py`.
+For thinking models — those that emit a reasoning block before committing to an answer (Qwen3, GPT-OSS, Gemma4-instruct) — a three-generation pipeline separates reasoning, self-assessment, and blinded critique into distinct forward passes. This architecture is controlled by the `USE_REASONING_FLOW` flag in `config.py`.
 
 The key motivation is that a single-generation flow forces the model to rate its own confidence immediately after generating its own coherent reasoning chain, which produces inflated scores due to a sunk-cost effect. Additionally, thinking models' `<think>` blocks can consume 1,000–3,000+ tokens before any structured output is emitted, exhausting token budgets when confidence elicitation is attempted in the same pass.
 
@@ -159,7 +160,7 @@ Gen 2 reads the model's own reasoning as text in a fresh forward pass, rather th
 
 ## 5. Confidence Rubric
 
-A single, uniform rubric is applied across all six datasets and all three confidence elicitation contexts (Gen 1 single-pass prompt, Gen 2 own-work prompt, Gen 3 blinded critique). The rubric format uses a bulleted list with leading index, verbal label, and explicit probability range:
+A single, uniform rubric is applied across all four active datasets (GSM8K, StrategyQA, TriviaQA, LegalBench) and all three confidence elicitation contexts (Gen 1 single-pass prompt, Gen 2 own-work prompt, Gen 3 blinded critique). The rubric format uses a bulleted list with leading index, verbal label, and explicit probability range:
 
 ```
 - 1  = "Almost no chance"   (0–10% likely correct)
@@ -203,7 +204,7 @@ Empty-EOS responses (a base model emitting EOS immediately on an out-of-distribu
 
 ### 7.2 Forced-Answer Fallback
 
-Hard questions on reasoning-flow models — particularly MMLU-Pro math and physics — regularly exhaust the 8,192-token budget before the model emits `Answer: X`. Rather than dropping these rows (which would introduce non-random dropout biasing calibration toward easy samples), the pipeline attempts a forced-answer recovery.
+Hard questions on reasoning-flow models regularly exhaust the 8,192-token budget before the model emits `Answer: X`. Rather than dropping these rows (which would introduce non-random dropout biasing calibration toward easy samples), the pipeline attempts a forced-answer recovery.
 
 **Trigger condition:** `extract_model_answer_strict` (Priority-1 only; requires an explicit `Answer:` line anchored at line start) fails on the main response.
 
@@ -235,11 +236,13 @@ Answer extraction applies a priority-ordered regex cascade in `data_utils.py::ex
 
 **Harmony stripping** (`_strip_harmony_envelope`): For GPT-OSS responses containing `"assistantfinal"`, takes the post-delimiter slice before running any pattern.
 
-#### Multiple-Choice Parsing (MMLU-Pro, MedQA)
+#### Multiple-Choice Parsing (MCQ — Not Active; MMLU-Pro and MedQA Removed)
 
-Priority 1 (strict): `re.findall` with a start-of-line anchor `(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*([A-J])`, taking the **last** match. The `[^a-zA-Z\n]*` prefix accepts markdown decoration (`**`, `###`, `-`, numbered lists) but rejects letters, blocking false matches on mid-sentence phrases like `"in this answer:"`, `"my answer:"`.
+> *The pipeline retains MCQ parsing logic for completeness but it is not exercised in the current active dataset set.*
 
-Priority 2: `re.findall` with a standalone letter pattern `(?m)^[^a-zA-Z\n]*([A-J])\s*$`, last match.
+~~Priority 1 (strict): `re.findall` with a start-of-line anchor `(?m)^[^a-zA-Z\n]*[Aa]nswer[^a-zA-Z\n]*:\s*([A-J])`, taking the **last** match.~~
+
+~~Priority 2: `re.findall` with a standalone letter pattern `(?m)^[^a-zA-Z\n]*([A-J])\s*$`, last match.~~
 
 #### Open-Ended Answer Normalization
 
@@ -256,9 +259,9 @@ Priority 2: `re.findall` with a standalone letter pattern `(?m)^[^a-zA-Z\n]*([A-
 ### 8.2 Correctness Evaluation
 
 - **GSM8K:** Exact numeric match after stripping commas and whitespace.
-- **MMLU-Pro / MedQA:** Exact letter match.
 - **StrategyQA / LegalBench:** Case-insensitive `Yes/No` match.
 - **TriviaQA:** `check_triviaqa_correct` uses three-tier alias matching: (1) exact normalized match against official TriviaQA alias list, (2) `model_lower in alias`, (3) `alias in model_lower`. The alias list is provided by the `mandarjoshi/trivia_qa` dataset's `answer.normalized_aliases` field.
+- *MMLU-Pro and MedQA (exact letter match) are no longer active datasets.*
 
 ### 8.3 Refusal Detection
 

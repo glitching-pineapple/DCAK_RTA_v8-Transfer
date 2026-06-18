@@ -5,15 +5,22 @@
 **Primary dataset:** MMLU-Pro (`mmlu35b.csv`, `21mmlupro_confidencewithnewSE_*.csv`)  
 **Working directory:** `/Users/davidzhu/Documents/GitHub/DCAK_RTA_v8-Transfer/DavidsDatasets/`
 
+> ⚠️ **DEPRECATION NOTICE (2026-06-18):**
+> - **MedQA** is no longer in use. All runs, CSVs, and pipeline code referencing MedQA should be treated as historical.
+> - **MMLU-Pro** is no longer in use. It was previously the primary benchmark; this role has been retired. All prior MMLU-Pro CSVs and ATE (Answer-Token Entropy) columns derived from it are now legacy data.
+> - **LLaMA Scout (Llama-4-Scout-17B-16E-Instruct)** is no longer in the model lineup. Remove from any active evaluation plans.
+> - **Confidence signals now deprecated** as a result: `answer_token_entropy`, `chosen_answer_raw_prob`, `top_answer_letter`, `answer_letter_probs`, `prob_A`–`prob_J` — these were MCQ-only signals computed from MMLU-Pro (A–J) and MedQA (A–D). Since neither MCQ dataset is in active use, these columns will not be populated going forward and should be excluded from paper analysis.
+> - Active datasets going forward: **GSM8K, StrategyQA, TriviaQA, LegalBench**.
+
 ---
 
 ## Project Overview
 
-This project evaluates LLM uncertainty/confidence metrics on benchmark datasets (GSM8K, MMLU-Pro, StrategyQA, MedQA, TriviaQA). It measures:
+This project evaluates LLM uncertainty/confidence metrics on benchmark datasets (GSM8K, StrategyQA, TriviaQA, LegalBench). ~~MMLU-Pro and MedQA were previously included but are no longer in active use as of 2026-06-18.~~ It measures:
 
 - **Logit-based confidence**: sequence log-prob sum, min token prob, geometric mean, arithmetic mean
 - **Verbalized confidence**: 1–10 scale elicited from the model directly (single-pass and two-pass critique)
-- **Answer-token logit entropy (ATE)**: Shannon entropy over answer-letter distribution at the answer token position (MCQ datasets only)
+- **Answer-token logit entropy (ATE)**: Shannon entropy over answer-letter distribution at the answer token position (MCQ datasets only — **DEPRECATED**: no MCQ datasets remain in active use)
 - **Semantic entropy (SE)**: Samples N answers at temperature 0.5, clusters by NLI bidirectional entailment, computes entropy over cluster probabilities
 
 ---
@@ -191,7 +198,7 @@ With `SKIP_NLI_CLUSTERING = True`, the SE computation block in `evaluate_sample(
 | `verbalized_confidence` | Gen 3 extracted confidence (falls back to Gen 2 if None) |
 | `more_likely_than_not` | Gen 3 extracted judgment (falls back to Gen 2 if None) |
 | `seq_confidence_mean` / `logit_*` | Computed from Gen 1 token probabilities |
-| `answer_token_entropy` / `prob_*` | Computed from Gen 1 raw logit scores at answer token |
+| `answer_token_entropy` / `prob_*` | Computed from Gen 1 raw logit scores at answer token — **DEPRECATED** (MCQ-only; no MCQ datasets remain active) |
 | SE columns | Skipped while `SKIP_NLI_CLUSTERING=True` |
 
 ---
@@ -350,11 +357,14 @@ Run: `python DavidsDatasets/verify_rubric.py` → `ALL CHECKS PASSED`.
 
 ## 6. What should be re-run
 
+> **DEPRECATION NOTE (2026-06-18):** MMLU-Pro and MedQA are no longer active datasets. The re-run recommendations below are historical. Only StrategyQA, TriviaQA, GSM8K, and LegalBench remain relevant for active analysis.
+
 | Dataset | Reason | Re-run? |
 |---|---|---|
-| **MMLU Pro** | First-pass prompt added rubric (was missing entirely) | **Yes — biggest delta** |
+| ~~**MMLU Pro**~~ | ~~First-pass prompt added rubric (was missing entirely)~~ | ~~**Yes — biggest delta**~~ — **DEPRECATED, not in active use** |
 | **StrategyQA, TriviaQA** | First-pass rubric scale changed (0.0–1.0 ranges → 1-10 indices); two-pass rubric reformatted | **Yes** |
-| **GSM8K, MedQA** | First-pass rubric format changed (numbered → bulleted); two-pass rubric reformatted; forced-answer + truncation tracking now active | **Yes** |
+| **GSM8K** | First-pass rubric format changed (numbered → bulleted); two-pass rubric reformatted; forced-answer + truncation tracking now active | **Yes** |
+| ~~**MedQA**~~ | ~~First-pass rubric format changed~~ | ~~**Yes**~~ — **DEPRECATED, not in active use** |
 
 For Qwen3 specifically, expect a non-trivial number of `was_forced=True` rows on MMLU Pro hard-science questions. Check `main_pass_was_truncated` rate per dataset; if it's >20% on any dataset, consider raising `MAX_NEW_TOKENS` further for that dataset.
 
