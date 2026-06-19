@@ -239,6 +239,29 @@ def generate_with_logits(
     return generated_text, token_probs, tokens, raw_scores, meta
 
 
+def extract_top_k_logits(raw_scores: list, k: int = 20):
+    """
+    Extract top-k token logit values and IDs for each output token.
+
+    Returns:
+        top_values:  float16 tensor, shape (num_tokens, k) — top-k raw logit values
+        top_indices: int32 tensor,   shape (num_tokens, k) — corresponding token IDs
+    """
+    if not raw_scores:
+        return torch.zeros(0, k, dtype=torch.float16), torch.zeros(0, k, dtype=torch.int32)
+
+    all_values = []
+    all_indices = []
+    for score in raw_scores:
+        logits = score[0] if score.dim() == 2 else score  # (vocab_size,)
+        actual_k = min(k, logits.shape[-1])
+        topk = torch.topk(logits.float(), k=actual_k)
+        all_values.append(topk.values.to(torch.float16))
+        all_indices.append(topk.indices.to(torch.int32))
+
+    return torch.stack(all_values).cpu(), torch.stack(all_indices).cpu()
+
+
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
     """Compute various confidence metrics from token probabilities."""
     if not token_probs:

@@ -14,6 +14,7 @@ from data_utils import extract_ground_truth, extract_model_answer, extract_model
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
+    extract_top_k_logits,
     extract_answer_token_entropy,
     extract_verbalized_confidence,
     extract_more_likely_than_not,
@@ -237,6 +238,9 @@ def evaluate_sample(
     # - triviaqa alias-aware fuzzy match (delegates to check_triviaqa_correct)
     is_correct = answers_match(model_answer, ground_truth, DATASET, sample)
 
+    # Top-20 logits per output token (saved to .pt; not in CSV/JSON)
+    top20_values, top20_token_ids = extract_top_k_logits(raw_scores, k=20)
+
     # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
 
@@ -346,6 +350,10 @@ def evaluate_sample(
 
         # Full response for inspection
         "full_response": response,
+
+        # Top-20 token logits per output token (extracted to .pt by save_utils)
+        "top20_values": top20_values,      # float16 tensor (num_tokens, 20)
+        "top20_token_ids": top20_token_ids, # int32 tensor  (num_tokens, 20)
 
         # Answer-token logit entropy (MCQ only; None for gsm8k/strategyqa/triviaqa)
         "answer_token_entropy": ate_results["answer_token_entropy"],
