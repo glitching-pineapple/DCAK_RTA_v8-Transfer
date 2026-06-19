@@ -14,6 +14,7 @@ from data_utils import extract_ground_truth, extract_model_answer, extract_model
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
+    compute_top20_confidence_metrics,
     extract_top_k_logits,
     extract_answer_token_entropy,
     extract_verbalized_confidence,
@@ -241,6 +242,9 @@ def evaluate_sample(
     # Top-20 logits per output token (saved to .pt; not in CSV/JSON)
     top20_values, top20_token_ids = extract_top_k_logits(raw_scores, k=20)
 
+    # Confidence metrics derived from the top-20 logit distributions
+    top20_metrics = compute_top20_confidence_metrics(top20_values)
+
     # Logit-based confidence (computed from Gen 1 token probabilities)
     confidence_metrics = compute_confidence_metrics(token_probs)
 
@@ -327,6 +331,14 @@ def evaluate_sample(
         "logit_confidence_min_last_token": last_token_metrics["min_prob"],
         "logit_confidence_geom_last_token": last_token_metrics["geom_mean"],
         "logit_confidence_mean_prob_last_token": last_token_metrics["mean_prob"],
+
+        # Top-20 distribution entropy metrics.
+        # top20_entropy_mean:       Shannon entropy of the top-20 renormalized
+        #   logit distribution averaged across all output tokens (nats).
+        #   Lower = more peaked = higher confidence.
+        # top20_entropy_last_token: same, but only for the final output token.
+        "top20_entropy_mean": top20_metrics["top20_entropy_mean"],
+        "top20_entropy_last_token": top20_metrics["top20_entropy_last_token"],
 
         # Verbalized confidence (primary = two-pass, 1-10 scale)
         "verbalized_confidence": verbalized_conf,

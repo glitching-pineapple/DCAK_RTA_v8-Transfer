@@ -262,6 +262,33 @@ def extract_top_k_logits(raw_scores: list, k: int = 20):
     return torch.stack(all_values).cpu(), torch.stack(all_indices).cpu()
 
 
+def compute_top20_confidence_metrics(top20_values) -> dict:
+    """
+    Compute confidence metrics from the top-20 logit distributions.
+
+    At each output token step the top-20 raw logit values are softmax-ed to a
+    renormalized distribution over the 20 candidates; Shannon entropy is then
+    computed per step.  Two scalars are returned:
+        top20_entropy_mean       – mean entropy across all output tokens (nats)
+        top20_entropy_last_token – entropy at the final output token only
+
+    Lower entropy = more peaked distribution = higher model confidence.
+    """
+    if top20_values is None or top20_values.shape[0] == 0:
+        return {
+            "top20_entropy_mean": float("nan"),
+            "top20_entropy_last_token": float("nan"),
+        }
+
+    probs = torch.softmax(top20_values.float(), dim=-1)  # (num_tokens, 20)
+    entropy = -(probs * torch.log(probs + 1e-10)).sum(dim=-1)  # (num_tokens,)
+
+    return {
+        "top20_entropy_mean": float(entropy.mean().item()),
+        "top20_entropy_last_token": float(entropy[-1].item()),
+    }
+
+
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
     """Compute various confidence metrics from token probabilities."""
     if not token_probs:
