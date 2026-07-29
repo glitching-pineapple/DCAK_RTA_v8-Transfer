@@ -2,15 +2,17 @@
 
 import math
 import re
-from typing import Dict, Optional
+from typing import Dict
 
-_QWEN3_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
-# GPT-OSS harmony delimiter — see _strip_harmony_envelope in data_utils.py.
-# Everything BEFORE the last "assistantfinal" is the model's analysis (reasoning)
-# channel; everything AFTER is the committed final response.
-_HARMONY_FINAL_DELIM = "assistantfinal"
-from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_FAMILY, MODEL_VARIANT, SKIP_NLI_CLUSTERING, USE_REASONING_FLOW
-from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, extract_reasoning, check_triviaqa_correct, answers_match, is_refusal_response
+# Reasoning-envelope constants — single-sourced in shared.py. Everything
+# BEFORE the last "assistantfinal" is GPT-OSS's analysis (reasoning) channel;
+# everything AFTER is the committed final response.
+from shared import (
+    THINK_BLOCK_RE as _QWEN3_THINK_RE,
+    HARMONY_FINAL_DELIM as _HARMONY_FINAL_DELIM,
+)
+from config import DATASET, SE_NUM_SAMPLES, SE_TEMPERATURE, SE_MAX_NEW_TOKENS, COMPUTE_ANSWER_TOKEN_ENTROPY, MODEL_VARIANT, USE_REASONING_FLOW
+from data_utils import extract_ground_truth, extract_model_answer, extract_model_answer_strict, answers_match, is_refusal_response
 from confidence import (
     generate_with_logits,
     compute_confidence_metrics,
@@ -27,36 +29,19 @@ from confidence import (
 )
 
 
-def evaluate_sample(
-    model, 
-    tokenizer, 
-    dataset, 
-    idx: int,
-    semantic_calculator=None,
-    compute_semantic_entropy: bool = True,
-) -> Dict:
+def get_question_and_choices(sample) -> tuple:
+    """Extract (question, choices) from a dataset row for the active DATASET.
+
+    Shared by evaluate_sample and main.py's batched Gen-1 path so prompt
+    construction is identical in both.
     """
-    Evaluate a single sample with multiple confidence measures.
-    
-    Includes:
-    - Logit-based confidence metrics
-    - Verbalized confidence (from CoT response, 1-10 scale)
-    - Semantic entropy (if calculator provided)
-    """
-    sample = dataset[idx]
-    
-    # Get question and choices based on dataset
     if DATASET == "gsm8k":
-        question = sample['question']
-        choices = None
+        return sample['question'], None
     elif DATASET == "mmlupro":
-        question = sample['question']
-        choices = sample['options']
+        return sample['question'], sample['options']
     elif DATASET == "strategyqa":
-        question = sample['question']
-        choices = None
+        return sample['question'], None
     elif DATASET == "medqa":
-        question = sample['question']
         raw_options = sample.get('options', sample.get('choices', {}))
         if isinstance(raw_options, dict):
             choices = [raw_options[k] for k in sorted(raw_options.keys())]
@@ -64,18 +49,42 @@ def evaluate_sample(
             choices = raw_options
         else:
             choices = []
+        return sample['question'], choices
     elif DATASET == "triviaqa":
-        question = sample['question']
-        choices = None
+        return sample['question'], None
     elif DATASET == "legalbench":
         # LegalBench subtasks store the prompt in `text`; some variants may
         # also expose `question`. Fall back so different subtasks still load.
-        question = sample.get('text', sample.get('question', str(sample)))
-        choices = None
+        return sample.get('text', sample.get('question', str(sample))), None
     else:
-        question = sample.get('question', str(sample))
-        choices = sample.get('options', None)
-    
+        return sample.get('question', str(sample)), sample.get('options', None)
+
+
+def evaluate_sample(
+    model,
+    tokenizer,
+    dataset,
+    idx: int,
+    semantic_calculator=None,
+    compute_semantic_entropy: bool = True,
+    gen1_precomputed=None,
+) -> Dict:
+    """
+    Evaluate a single sample with multiple confidence measures.
+
+    Includes:
+    - Logit-based confidence metrics
+    - Verbalized confidence (from CoT response, 1-10 scale)
+    - Semantic entropy (if calculator provided)
+
+    gen1_precomputed: optional (text, token_probs, tokens, raw_scores, meta)
+    tuple from generate_with_logits_batched — when provided, the main Gen-1
+    generation is skipped and this result is used instead. The caller MUST
+    have built the prompt with the same create_prompt(include_confidence=...)
+    settings this function would use (see main.py's batched path).
+    """
+    sample = dataset[idx]
+    question, choices = get_question_and_choices(sample)
     ground_truth = extract_ground_truth(sample, DATASET)
 
     token_probs: list = []  # populated by whichever branch runs below
@@ -91,8 +100,11 @@ def evaluate_sample(
     if USE_REASONING_FLOW:
         # --- qwen3 three-generation flow ---
         # Gen 1: reasoning + final answer only (no confidence rubric in prompt)
-        prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
-        response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
+        if gen1_precomputed is not None:
+            response_raw, token_probs, tokens, raw_scores, main_meta = gen1_precomputed
+        else:
+            prompt = create_prompt(tokenizer, question, choices, include_confidence=False)
+            response_raw, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
         # Stripped form: reasoning envelopes removed. Used for answer-letter
         # extraction so the regex doesn't match a draft answer the model
         # wrote inside its scratchpad.
@@ -156,8 +168,11 @@ def evaluate_sample(
             )
     else:
         # --- standard single-pass flow for all other model families ---
-        prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
-        response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
+        if gen1_precomputed is not None:
+            response, token_probs, tokens, raw_scores, main_meta = gen1_precomputed
+        else:
+            prompt = create_prompt(tokenizer, question, choices, include_confidence=True)
+            response, token_probs, tokens, raw_scores, main_meta = generate_with_logits(model, tokenizer, prompt)
 
         # Same Priority-1-driven gate as the reasoning-model branch: trust
         # the main response only when it produced a clean Answer line; else
@@ -257,15 +272,28 @@ def evaluate_sample(
             "top_answer_letter": None,
             "chosen_letter": None,
             "chosen_answer_raw_prob": None,
+            "answer_letter_mass": None,
         }
 
-    # Primary verbalized confidence = two-pass; fall back to single-pass (Gen 2 for qwen3)
+    # Primary verbalized confidence = two-pass; fall back to single-pass (Gen 2 for qwen3).
+    # IMPORTANT: the merged column mixes two elicitation methods, and the
+    # fallback fires exactly on rows where the critique failed to parse — a
+    # difficulty-correlated selection. The *_source columns record which
+    # method produced each row so the mixture is visible and filterable;
+    # per-method analysis should use single_pass_confidence /
+    # two_pass_confidence directly (both stored below), not this merge.
     verbalized_conf = two_pass_results["two_pass_confidence"]
     more_likely = two_pass_results["two_pass_correct"]
+    verbalized_conf_source = "two_pass" if verbalized_conf is not None else None
+    more_likely_source = "two_pass" if more_likely is not None else None
     if verbalized_conf is None:
         verbalized_conf = single_pass_conf
+        if verbalized_conf is not None:
+            verbalized_conf_source = "single_pass"
     if more_likely is None:
         more_likely = single_pass_correct
+        if more_likely is not None:
+            more_likely_source = "single_pass"
 
     # Hard-failure policy for rows where the model never produced a parseable
     # answer letter (typically: math questions where the CoT exhausts the
@@ -282,6 +310,8 @@ def evaluate_sample(
         more_likely = None
         single_pass_conf = math.nan
         single_pass_correct = None
+        verbalized_conf_source = None
+        more_likely_source = None
 
     # Refusal/abstention detection (handoff §19.3). A refusal is a SUBSET of
     # answer_extraction_failed: no parseable answer (main AND forced both failed,
@@ -310,7 +340,12 @@ def evaluate_sample(
         "is_refusal": is_refusal,
 
         # Logit-based metrics (aggregated over ALL generated tokens)
-        "seq_confidence_mean": confidence_metrics["log_prob_sum"],
+        # seq_confidence_mean is the length-normalized MEAN log-prob (was
+        # previously the raw sum under the same name — a length confound).
+        # The sum is preserved separately as seq_log_prob_sum for continuity
+        # with older result files; don't use it for AUROC.
+        "seq_confidence_mean": confidence_metrics["mean_log_prob"],
+        "seq_log_prob_sum": confidence_metrics["log_prob_sum"],
         "logit_confidence_min": confidence_metrics["min_prob"],
         "logit_confidence_geom": confidence_metrics["geom_mean"],
         "logit_confidence_mean_prob": confidence_metrics["mean_prob"],
@@ -318,20 +353,27 @@ def evaluate_sample(
         # Logit-based metrics computed over ONLY the last generated token.
         # Parallel to the all-token columns above; added so logit confidence
         # can be evaluated on the final token alone without dropping the
-        # full-sequence aggregates.
-        "seq_confidence_mean_last_token": last_token_metrics["log_prob_sum"],
+        # full-sequence aggregates. (For a single token, sum == mean, so
+        # mean_log_prob preserves the old column's values exactly.)
+        "seq_confidence_mean_last_token": last_token_metrics["mean_log_prob"],
         "logit_confidence_min_last_token": last_token_metrics["min_prob"],
         "logit_confidence_geom_last_token": last_token_metrics["geom_mean"],
         "logit_confidence_mean_prob_last_token": last_token_metrics["mean_prob"],
 
-        # Verbalized confidence (primary = two-pass, 1-10 scale)
+        # Verbalized confidence (merged: two-pass with single-pass fallback,
+        # 1-10 scale). See the *_source columns for which method produced
+        # each row; prefer the per-method columns below for analysis.
         "verbalized_confidence": verbalized_conf,
         "more_likely_than_not": more_likely,
-        
-        # Single-pass confidence (for comparison)
+        "verbalized_conf_source": verbalized_conf_source,
+        "more_likely_source": more_likely_source,
+
+        # Per-method verbalized scores (analyze these, not the merge)
         "single_pass_confidence": single_pass_conf,
         "single_pass_correct": single_pass_correct,
-        
+        "two_pass_confidence": two_pass_results["two_pass_confidence"],
+        "two_pass_correct": two_pass_results["two_pass_correct"],
+
         # Two-pass critique (for inspection)
         "two_pass_critique": two_pass_results["two_pass_critique"],
         "two_pass_finish_reason": two_pass_results["two_pass_finish_reason"],
@@ -341,6 +383,12 @@ def evaluate_sample(
         # itself was cut off, not just the critique)
         "main_pass_finish_reason": main_meta["finish_reason"],
         "main_pass_was_truncated": main_meta["was_truncated"],
+        # True when the main generation ran under anti-loop decoding guards
+        # (base models / GPT-OSS: ngram ban, stop strings). The logit metrics
+        # are re-derived from a clean forward pass, but the TEXT itself was
+        # decoded under different constraints — condition cross-family
+        # comparisons on this flag.
+        "decoding_guards_active": main_meta.get("decoding_guards_active"),
         "was_forced": was_forced,
         "forced_answer_response": forced_response,
 
@@ -355,10 +403,17 @@ def evaluate_sample(
         # top_answer_letter signals a tokenizer/letter-id mapping issue.
         "chosen_letter": ate_results["chosen_letter"],
         "chosen_answer_raw_prob": ate_results["chosen_answer_raw_prob"],
+        # Pre-renorm mass on answer letters at the decision token — a
+        # reliability weight for answer_token_entropy (low mass ⇒ the
+        # renormalized entropy understates true uncertainty on that row).
+        "answer_letter_mass": ate_results["answer_letter_mass"],
     }
     
-    # Compute semantic entropy unless NLI clustering is disabled or no calculator provided
-    if compute_semantic_entropy and semantic_calculator is not None and not SKIP_NLI_CLUSTERING:
+    # Compute semantic entropy when requested and a calculator was provided.
+    # Callers should pass config.SEMANTIC_ENTROPY_ACTIVE (which folds in the
+    # SKIP_NLI_CLUSTERING / SE_NUM_SAMPLES debug vetoes) rather than the raw
+    # COMPUTE_SEMANTIC_ENTROPY intent flag.
+    if compute_semantic_entropy and semantic_calculator is not None:
         se_results = compute_semantic_entropy_for_question(
             model, tokenizer, semantic_calculator,
             question, choices, DATASET

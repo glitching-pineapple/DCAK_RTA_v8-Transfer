@@ -3,7 +3,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from config import MODEL_VARIANT, DATASET, get_model_label
+from config import DATASET, get_model_label
 
 
 def print_results_summary(df: pd.DataFrame):
@@ -18,7 +18,7 @@ def print_results_summary(df: pd.DataFrame):
     print(f"Total samples: {len(df)}")
     
     # Logit-based confidence
-    print(f"\n--- Logit-Based Confidence (Sequence Log-Prob) ---")
+    print(f"\n--- Logit-Based Confidence (Mean Log-Prob per token) ---")
     print(f"Overall mean: {df['seq_confidence_mean'].mean():.4f}")
     print(f"Correct answers: {df[df['is_correct']]['seq_confidence_mean'].mean():.4f}")
     print(f"Wrong answers: {df[~df['is_correct']]['seq_confidence_mean'].mean():.4f}")
@@ -27,7 +27,7 @@ def print_results_summary(df: pd.DataFrame):
     if 'verbalized_confidence' in df.columns:
         valid_verb = df[df['verbalized_confidence'].notna()]
         if len(valid_verb) > 0:
-            print(f"\n--- Verbalized Confidence (0-1 scale) ---")
+            print(f"\n--- Verbalized Confidence (1-10 rubric) ---")
             print(f"Extraction rate: {len(valid_verb)/len(df)*100:.1f}%")
             print(f"Overall mean: {valid_verb['verbalized_confidence'].mean():.3f}")
             print(f"Correct answers: {valid_verb[valid_verb['is_correct']]['verbalized_confidence'].mean():.3f}")
@@ -86,8 +86,10 @@ def compute_auroc(df: pd.DataFrame, score_col: str, higher_is_better: bool = Fal
     valid = df[df[score_col].notna() & ~df[score_col].isin([float('inf'), float('-inf')])]
     if len(valid) < 2 or valid['is_correct'].nunique() < 2:
         return float('nan')
-    
-    scores = valid[score_col].values
+
+    # astype(float): columns holding Python Nones (e.g. two_pass_confidence)
+    # arrive as object dtype; roc_auc_score and negation need real floats.
+    scores = valid[score_col].astype(float).values
     if not higher_is_better:
         scores = -scores  # Flip so higher = more confident
     
@@ -102,9 +104,17 @@ def print_auroc_comparison(df: pd.DataFrame):
     print("=" * 60)
     
     metrics = [
-        ("seq_confidence_mean", "Sequence Log-Prob", True),
+        ("seq_confidence_mean", "Mean Log-Prob (per-token)", True),
+        # Length-confounded sum — kept visible so its gap vs the mean shows
+        # how much of the old "seq_confidence_mean" AUROC was answer length.
+        ("seq_log_prob_sum", "Log-Prob Sum (length-confounded)", True),
         ("logit_confidence_geom", "Geometric Mean Prob", True),
-        ("verbalized_confidence", "Verbalized Confidence", True),
+        # Merged column (two-pass with single-pass fallback) — kept for
+        # continuity, but the per-method rows below are the interpretable ones:
+        # the merge mixes elicitation methods on difficulty-correlated rows.
+        ("verbalized_confidence", "Verbalized (merged; see per-method)", True),
+        ("single_pass_confidence", "Verbalized: single-pass (Gen 2)", True),
+        ("two_pass_confidence", "Verbalized: two-pass critique (Gen 3)", True),
         ("semantic_entropy", "Semantic Entropy", False),
         ("predictive_entropy", "Predictive Entropy", False),
         ("predictive_entropy_normalized", "Pred. Entropy (Normalized)", False),
@@ -153,7 +163,7 @@ def plot_confidence_analysis(df: pd.DataFrame, save_path: str = None):
         wrong_verb = valid_df[~valid_df['is_correct']]['verbalized_confidence']
         if len(correct_verb) > 0 and len(wrong_verb) > 0:
             ax.boxplot([correct_verb, wrong_verb], labels=['Correct', 'Wrong'])
-            ax.set_ylabel('Self-Reported Confidence (0-1)')
+            ax.set_ylabel('Self-Reported Confidence (1-10)')
             ax.set_title('Verbalized Confidence')
         plot_idx += 1
     
@@ -196,44 +206,79 @@ def plot_confidence_analysis(df: pd.DataFrame, save_path: str = None):
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         print(f"Plot saved to {save_path}")
-    
-    plt.show()
+
+    # show() only where a display exists (notebooks); headless batch runs
+    # would otherwise block or warn. Always close so repeated runs don't
+    # leak figures.
+    try:
+        plt.show()
+    except Exception:
+        pass
+    plt.close(fig)
     return fig
 
 
-def calibration_analysis(df: pd.DataFrame, confidence_col: str = 'verbalized_confidence'):
-    """Analyze calibration of confidence measure."""
+def calibration_analysis(
+    df: pd.DataFrame,
+    confidence_col: str = 'verbalized_confidence',
+    rubric_scale: bool = True,
+):
+    """Analyze calibration of a confidence measure.
+
+    rubric_scale=True (default) treats the column as the 1-10 verbalized
+    rubric, where class N is defined in the prompt as "(N-1)*10% to N*10%
+    likely correct". The faithful probability for class N is therefore the
+    interval midpoint (N - 0.5) / 10 — e.g. Confidence: 7 → 0.65, not 0.70.
+    Set rubric_scale=False for a column already on a [0, 1] probability scale.
+
+    ECE is computed against each bin's EMPIRICAL mean stated confidence
+    (the standard definition), not fixed bin midpoints — fixed midpoints
+    misstate ECE whenever the within-bin distribution is non-uniform, which
+    is always the case for a 10-class rubric.
+
+    NOTE: the previous version binned the raw 1-10 values on a [0, 1] grid,
+    which sent every row to NaN and silently produced an empty table.
+    """
     print(f"\n--- Calibration Analysis ({confidence_col}) ---")
-    
+
     valid_df = df[df[confidence_col].notna()].copy()
     if len(valid_df) == 0:
         print("No valid confidence values found.")
         return None
-    
-    # Create confidence bins (0-1 scale)
-    bins = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    valid_df['conf_bin'] = pd.cut(valid_df[confidence_col], bins=bins)
-    
-    calibration = valid_df.groupby('conf_bin', observed=True).agg({
-        'is_correct': ['mean', 'count']
-    }).round(3)
-    calibration.columns = ['Accuracy', 'Count']
-    
-    print(f"\n{confidence_col} Calibration:")
+
+    if rubric_scale:
+        valid_df['conf_p'] = (valid_df[confidence_col] - 0.5) / 10.0
+    else:
+        valid_df['conf_p'] = valid_df[confidence_col]
+
+    n_bad = int(((valid_df['conf_p'] < 0) | (valid_df['conf_p'] > 1)).sum())
+    if n_bad:
+        print(f"WARNING: {n_bad} rows map outside [0, 1] — check rubric_scale "
+              f"for column {confidence_col!r}. They are excluded.")
+        valid_df = valid_df[(valid_df['conf_p'] >= 0) & (valid_df['conf_p'] <= 1)]
+        if len(valid_df) == 0:
+            return None
+
+    bins = np.linspace(0.0, 1.0, 6)
+    valid_df['conf_bin'] = pd.cut(valid_df['conf_p'], bins=bins, include_lowest=True)
+
+    calibration = valid_df.groupby('conf_bin', observed=True).agg(
+        Accuracy=('is_correct', 'mean'),
+        Confidence=('conf_p', 'mean'),
+        Count=('is_correct', 'count'),
+    ).round(3)
+
+    print(f"\n{confidence_col} Calibration (stated confidence mapped to [0, 1]):")
     print(calibration)
-    
-    # Compute Expected Calibration Error
+
     total = calibration['Count'].sum()
     if total > 0:
-        bin_midpoints = [0.1, 0.3, 0.5, 0.7, 0.9]
-        ece = 0
-        for (_, row), midpoint in zip(calibration.iterrows(), bin_midpoints):
-            if row['Count'] > 0:
-                expected_acc = midpoint  # Already 0-1
-                actual_acc = row['Accuracy']
-                ece += (row['Count'] / total) * abs(actual_acc - expected_acc)
-        print(f"\nExpected Calibration Error: {ece:.4f}")
-    
+        ece = float(np.sum(
+            (calibration['Count'] / total)
+            * (calibration['Accuracy'] - calibration['Confidence']).abs()
+        ))
+        print(f"\nExpected Calibration Error: {ece:.4f} (n={int(total)})")
+
     return calibration
 
 

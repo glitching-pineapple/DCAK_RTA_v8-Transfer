@@ -1,0 +1,13 @@
+# OS junk
+.DS_Store
+
+# Jupyter / Python artifacts
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# reextract.py backups
+*.bak
+
+# Accidental shell-redirect files from unquoted `pip install pkg>=x.y`
+=*

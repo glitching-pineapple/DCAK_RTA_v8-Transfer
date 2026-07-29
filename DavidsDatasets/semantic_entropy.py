@@ -3,10 +3,8 @@
 
 import torch
 import numpy as np
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from collections import defaultdict
-import warnings
 
 
 class SemanticEntropyCalculator:
@@ -23,14 +21,15 @@ class SemanticEntropyCalculator:
         nli_model_name: str = "microsoft/deberta-large-mnli",
         device: str = None,
         entailment_threshold: float = 0.5,
+        revision: str = None,
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.entailment_threshold = entailment_threshold
-        
-        print(f"Loading NLI model: {nli_model_name} → {self.device}")
-        self.nli_tokenizer = AutoTokenizer.from_pretrained(nli_model_name)
+
+        print(f"Loading NLI model: {nli_model_name} (revision={revision or 'latest'}) → {self.device}")
+        self.nli_tokenizer = AutoTokenizer.from_pretrained(nli_model_name, revision=revision)
         self.nli_model = AutoModelForSequenceClassification.from_pretrained(
-            nli_model_name
+            nli_model_name, revision=revision
         ).to(self.device)
         self.nli_model.eval()
         
@@ -220,6 +219,12 @@ class SemanticEntropyCalculator:
         Answers that produced identical reasoning text are placed in the same
         cluster.  This bypasses the NLI model entirely and treats each unique
         reasoning path as a semantic equivalence class.
+
+        NOTE: currently unused by the live pipeline (evaluation.py clusters
+        via NLI on full CoT). Kept as a documented alternative; if you wire
+        it into compute_semantic_entropy, add a `reasonings` parameter there
+        rather than passing it as a kwarg — the previous helper that tried
+        that crashed with TypeError and was removed.
         """
         reasoning_to_cluster_idx: Dict[str, int] = {}
         clusters: List[List[int]] = []
@@ -390,63 +395,9 @@ def sample_answers_with_probs(
     return answers, log_probs, lengths
 
 
-def compute_semantic_entropy_for_sample(
-    model,
-    tokenizer,
-    semantic_calculator: SemanticEntropyCalculator,
-    question: str,
-    prompt: str,
-    num_samples: int = 10,
-    temperature: float = 0.5,
-    max_new_tokens: int = 256,
-    answer_extractor=None,
-    reasoning_extractor=None,
-) -> Dict:
-    """
-    Convenience function to compute semantic entropy for a single question.
-
-    If ``reasoning_extractor`` is provided it is called on each raw model
-    output to obtain a reasoning string.  Those strings are then used as
-    cluster identifiers (answers that share the same reasoning chain are
-    placed in the same cluster), bypassing the NLI model entirely.
-
-    If ``reasoning_extractor`` is None the calculator falls back to the
-    standard NLI-based semantic clustering.
-    """
-    # Sample multiple answers
-    answers, log_probs, lengths = sample_answers_with_probs(
-        model, tokenizer, prompt,
-        num_samples=num_samples,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-    )
-
-    # Extract just the answer portion if extractor provided
-    if answer_extractor:
-        extracted_answers = [answer_extractor(a) or a for a in answers]
-    else:
-        extracted_answers = answers
-
-    # Extract reasoning chains if extractor provided
-    reasonings = None
-    if reasoning_extractor:
-        reasonings = [reasoning_extractor(a) or a for a in answers]
-
-    # Compute semantic entropy
-    se_results = semantic_calculator.compute_semantic_entropy(
-        context=question,
-        answers=extracted_answers,
-        log_probs=log_probs,
-        length_normalize=True,
-        answer_lengths=lengths,
-        reasonings=reasonings,
-    )
-
-    return {
-        **se_results,
-        "sampled_answers": answers,
-        "extracted_answers": extracted_answers,
-        "reasonings": reasonings,
-        "log_probs": log_probs,
-        "answer_lengths": lengths,
-    }
+# NOTE: a convenience wrapper `compute_semantic_entropy_for_sample` used to
+# live here. It was dead code with a guaranteed TypeError (it passed a
+# `reasonings=` kwarg that compute_semantic_entropy never accepted) and had
+# zero callers — the live pipeline uses
+# evaluation.compute_semantic_entropy_for_question instead. Removed; see git
+# history if you need the sampling+extraction skeleton back.

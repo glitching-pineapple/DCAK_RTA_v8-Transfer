@@ -135,28 +135,32 @@ def check_extractors() -> None:
 
 
 def check_two_pass_rubric() -> None:
-    """Spot-check that get_two_pass_confidence's critique prompt embeds the same rubric."""
-    # Read the source instead of executing the function (which would need a model)
-    src_path = os.path.join(os.path.dirname(__file__), "confidence.py")
-    with open(src_path) as f:
-        src = f.read()
+    """Render the Gen-2 and two-pass critique prompts (pure builders) and verify
+    each embeds the full rubric.
 
-    # Locate critique_prompt definition and verify rubric labels + percentages appear
-    for cls in CLASSES:
-        assert f'"{cls}"' in src, f"[two-pass src] missing class label: {cls!r}"
-    for pct in PERCENTAGES:
-        assert pct in src, f"[two-pass src] missing percentage: {pct!r}"
+    Previously this grepped confidence.py source and asserted the rubric text
+    appeared >= 3 times — a test that existed only because the rubric was
+    copy-pasted into three prompts. The rubric is now single-sourced in
+    shared.RUBRIC_BULLETS and the builders are pure functions, so we can test
+    the actual rendered prompts instead of counting source duplicates.
+    """
+    from confidence import build_gen2_prompt, build_two_pass_prompt
 
-    # Two distinct occurrences of the bulleted rubric: first-pass (_CONF_RUBRIC) and
-    # both gen2 + two-pass critique. Each rubric line should appear in source.
-    for i in range(1, 11):
-        count = src.count(f'- {i} = "{CLASSES[i-1]}" ({PERCENTAGES[i-1]})')
-        assert count >= 3, (
-            f"line '- {i} = \"{CLASSES[i-1]}\" ({PERCENTAGES[i-1]})' "
-            f"appears {count} times in source, expected at least 3 "
-            f"(first-pass _CONF_RUBRIC + gen2 + two-pass critique)"
-        )
-    print("  rubric appears in first-pass + gen2 + two-pass in source")
+    rendered = {
+        "gen2": build_gen2_prompt("Q?", "some reasoning", "X", None),
+        "two_pass": build_two_pass_prompt("Q?", "X", "some reasoning", None),
+        "two_pass+gen2scores": build_two_pass_prompt(
+            "Q?", "X", "some reasoning", None,
+            gen2_confidence=7.0, gen2_correct=True),
+    }
+    for name, prompt in rendered.items():
+        for i in range(1, 11):
+            line = f'- {i} = "{CLASSES[i-1]}" ({PERCENTAGES[i-1]})'
+            assert line in prompt, f"[{name}] missing rubric line: {line!r}"
+        assert "Confidence: <1-10>" in prompt, f"[{name}] missing output format"
+    assert "Verbalized confidence: 7.0/10" in rendered["two_pass+gen2scores"], \
+        "two-pass prompt should embed Gen-2 self-assessed score when provided"
+    print("  rubric present in rendered gen2 + two-pass prompts (single-sourced)")
 
 
 def check_generate_with_logits_signature() -> None:

@@ -18,23 +18,45 @@ def get_device():
     return device
 
 
-def load_model_and_tokenizer(model_device: str = "cuda:0"):
+def load_model_and_tokenizer(model_device: str = None):
     """
     Load the model and tokenizer.
 
     Small models (≤7B) are pinned to a single GPU.
     Large models (>7B, e.g. Qwen3-35B) use device_map='auto' to shard
     across all available GPUs automatically.
+
+    model_device: target for small models. None → auto-resolve ("cuda:0" if
+    available, else "cpu" — previously this was hardcoded to "cuda:0", which
+    both ignored the device main.py had already detected and crashed CPU-only
+    debug sessions). "cuda" is normalized to "cuda:0".
     """
-    from config import MODEL_FAMILY
+    from config import MODEL_FAMILY, get_model_revision
     model_name = get_model_name()
+    revision = get_model_revision()
+
+    if model_device is None:
+        model_device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    elif model_device == "cuda":
+        model_device = "cuda:0"
 
     large_model_families = {"qwen3", "gemma4", "gptoss", "llama4scout"}
     use_auto_device_map = MODEL_FAMILY in large_model_families
     device = "auto" if use_auto_device_map else model_device
-    print(f"Loading: {model_name} → device_map={device}")
+    print(f"Loading: {model_name} (revision={revision or 'latest'}) → device_map={device}")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    # trust_remote_code executes Python from the Hub repo at load time.
+    # Qwen2.5 / Llama-3.1 / Gemma-2 are natively supported by transformers and
+    # must NOT need it — leaving it on for them was pure attack surface. The
+    # exotic families keep it (paired with the pinned revision above, so a
+    # later upstream compromise cannot inject new code). If a standard family
+    # fails to load on an old transformers, upgrade transformers rather than
+    # re-enabling the flag.
+    trust = MODEL_FAMILY in {"qwen3", "gemma4", "gptoss", "llama4scout"}
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name, revision=revision, trust_remote_code=trust
+    )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
@@ -43,7 +65,8 @@ def load_model_and_tokenizer(model_device: str = "cuda:0"):
         model_name,
         dtype=dtype,
         device_map=device,
-        trust_remote_code=True,
+        revision=revision,
+        trust_remote_code=trust,
         use_safetensors=True,
     )
     model.eval()

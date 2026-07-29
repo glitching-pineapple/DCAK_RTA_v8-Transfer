@@ -1,0 +1,17 @@
+# Core dependencies for the confidence-estimation pipeline.
+#
+# IMPORTANT: pin exact versions from your working GPU environment with
+#     pip freeze | grep -iE 'torch|transformers|datasets|accelerate|pandas|numpy|scikit|scipy|matplotlib|tqdm' >> requirements.txt
+# and delete the loose specs below. generate() behavior (e.g. stop_strings
+# support, num_logits_to_keep) varies across transformers versions — an
+# unpinned upgrade can silently change results.
+torch>=2.1
+transformers>=4.45
+datasets>=2.19
+accelerate>=0.30
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+scipy>=1.10
+matplotlib>=3.7
+tqdm>=4.66

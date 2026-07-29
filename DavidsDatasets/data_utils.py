@@ -7,27 +7,37 @@ from typing import Optional
 from datasets import load_dataset
 
 
+def _dataset_revision(repo: str):
+    """Pinned dataset revision (see config.DATASET_REVISIONS for rationale)."""
+    from config import DATASET_REVISIONS
+    return DATASET_REVISIONS.get(repo)
+
+
 def load_gsm8k():
-    dataset = load_dataset("openai/gsm8k", "main", split="test")
+    dataset = load_dataset("openai/gsm8k", "main", split="test",
+                           revision=_dataset_revision("openai/gsm8k"))
     print(f"Loaded GSM8K: {len(dataset)} test examples")
     return dataset
 
 
 def load_mmlupro():
-    ds = load_dataset("TIGER-Lab/MMLU-Pro", split="test")
+    ds = load_dataset("TIGER-Lab/MMLU-Pro", split="test",
+                      revision=_dataset_revision("TIGER-Lab/MMLU-Pro"))
     print(f"Loaded MMLU-Pro: {len(ds)} test examples")
     return ds
 
 
 def load_strategyqa():
-    ds = load_dataset("ChilleD/StrategyQA", split="test")
+    ds = load_dataset("ChilleD/StrategyQA", split="test",
+                      revision=_dataset_revision("ChilleD/StrategyQA"))
     print(f"Loaded StrategyQA: {len(ds)} test examples")
     return ds
 
 
 def load_medqa():
     """Load MedQA dataset (US medical licensing exam style)."""
-    ds = load_dataset("GBaker/MedQA-USMLE-4-options", split="test")
+    ds = load_dataset("GBaker/MedQA-USMLE-4-options", split="test",
+                      revision=_dataset_revision("GBaker/MedQA-USMLE-4-options"))
     print(f"Loaded MedQA: {len(ds)} test examples")
     return ds
 
@@ -40,14 +50,19 @@ def load_triviaqa():
     longer fall back to it — that fallback used to mask the real loader error
     with an HfUriError about repo-id format.
     """
+    rev = _dataset_revision("mandarjoshi/trivia_qa")
     try:
+        # trust_remote_code is needed here only on older `datasets` versions
+        # that still run the repo's loading script; the pinned revision means
+        # the executed script cannot change under us.
         ds = load_dataset(
             "mandarjoshi/trivia_qa", "rc.nocontext",
-            split="validation", trust_remote_code=True,
+            split="validation", revision=rev, trust_remote_code=True,
         )
     except TypeError:
         # Older `datasets` versions don't accept trust_remote_code kwarg
-        ds = load_dataset("mandarjoshi/trivia_qa", "rc.nocontext", split="validation")
+        ds = load_dataset("mandarjoshi/trivia_qa", "rc.nocontext",
+                          split="validation", revision=rev)
     print(f"Loaded TriviaQA: {len(ds)} validation examples")
     return ds
 
@@ -55,7 +70,8 @@ def load_triviaqa():
 def load_legalbench():
     """Load LegalBench dataset (Yes/No legal-reasoning subtask selected via LEGALBENCH_TASK)."""
     from config import LEGALBENCH_TASK
-    ds = load_dataset("nguha/legalbench", LEGALBENCH_TASK, split="test")
+    ds = load_dataset("nguha/legalbench", LEGALBENCH_TASK, split="test",
+                      revision=_dataset_revision("nguha/legalbench"))
     print(f"Loaded LegalBench[{LEGALBENCH_TASK}]: {len(ds)} test examples")
     return ds
 
@@ -115,53 +131,13 @@ def extract_ground_truth(sample: dict, dataset: str) -> Optional[str]:
     return None
 
 
-# GPT-OSS uses OpenAI's "harmony" response format, which interleaves an
-# analysis channel and a final-response channel without using <think>...</think>
-# tags. The literal token "assistantfinal" delimits the start of the
-# committed final response. If we run extraction over the full text, we end up
-# matching "Answer:" patterns inside the analysis channel (or eating the whole
-# blob), so we strip everything before the LAST "assistantfinal" first. No-op
-# for any response that doesn't contain the delimiter.
-_HARMONY_FINAL_DELIM = "assistantfinal"
-
-
-def _strip_harmony_envelope(response: str) -> str:
-    """Return only the post-`assistantfinal` portion if present; else pass through.
-
-    Case-insensitive: handles assistantFinal, AssistantFinal, ASSISTANTFINAL, etc.
-    GPT-OSS occasionally capitalises the token differently across generation runs.
-    """
-    if not response:
-        return response
-    idx = response.lower().rfind(_HARMONY_FINAL_DELIM)
-    if idx == -1:
-        return response
-    return response[idx + len(_HARMONY_FINAL_DELIM):]
-
-
-def _truncate_to_first_block(response: str) -> str:
-    """
-    Cut a response after its FIRST completed Answer/Confidence/Correct block.
-
-    Base models often answer correctly and then keep generating — restating the
-    template or hallucinating new questions and answering those. Scanning the
-    whole response (or taking the LAST "Answer:" match) then grabs the
-    continuation's answer or a literal "<YOUR_ANSWER>" placeholder, marking a
-    correct answer wrong. Restricting extraction to the first block fixes that;
-    within the block last-match behaviour is preserved so mid-solution
-    self-correction still works. (Kept self-contained here rather than imported
-    from confidence.py to avoid a circular import.)
-    """
-    if not response:
-        return response
-    m = re.search(r'\*{0,2}[Cc]orrect\*{0,2}\s*:\s*(?:Yes|No)\b', response, re.IGNORECASE)
-    if m:
-        return response[:m.end()]
-    m2 = re.search(r'\n\s*(?:Question\s*:|Answer the following|Solution\s*:)',
-                   response, re.IGNORECASE)
-    if m2:
-        return response[:m2.start()]
-    return response
+# Harmony-envelope and first-block helpers are single-sourced in shared.py
+# (they were previously copy-pasted here and in confidence.py — a fix landing
+# in one copy but not the other silently desynchronized extraction behavior).
+from shared import (
+    strip_harmony_envelope as _strip_harmony_envelope,
+    truncate_to_first_block as _truncate_to_first_block,
+)
 
 
 # Refusal / abstention patterns (handoff §19.3). Kept deliberately TIGHT: we
@@ -601,6 +577,38 @@ def _trivia_compact(text: str) -> str:
     return re.sub(r'[^a-z0-9]', '', text.lower())
 
 
+# Words that must never match an alias via containment: they are common
+# enough to appear inside unrelated aliases ("no" ⊂ "north carolina").
+# Equality still matches — this only gates the substring path.
+_TRIVIA_CONTAIN_STOPWORDS = {
+    "the", "and", "was", "not", "yes", "no", "for", "are", "all", "its",
+    "his", "her", "one", "two", "who", "what", "a", "an", "of", "in", "on",
+}
+
+
+def _contains_match(a: str, b: str, min_len: int = 3) -> bool:
+    """Containment comparator with guards against degenerate matches.
+
+    Exact equality always matches. Otherwise the SHORTER string must:
+      1. be at least ``min_len`` characters AND not a stopword — so fragments
+         like "no" / "the" can't match inside longer aliases, while genuine
+         short answers ("Rio", "Mao") still can;
+      2. appear in the longer string as a whole word/phrase (word-boundary
+         anchored) — so "art" does not match inside "Descartes".
+
+    The previous raw bidirectional substring check had neither guard and
+    could silently score wrong answers as correct.
+    """
+    if a == b:
+        return True
+    if not a or not b:
+        return False
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    if len(shorter) < min_len or shorter in _TRIVIA_CONTAIN_STOPWORDS:
+        return False
+    return re.search(rf'(?<!\w){re.escape(shorter)}(?!\w)', longer) is not None
+
+
 def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
     """Special correctness check for TriviaQA (multiple acceptable answers).
 
@@ -639,22 +647,28 @@ def check_triviaqa_correct(model_answer: str, sample: dict) -> bool:
         acc_spaced = _trivia_norm_space(acc)
         acc_compact = _trivia_compact(acc_spaced)
 
-        # Tier 1: raw
-        if model_lower == acc or model_lower in acc or acc in model_lower:
+        # Tier 1: raw (word-boundary containment with length/stopword guards)
+        if _contains_match(model_lower, acc):
             return True
         # Tier 2: NFKD (handles accented/double-encoded chars)
-        if model_nfkd == acc_nfkd or model_nfkd in acc_nfkd or acc_nfkd in model_nfkd:
+        if _contains_match(model_nfkd, acc_nfkd):
             return True
         # Tier 3a: space-normalized (handles â¯ space artifacts)
-        if model_spaced == acc_spaced or model_spaced in acc_spaced or acc_spaced in model_spaced:
+        if _contains_match(model_spaced, acc_spaced):
             return True
-        # Tier 3b: compact (handles letter-splitting artifacts like "G Neisen Au")
-        # Guard: require at least 4 chars so single-letter fragments don't over-match.
+        # Tier 3b: compact (handles letter-splitting artifacts like "G Neisen Au").
+        # No word boundaries survive compaction, so containment here is the
+        # loosest comparison in the stack. Guards: equality needs >= 4 chars;
+        # CONTAINMENT needs the shorter side >= 6 chars — the artifact cases
+        # this tier exists for (mangled multi-word names) produce long
+        # compacts, while short-word substrings ("ring" in "bringiton") are
+        # exactly the false positives to block.
         if len(model_compact) >= 4 and len(acc_compact) >= 4:
-            if (model_compact == acc_compact
-                    or model_compact in acc_compact
-                    or acc_compact in model_compact):
+            if model_compact == acc_compact:
                 return True
+            if min(len(model_compact), len(acc_compact)) >= 6:
+                if model_compact in acc_compact or acc_compact in model_compact:
+                    return True
 
     return False
 

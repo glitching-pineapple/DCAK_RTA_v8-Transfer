@@ -13,12 +13,16 @@ from config import (
     TWO_PASS_DISABLE_THINKING,
 )
 
-# GPT-OSS harmony format: committed answer lives after this delimiter.
-# Defined here (not imported from evaluation.py) to avoid a circular import.
-_HARMONY_FINAL_DELIM = "assistantfinal"
-# Harmony analysis-channel marker: text starting with this is not a real answer.
-# No \b — the channel name "analysis" runs directly into the next word ("analysisWe…").
-_ANALYSIS_MARKER_RE = re.compile(r'^analysis', re.IGNORECASE)
+# Shared text constants/helpers — single-sourced in shared.py (previously
+# copy-pasted here, in data_utils.py, and in evaluation.py).
+from shared import (
+    HARMONY_FINAL_DELIM as _HARMONY_FINAL_DELIM,
+    ANALYSIS_MARKER_RE as _ANALYSIS_MARKER_RE,
+    THINK_BLOCK_RE as _re_think_block,
+    RUBRIC_BULLETS,
+    CONF_RUBRIC as _CONF_RUBRIC,
+    truncate_to_first_block as _truncate_to_first_block,
+)
 
 
 def _detect_truncation(
@@ -77,21 +81,44 @@ def _format_choices(choices: list) -> str:
     return "\n".join(f"{chr(65+i)}. {c}" for i, c in enumerate(choices))
 
 
-_CONF_RUBRIC = """
-Then, thoroughly assess your confidence in that answer by evaluating your thinking process so far. Finally, classify your confidence into one of the following classes based on how likely your answer is to be correct, by selecting EXACTLY ONE:
+def _clean_generated_logits(model, sequences, input_length: int, num_gen: int):
+    """Teacher-forced clean logits for the generated region only, on CPU.
 
-- 1 = "Almost no chance" (0-10% likely correct)
-- 2 = "Highly unlikely" (10-20% likely correct)
-- 3 = "Chances are slight" (20-30% likely correct)
-- 4 = "Unlikely" (30-40% likely correct)
-- 5 = "Less than even" (40-50% likely correct)
-- 6 = "Better than even" (50-60% likely correct)
-- 7 = "Likely" (60-70% likely correct)
-- 8 = "Very good chance" (70-80% likely correct)
-- 9 = "Highly likely" (80-90% likely correct)
-- 10 = "Almost certain" (90-100% likely correct)
+    Returns a (num_gen, vocab) tensor where row i is the unwarped logit
+    distribution that predicts generated token i (i.e. the logits at absolute
+    position input_length + i - 1).
 
-"""
+    Memory strategy, in order of preference:
+      1. num_logits_to_keep / logits_to_keep: newer transformers can skip
+         materializing logits for the prompt positions entirely — we only
+         need the last num_gen + 1 positions.
+      2. Full forward fallback for older versions.
+    In all cases the generated-region slice is .clone()d before the full
+    tensor goes out of scope (a plain slice is a view that would pin the
+    whole storage), then moved to CPU so multi-GB score stacks don't sit in
+    GPU memory for the row's lifetime.
+    """
+    keep = num_gen + 1
+    logits = None
+    with torch.no_grad():
+        for kwarg in ("num_logits_to_keep", "logits_to_keep"):
+            try:
+                logits = model(sequences, **{kwarg: keep}).logits[0]
+                break
+            except TypeError:
+                logits = None
+        if logits is None:
+            logits = model(sequences).logits[0]
+
+    if logits.shape[0] == keep:
+        # Only the last (num_gen + 1) positions were materialized:
+        # kept[i] is absolute position (seq_len - keep + i) = input_length - 1 + i.
+        gen_logits = logits[:num_gen].clone().cpu()
+    else:
+        # Full-sequence logits (fallback, or the kwarg was silently ignored).
+        gen_logits = logits[input_length - 1: input_length - 1 + num_gen].clone().cpu()
+    del logits
+    return gen_logits
 
 
 def generate_with_logits(
@@ -208,19 +235,36 @@ def generate_with_logits(
     generated_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
 
     meta = _detect_truncation(generated_text, generated_ids, tokenizer, max_new_tokens=max_new_tokens)
+    # Surface the decoding policy in the row data: guarded rows (base/GPT-OSS)
+    # were DECODED under different constraints than unguarded (instruct) rows,
+    # even though their scores are re-derived clean below. Cross-family
+    # comparisons of confidence metrics should condition on this flag — the
+    # comparison is otherwise model×decoding-policy, not model.
+    meta["decoding_guards_active"] = bool(guards_active)
 
     token_probs = []
     tokens = []
 
     if guards_active and generated_ids.numel() > 0:
         # Clean forward pass over the full sequence → unwarped per-token logits.
-        with torch.no_grad():
-            clean_logits = model(outputs.sequences).logits[0]  # (seq_len, vocab)
+        # This path fires for base/GPT-OSS at up-to-8k budgets, where the
+        # naive version was a multi-GB memory spike per sample:
+        #   - it materialized logits for EVERY position (prompt included);
+        #   - the per-position rows appended to raw_scores were VIEWS, which
+        #     pin the entire (seq_len, vocab) storage alive for as long as
+        #     raw_scores lives;
+        #   - everything stayed on GPU.
+        # _clean_generated_logits fixes all three: it requests only the needed
+        # positions when transformers supports it, clones the generated-region
+        # slice (freeing the full tensor), and parks the result on CPU — the
+        # only downstream consumer (answer-token entropy) is device-agnostic.
+        num_gen = generated_ids.shape[0]
+        gen_logits = _clean_generated_logits(
+            model, outputs.sequences, input_length, num_gen
+        )  # (num_gen, vocab) on CPU; row i predicts generated token i
         raw_scores = []
-        for i in range(generated_ids.shape[0]):
-            # logits at position p predict token p+1; the i-th generated token
-            # sits at absolute index (input_length + i).
-            row = clean_logits[input_length + i - 1]
+        for i in range(num_gen):
+            row = gen_logits[i]
             raw_scores.append(row.unsqueeze(0))  # keep (1, vocab) shape
             probs = torch.softmax(row.float(), dim=-1)
             token_id = generated_ids[i].item()
@@ -239,22 +283,137 @@ def generate_with_logits(
     return generated_text, token_probs, tokens, raw_scores, meta
 
 
+def generate_with_logits_batched(
+    model,
+    tokenizer,
+    prompts: List[str],
+    max_new_tokens: int = MAX_NEW_TOKENS,
+    batch_size: int = 8,
+) -> List[Tuple[str, List[float], List[str], list, Dict]]:
+    """
+    Batched greedy version of generate_with_logits.
+
+    Decodes `prompts` in left-padded chunks of `batch_size` and returns one
+    (generated_text, token_probs, tokens, raw_scores, meta) tuple per prompt —
+    the exact same contract as generate_with_logits, so callers can swap
+    serial/batched freely.
+
+    Correctness notes:
+      - Left padding aligns every sample's generated tokens to start at the
+        shared input_length, so outputs.scores[t][i] is sample i's t-th
+        generated step — the same indexing as the serial path.
+      - Right-side padding appended after a sample finishes is trimmed. When
+        pad_token_id == eos_token_id (common: we set pad = eos at load time),
+        the genuine terminating EOS is itself "pad-valued"; exactly one such
+        token is retained so _detect_truncation still classifies 'eos'
+        correctly.
+      - GUARDED families (base variants, GPT-OSS) fall back to the serial
+        path: their clean teacher-forced re-scoring would need position_ids
+        bookkeeping under left padding, and getting that silently wrong would
+        corrupt the very token probabilities this study measures. Instruct
+        families (the unguarded ones) get the full batching win.
+      - Greedy batched decoding is numerically equivalent to serial decoding
+        up to kernel batching effects; validate once per model with
+        smoke_test_batched.py before trusting large runs.
+    """
+    _needs_guards = (MODEL_VARIANT == "base") or (MODEL_FAMILY == "gptoss")
+    if _needs_guards:
+        return [
+            generate_with_logits(model, tokenizer, p, max_new_tokens=max_new_tokens)
+            for p in prompts
+        ]
+
+    results: List[Tuple[str, List[float], List[str], list, Dict]] = []
+    orig_padding_side = getattr(tokenizer, "padding_side", None)
+    tokenizer.padding_side = "left"
+    try:
+        for start in range(0, len(prompts), batch_size):
+            chunk = prompts[start:start + batch_size]
+            inputs = tokenizer(chunk, return_tensors="pt", padding=True).to(model.device)
+            input_length = inputs.input_ids.shape[1]
+
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=inputs.input_ids,
+                    attention_mask=inputs.attention_mask,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    return_dict_in_generate=True,
+                    output_scores=True,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                )
+
+            pad_id = tokenizer.pad_token_id
+            eos_id = tokenizer.eos_token_id
+            for i in range(len(chunk)):
+                gen = outputs.sequences[i, input_length:]
+                # Trim right-side padding appended after this sample finished.
+                if pad_id is not None and gen.numel() > 0:
+                    non_pad = (gen != pad_id).nonzero(as_tuple=True)[0]
+                    if len(non_pad) == 0:
+                        # All tokens pad-valued: if pad == eos the model
+                        # emitted EOS immediately — keep that single EOS so
+                        # finish_reason classifies as 'eos', not 'length'.
+                        end = 1 if (eos_id is not None and pad_id == eos_id) else 0
+                    else:
+                        end = int(non_pad[-1]) + 1
+                        # pad == eos: the genuine EOS is pad-valued and sits
+                        # right after the last non-pad token — keep exactly one.
+                        if eos_id is not None and pad_id == eos_id and end < gen.numel():
+                            end += 1
+                    gen = gen[:end]
+
+                generated_text = tokenizer.decode(gen, skip_special_tokens=True)
+
+                token_probs: List[float] = []
+                tokens: List[str] = []
+                raw_scores: list = []
+                for j in range(gen.numel()):
+                    step_scores = outputs.scores[j][i]
+                    raw_scores.append(step_scores.unsqueeze(0))  # keep (1, vocab)
+                    # Same softmax call as the serial unguarded path so the
+                    # two are bit-comparable.
+                    probs = torch.softmax(step_scores, dim=-1)
+                    token_id = gen[j].item()
+                    token_probs.append(probs[token_id].item())
+                    tokens.append(tokenizer.decode([token_id]))
+
+                meta = _detect_truncation(
+                    generated_text, gen, tokenizer, max_new_tokens=max_new_tokens
+                )
+                meta["decoding_guards_active"] = False
+                results.append((generated_text, token_probs, tokens, raw_scores, meta))
+    finally:
+        if orig_padding_side is not None:
+            tokenizer.padding_side = orig_padding_side
+    return results
+
+
 def compute_confidence_metrics(token_probs: List[float]) -> dict:
     """Compute various confidence metrics from token probabilities."""
     if not token_probs:
         return {
-            "min_prob": 0, 
-            "geom_mean": 0, 
+            "min_prob": 0,
+            "geom_mean": 0,
             "log_prob_sum": -float("inf"),
+            "mean_log_prob": -float("inf"),
             "mean_prob": 0,
         }
-    
+
     probs = np.array(token_probs, dtype=np.float64)
-    
+    log_probs = np.log(probs + 1e-10)
+
     return {
         "min_prob": float(np.min(probs)),
-        "geom_mean": float(np.exp(np.mean(np.log(probs + 1e-10)))),
-        "log_prob_sum": float(np.sum(np.log(probs + 1e-10))),
+        "geom_mean": float(np.exp(np.mean(log_probs))),
+        # Sum of log-probs. Monotonically decreasing in sequence length, so it
+        # confounds confidence with verbosity — do NOT use for AUROC/calibration
+        # comparisons across responses of different lengths.
+        "log_prob_sum": float(np.sum(log_probs)),
+        # Length-normalized mean log-prob (= log(geom_mean)). This is the
+        # per-token confidence signal; use THIS for cross-sample comparison.
+        "mean_log_prob": float(np.mean(log_probs)),
         "mean_prob": float(np.mean(probs)),
     }
 
@@ -286,6 +445,7 @@ def extract_answer_token_entropy(
         "top_answer_letter": None,
         "chosen_letter": None,
         "chosen_answer_raw_prob": None,
+        "answer_letter_mass": None,
     }
 
     if dataset not in MCQ_DATASETS:
@@ -376,12 +536,19 @@ def extract_answer_token_entropy(
         "top_answer_letter": top_letter,
         "chosen_letter": chosen_letter,
         "chosen_answer_raw_prob": round(chosen_answer_raw_prob, 6),
+        # Pre-renormalization probability mass on answer letters at the
+        # decision token. The entropy above is over the RENORMALIZED letter
+        # simplex, which by construction understates uncertainty whenever the
+        # model put real mass on non-letter continuations. Low mass here
+        # (e.g. < 0.5) means that row's entropy is untrustworthy — filter or
+        # down-weight on this column.
+        "answer_letter_mass": round(float(total), 6),
     }
 
 
-# Pre-compiled patterns reused across calls
+# Pre-compiled pattern reused across calls (_re_think_block now imported
+# from shared.py at the top of this file)
 _re_answer_marker = re.compile(r"[Aa]nswer\s*:", re.IGNORECASE)
-_re_think_block = re.compile(r'<think>.*?</think>', re.DOTALL)
 
 
 # Cache of letter -> {token_id, ...} mappings, keyed per (tokenizer instance, letter set).
@@ -433,30 +600,6 @@ def _get_letter_token_ids(tokenizer, valid_letters: List[str]) -> Dict[str, set]
     if cache_key not in cache:
         cache[cache_key] = _build_letter_token_ids(tokenizer, valid_letters)
     return cache[cache_key]
-
-
-def _truncate_to_first_block(response: str) -> str:
-    """
-    Cut a response after its FIRST completed Answer/Confidence/Correct block.
-
-    Base models often answer correctly and then keep generating — restating the
-    template or hallucinating new questions and answering those. Extractors that
-    scan the whole response (or take the LAST match) then grab the continuation's
-    answer/confidence or a literal "<YOUR_ANSWER>" placeholder, marking a correct
-    answer wrong. Restricting every extractor to the first block fixes that;
-    within the block last-match behaviour is preserved so genuine mid-solution
-    self-correction still works.
-    """
-    if not response:
-        return response
-    m = re.search(r'\*{0,2}[Cc]orrect\*{0,2}\s*:\s*(?:Yes|No)\b', response, re.IGNORECASE)
-    if m:
-        return response[:m.end()]
-    m2 = re.search(r'\n\s*(?:Question\s*:|Answer the following|Solution\s*:)',
-                   response, re.IGNORECASE)
-    if m2:
-        return response[:m2.start()]
-    return response
 
 
 def extract_verbalized_confidence(response: str, dataset: str) -> Optional[float]:
@@ -872,6 +1015,46 @@ def get_correct_separate_base(
     return None  # known limitation: Yes-biased for all inputs on Llama base
 
 
+def build_gen2_prompt(
+    question: str,
+    reasoning: str,
+    answer: str,
+    choices: list = None,
+) -> str:
+    """Pure builder for the Gen 2 own-work-aware self-rating prompt.
+
+    Extracted from get_gen2_confidence so (a) the rubric comes from the
+    single-sourced shared.RUBRIC_BULLETS and (b) check_prompt_golden.py can
+    render and byte-pin the prompt without a model.
+    """
+    # 3000 chars: Gen 2 is own-work-aware and benefits from seeing more detail
+    reasoning_trimmed = reasoning[:3000] if len(reasoning) > 3000 else reasoning
+    choices_text = ""
+    if choices:
+        choices_text = _format_choices(choices)
+        choices_text = f"\nAnswer choices:\n{choices_text}\n"
+
+    return f"""The following is YOUR OWN reasoning chain and final answer that YOU previously produced for the question below. This work is entirely yours.
+
+Question: {question}
+{choices_text}
+YOUR reasoning chain:
+{reasoning_trimmed}
+
+YOUR final answer: {answer}
+
+Based on YOUR reasoning chain and thought process above, how confident are you that YOUR answer is correct?
+
+Select EXACTLY ONE confidence level:
+
+{RUBRIC_BULLETS}
+
+State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
+Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
+Confidence: <1-10>
+Correct: Yes or No"""
+
+
 def get_gen2_confidence(
     model,
     tokenizer,
@@ -901,41 +1084,7 @@ def get_gen2_confidence(
     if MODEL_VARIANT == "base":
         return {"gen2_confidence": None, "gen2_correct": None, "gen2_response": ""}
 
-    # 3000 chars: Gen 2 is own-work-aware and benefits from seeing more detail
-    reasoning_trimmed = reasoning[:3000] if len(reasoning) > 3000 else reasoning
-    choices_text = ""
-    if choices:
-        choices_text = _format_choices(choices)
-        choices_text = f"\nAnswer choices:\n{choices_text}\n"
-
-    prompt = f"""The following is YOUR OWN reasoning chain and final answer that YOU previously produced for the question below. This work is entirely yours.
-
-Question: {question}
-{choices_text}
-YOUR reasoning chain:
-{reasoning_trimmed}
-
-YOUR final answer: {answer}
-
-Based on YOUR reasoning chain and thought process above, how confident are you that YOUR answer is correct?
-
-Select EXACTLY ONE confidence level:
-
-- 1 = "Almost no chance" (0-10% likely correct)
-- 2 = "Highly unlikely" (10-20% likely correct)
-- 3 = "Chances are slight" (20-30% likely correct)
-- 4 = "Unlikely" (30-40% likely correct)
-- 5 = "Less than even" (40-50% likely correct)
-- 6 = "Better than even" (50-60% likely correct)
-- 7 = "Likely" (60-70% likely correct)
-- 8 = "Very good chance" (70-80% likely correct)
-- 9 = "Highly likely" (80-90% likely correct)
-- 10 = "Almost certain" (90-100% likely correct)
-
-State if you think your answer is more likely correct than not after "Correct:" (Yes or No).
-Do NOT write any explanation. Your entire visible response must consist of ONLY these two lines:
-Confidence: <1-10>
-Correct: Yes or No"""
+    prompt = build_gen2_prompt(question, reasoning, answer, choices)
 
     from model_utils import generate_simple_response
     # Same fix as the two-pass critique: a Qwen3 thinking model spends its
@@ -998,6 +1147,65 @@ Correct: Yes
 """
 
 
+def build_two_pass_prompt(
+    question: str,
+    answer: str,
+    reasoning: str,
+    choices: list = None,
+    gen2_confidence: Optional[float] = None,
+    gen2_correct: Optional[bool] = None,
+) -> str:
+    """Pure builder for the Gen 3 blinded-critique prompt.
+
+    Extracted from get_two_pass_confidence so the rubric comes from the
+    single-sourced shared.RUBRIC_BULLETS and check_prompt_golden.py can
+    byte-pin the prompt without a model.
+    """
+    # 2000 chars: blinded reviewer gets a summary; longer would bloat the critique prompt
+    reasoning_trimmed = reasoning[:2000] if len(reasoning) > 2000 else reasoning
+    choices_text = ""
+    if choices:
+        choices_text = _format_choices(choices)
+        choices_text = f"\nAnswer choices:\n{choices_text}\n"
+
+    # When Gen 2 scores are available, include them as context so the critique can
+    # agree or push back on the self-reported confidence — without revealing authorship.
+    if gen2_confidence is not None:
+        gen2_correct_str = "Yes" if gen2_correct else ("No" if gen2_correct is not None else "unknown")
+        assigned_score_block = f"""
+The respondent also self-assessed their answer and assigned:
+  Verbalized confidence: {gen2_confidence}/10
+  More likely correct than not: {gen2_correct_str}
+"""
+    else:
+        assigned_score_block = ""
+
+    return f"""You are reviewing a solution submitted by someone else to the following problem. Your job is to check the reasoning for errors and independently assess how likely the final answer is correct.
+
+REQUIRED OUTPUT FORMAT — your response MUST end with these two lines, exactly:
+Confidence: <integer 1-10>
+Correct: <Yes or No>
+
+Question: {question}
+{choices_text}
+Submitted solution:
+{reasoning_trimmed}
+
+Final answer given: {answer}{assigned_score_block}
+Instructions:
+1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
+2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
+3. If you find errors, explain them briefly.
+4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct by selecting EXACTLY ONE of these classes:
+
+{RUBRIC_BULLETS}
+
+State if you think the answer is more likely correct than not after "Correct:" (Yes or No).
+You MUST end your response with exactly:
+Confidence: <1-10>
+Correct: Yes or No"""
+
+
 def get_two_pass_confidence(
     model,
     tokenizer,
@@ -1040,58 +1248,19 @@ def get_two_pass_confidence(
             "two_pass_was_truncated": False,
         }
 
-    # 2000 chars: blinded reviewer gets a summary; longer would bloat the critique prompt
+    # Trim/choices locals kept for the Llama-base few-shot branch below (the
+    # instruct branch's prompt is built — with the same [:2000] trim — inside
+    # build_two_pass_prompt).
     reasoning_trimmed = reasoning[:2000] if len(reasoning) > 2000 else reasoning
     choices_text = ""
     if choices:
         choices_text = _format_choices(choices)
         choices_text = f"\nAnswer choices:\n{choices_text}\n"
 
-    # When Gen 2 scores are available, include them as context so the critique can
-    # agree or push back on the self-reported confidence — without revealing authorship.
-    if gen2_confidence is not None:
-        gen2_correct_str = "Yes" if gen2_correct else ("No" if gen2_correct is not None else "unknown")
-        assigned_score_block = f"""
-The respondent also self-assessed their answer and assigned:
-  Verbalized confidence: {gen2_confidence}/10
-  More likely correct than not: {gen2_correct_str}
-"""
-    else:
-        assigned_score_block = ""
-
-    critique_prompt = f"""You are reviewing a solution submitted by someone else to the following problem. Your job is to check the reasoning for errors and independently assess how likely the final answer is correct.
-
-REQUIRED OUTPUT FORMAT — your response MUST end with these two lines, exactly:
-Confidence: <integer 1-10>
-Correct: <Yes or No>
-
-Question: {question}
-{choices_text}
-Submitted solution:
-{reasoning_trimmed}
-
-Final answer given: {answer}{assigned_score_block}
-Instructions:
-1. Re-read the solution step by step. For each step, check whether the logic and arithmetic are correct.
-2. Identify any specific errors, unsupported assumptions, or steps where the reasoning is shaky.
-3. If you find errors, explain them briefly.
-4. Based on your independent review, rate your confidence that the final answer "{answer}" is correct by selecting EXACTLY ONE of these classes:
-
-- 1 = "Almost no chance" (0-10% likely correct)
-- 2 = "Highly unlikely" (10-20% likely correct)
-- 3 = "Chances are slight" (20-30% likely correct)
-- 4 = "Unlikely" (30-40% likely correct)
-- 5 = "Less than even" (40-50% likely correct)
-- 6 = "Better than even" (50-60% likely correct)
-- 7 = "Likely" (60-70% likely correct)
-- 8 = "Very good chance" (70-80% likely correct)
-- 9 = "Highly likely" (80-90% likely correct)
-- 10 = "Almost certain" (90-100% likely correct)
-
-State if you think the answer is more likely correct than not after "Correct:" (Yes or No).
-You MUST end your response with exactly:
-Confidence: <1-10>
-Correct: Yes or No"""
+    critique_prompt = build_two_pass_prompt(
+        question, answer, reasoning, choices,
+        gen2_confidence=gen2_confidence, gen2_correct=gen2_correct,
+    )
     if MODEL_VARIANT == "instruct":
         messages = [{"role": "user", "content": critique_prompt}]
         # Qwen3 chat templates accept `enable_thinking`; pass it when we
@@ -1409,9 +1578,12 @@ if __name__ == "__main__":
 
     model_name = "Qwen/Qwen2.5-7B-Instruct"
     print(f"Loading {model_name} …")
-    tok = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    from config import MODEL_REVISIONS
+    _rev = MODEL_REVISIONS.get(model_name)
+    # Qwen2.5 is natively supported — no trust_remote_code; revision pinned.
+    tok = AutoTokenizer.from_pretrained(model_name, revision=_rev)
     mdl = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=torch.float16, device_map="auto", trust_remote_code=True
+        model_name, torch_dtype=torch.float16, device_map="auto", revision=_rev
     )
 
     question = (
