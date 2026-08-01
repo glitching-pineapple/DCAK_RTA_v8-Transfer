@@ -62,7 +62,6 @@ check("seq_confidence_mean is the MEAN", abs(r["seq_confidence_mean"] - exp_mean
 check("seq_log_prob_sum is the SUM", abs(r["seq_log_prob_sum"] - exp_sum) < 1e-12)
 check("last-token mean == log(last prob)",
       abs(r["seq_confidence_mean_last_token"] - math.log(0.5 + 1e-10)) < 1e-12)
-check("guards flag surfaced", r["decoding_guards_active"] is False)
 check("not forced", r["was_forced"] is False)
 
 # ---- Case 2: two-pass fails -> falls back to single_pass, source recorded ----

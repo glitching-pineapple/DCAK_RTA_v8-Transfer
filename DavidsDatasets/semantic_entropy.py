@@ -395,9 +395,70 @@ def sample_answers_with_probs(
     return answers, log_probs, lengths
 
 
-# NOTE: a convenience wrapper `compute_semantic_entropy_for_sample` used to
-# live here. It was dead code with a guaranteed TypeError (it passed a
-# `reasonings=` kwarg that compute_semantic_entropy never accepted) and had
-# zero callers — the live pipeline uses
-# evaluation.compute_semantic_entropy_for_question instead. Removed; see git
-# history if you need the sampling+extraction skeleton back.
+def compute_semantic_entropy_for_sample(
+    model,
+    tokenizer,
+    semantic_calculator: SemanticEntropyCalculator,
+    question: str,
+    prompt: str,
+    num_samples: int = 10,
+    temperature: float = 0.5,
+    max_new_tokens: int = 256,
+    answer_extractor=None,
+    reasoning_extractor=None,
+) -> Dict:
+    """
+    Convenience function to compute semantic entropy for a single question.
+
+    NOTE (kept per owner decision, 2026-07-31): this function has no callers
+    in the live pipeline (evaluation.py uses its own
+    compute_semantic_entropy_for_question). Known issue if you ever DO call
+    it: it passes `reasonings=` to compute_semantic_entropy, which does not
+    accept that parameter — wire it through (or use cluster_by_reasoning
+    directly) before first use.
+
+    If ``reasoning_extractor`` is provided it is called on each raw model
+    output to obtain a reasoning string.  Those strings are then used as
+    cluster identifiers (answers that share the same reasoning chain are
+    placed in the same cluster), bypassing the NLI model entirely.
+
+    If ``reasoning_extractor`` is None the calculator falls back to the
+    standard NLI-based semantic clustering.
+    """
+    # Sample multiple answers
+    answers, log_probs, lengths = sample_answers_with_probs(
+        model, tokenizer, prompt,
+        num_samples=num_samples,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+    )
+
+    # Extract just the answer portion if extractor provided
+    if answer_extractor:
+        extracted_answers = [answer_extractor(a) or a for a in answers]
+    else:
+        extracted_answers = answers
+
+    # Extract reasoning chains if extractor provided
+    reasonings = None
+    if reasoning_extractor:
+        reasonings = [reasoning_extractor(a) or a for a in answers]
+
+    # Compute semantic entropy
+    se_results = semantic_calculator.compute_semantic_entropy(
+        context=question,
+        answers=extracted_answers,
+        log_probs=log_probs,
+        length_normalize=True,
+        answer_lengths=lengths,
+        reasonings=reasonings,
+    )
+
+    return {
+        **se_results,
+        "sampled_answers": answers,
+        "extracted_answers": extracted_answers,
+        "reasonings": reasonings,
+        "log_probs": log_probs,
+        "answer_lengths": lengths,
+    }

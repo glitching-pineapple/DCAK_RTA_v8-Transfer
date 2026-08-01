@@ -383,12 +383,6 @@ def evaluate_sample(
         # itself was cut off, not just the critique)
         "main_pass_finish_reason": main_meta["finish_reason"],
         "main_pass_was_truncated": main_meta["was_truncated"],
-        # True when the main generation ran under anti-loop decoding guards
-        # (base models / GPT-OSS: ngram ban, stop strings). The logit metrics
-        # are re-derived from a clean forward pass, but the TEXT itself was
-        # decoded under different constraints — condition cross-family
-        # comparisons on this flag.
-        "decoding_guards_active": main_meta.get("decoding_guards_active"),
         "was_forced": was_forced,
         "forced_answer_response": forced_response,
 
